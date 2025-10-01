@@ -1,0 +1,74 @@
+@import '@aws-amplify/ui-react/styles.css';
+
+/* Add these styles to your existing global.css file */
+
+/* 
+ * Styles for custom React Flow connection handles in BaseStepNode.
+ * This setup allows for dynamic visibility and size changes on hover.
+ */
+
+/* The main wrapper for each handle, positioned absolutely on the node. */
+/* It's hidden by default and becomes visible when the node is hovered or the handle is connected. */
+.handle-wrapper {
+  position: absolute;
+  opacity: 0;
+  transition: opacity 150ms ease-in-out;
+  /* Make the wrapper large enough to be easily hovered */
+  width: 24px;
+  height: 24px;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+  pointer-events: none; /* Pass clicks through unless a handle is hit */
+}
+
+/* When the wrapper is visible, it fades in. */
+.handle-wrapper.visible {
+  opacity: 1;
+  pointer-events: all;
+}
+
+/* The visible circle part of the handle. */
+.handle-circle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(1);
+  width: 9px; /* Small default size */
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid #555;
+  background: #2c2e33;
+  transition: transform 150ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* When the wrapper is hovered, scale up the circle to its normal size. */
+.handle-wrapper:hover .handle-circle {
+  transform: translate(-50%, -50%) scale(2); /* Doubles the size to 18px */
+}
+
+/* Style for a handle that is part of an active connection. */
+.handle-circle.connected {
+  border-color: #228be6; /* Mantine's blue[6] */
+  background: #33465f;
+}
+
+/* The transparent grab area (the 'source' handle). */
+/* It's larger than the visible circle to make it easy to start dragging a new edge. */
+.handle-grab-area {
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border-radius: 50%;
+  cursor: crosshair;
+}
+
+/* Shake animation for the editor panel */
+@keyframes shake {
+  10%, 90% { transform: translate3d(-1px, 0, 0); }
+  20%, 80% { transform: translate3d(2px, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+  40%, 60% { transform: translate3d(4px, 0, 0); }
+}
+.shake-animation {
+  animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+}

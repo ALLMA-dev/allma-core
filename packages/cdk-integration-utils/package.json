@@ -1,0 +1,36 @@
+{
+  "name": "@allma/cdk-integration-utils",
+  "version": "1.0.0",
+  "description": "Shared CDK constructs and utilities for integrating with the ALLMA platform.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "clean": "rimraf dist tsconfig.tsbuildinfo",
+    "build": "npm run clean && tsc",
+    "dev": "tsc --watch",
+    "lint": "eslint ."
+  },
+  "keywords": [
+    "allma",
+    "cdk",
+    "constructs"
+  ],
+  "author": "@webjema",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@allma/core-types": "1.0.0",
+    "aws-cdk-lib": "^2.200.1",
+    "constructs": "^10.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.30",
+    "eslint": "^9.8.0",
+    "typescript-eslint": "^8.0.0",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.9.3"
+  }
+}

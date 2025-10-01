@@ -1,0 +1,166 @@
+---
+title: Contribution Workflow Guide
+sidebar_position: 1
+---
+
+# Contribution Workflow Guide
+
+Welcome, and thank you for your interest in contributing to Allma! This guide outlines the standard Git and GitHub workflow we use for all code contributions. Following these steps ensures a smooth and efficient process for both you and our maintainers.
+
+For a hands-on tutorial that walks you through this entire process with a real code example, see our **[Contribution Tutorial](./contribution-tutorial)**.
+
+## Developing Admin Shell Plugins
+
+The Allma Admin Shell is extensible. You can create your own plugins to add new pages, navigation items, and even widgets to the header. To facilitate local development, the `@allma/admin-shell` package includes a development harness.
+
+### What is the Harness?
+
+The harness is a minimal Vite application that boots up the Admin Shell and loads a set of mock plugins directly from `packages/admin-shell/src/harness/index.tsx`. This allows you to develop and test your plugin in a live environment without needing to run the full Allma backend.
+
+### Running the Harness
+
+1.  **Navigate to the monorepo root.**
+2.  Run the following command:
+    ```bash
+    npm run dev:harness --workspace=@allma/admin-shell
+    ```
+    This will start a local development server, typically on `http://localhost:5173`.
+
+### Linking and Testing Your Plugin
+
+1.  **Create Your Plugin Package:** Develop your plugin as a separate npm package. It should export a default object that conforms to the `AllmaPlugin` type.
+
+2.  **Link Your Package:** Use `npm link` to create a symbolic link from your plugin package to the monorepo's `node_modules`.
+    ```bash
+    # In your plugin's directory
+    npm link
+
+    # In the allma-core monorepo root
+    npm link your-plugin-package-name
+    ```
+
+3.  **Add Your Plugin to the Harness:**
+    Open `packages/admin-shell/src/harness/index.tsx`. Import your linked plugin and add it to the `plugins` array within the `createAllmaAdminApp` call.
+
+    ```typescript title="packages/admin-shell/src/harness/index.tsx"
+    import { createAllmaAdminApp } from '../createAllmaAdminApp';
+    // ... other imports
+    import { myAwesomePlugin } from 'your-plugin-package-name'; // 1. Import your plugin
+
+    // ... mock plugins
+
+    createAllmaAdminApp({
+      plugins: [
+        dashboardPlugin,
+        bugReportPlugin,
+        myAwesomePlugin, // 2. Add your plugin here
+      ],
+    });
+    ```
+
+The development server will hot-reload, and you should see your plugin's routes and navigation items appear in the Admin Shell.
+
+## Our Guiding Principles
+
+-   **Transparency:** All work is tracked in public GitHub Issues.
+-   **Clean History:** We use a rebase workflow to maintain a clean, linear project history.
+-   **Automation:** We rely on Conventional Commits and CI checks to automate versioning and ensure code quality.
+
+## The Full Contribution Workflow: From Issue to Merge
+
+### Step 0: Find and Claim an Issue
+
+All work should be tracked in a GitHub issue.
+
+1.  **Find an Issue:** Browse our [GitHub Issues](https://github.com/your-org/allma/issues). Look for labels like `good first issue` or `help wanted`.
+2.  **Claim it:** Leave a comment on the issue to let everyone know you're working on it (e.g., "I'd like to take this one!").
+
+### Step 1: Fork and Clone the Repository
+
+You will work on your own copy (a "fork") of the Allma repository.
+
+1.  **Fork:** Go to the [Allma repository](https://github.com/your-org/allma) on GitHub and click the "Fork" button.
+2.  **Clone:** Clone your forked repository to your local machine.
+    ```bash
+    git clone https://github.com/YOUR_USERNAME/allma.git
+    cd allma
+    ```
+
+### Step 2: Create a Feature Branch
+
+Never commit directly to `main`. Always create a new branch for each distinct piece of work.
+
+-   **Branch Naming Convention:**
+    -   Features: `feature/short-description`
+    -   Bug Fixes: `fix/issue-123-short-description`
+
+Create and switch to your new branch:
+```bash
+git checkout -b feature/add-new-module
+```
+
+### Step 3: Commit Your Work with Meaning
+
+We use **[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)**. This is a strict requirement.
+
+-   **`feat`**: A new feature for the user.
+-   **`fix`**: A bug fix for the user.
+-   **`docs`**: Documentation changes.
+-   **`style`**: Code style changes (formatting, etc.).
+-   **`refactor`**: Code changes that neither fix a bug nor add a feature.
+-   **`test`**: Adding or correcting tests.
+-   **`chore`**: Build process or tooling changes.
+
+```bash
+# Stage your changes
+git add .
+
+# Commit with a conventional message
+git commit -m "feat(logic): add string case converter module"
+```
+
+### Step 4: Keep Your Branch in Sync (Important!)
+
+To avoid merge conflicts, regularly update your branch with the latest changes from the main Allma repository using `rebase`.
+
+1.  **Add the "Upstream" Remote (One-time setup):**
+    ```bash
+    git remote add upstream https://github.com/your-org/allma.git
+    ```
+2.  **Fetch and Rebase:** Before you push, and periodically as you work, run these commands:
+    ```bash
+    git fetch upstream
+    git rebase upstream/main
+    ```
+    If you encounter conflicts, Git will guide you through resolving them. A clean rebase makes your PR much easier to merge.
+
+### Step 5: Push Your Branch
+
+Push your committed changes to your forked repository on GitHub.
+
+```bash
+# The -f flag is needed if you rebased an already-pushed branch
+git push -f origin feature/add-new-module
+```
+
+### Step 6: Open a Pull Request
+
+You're ready to propose your changes to the main project!
+
+1.  Go to your fork on GitHub. You should see a banner to create a Pull Request.
+2.  **Set the Base:** Ensure the PR is targeting the `your-org/allma` `main` branch.
+3.  **Write a Great PR Description:**
+    -   Use a clear, conventional title.
+    -   Fill out the PR template. Explain the *what* and the *why*.
+    -   **Link the Issue:** Use a keyword to link your PR to the issue it resolves. This is critical for our workflow!
+        ```
+        Closes #123
+        ```
+
+### Step 7: The Review Process
+
+-   **Automated Checks:** Our CI pipeline will run automatically. Ensure all checks pass.
+-   **Maintainer Review:** A maintainer will review your code. They may request changes—this is a normal and healthy part of collaboration!
+-   **Pushing Updates:** To update your PR, simply commit and push to the *same branch* on your fork. The Pull Request will update automatically. You may need to force-push if you rebase again.
+
+Once your PR is approved and all checks pass, a maintainer will merge it. Congratulations, and thank you for your contribution! 🎉

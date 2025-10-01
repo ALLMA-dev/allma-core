@@ -1,0 +1,9 @@
+{
+    "label": "MESSAGING Modules",
+    "position": 8,
+    "link": {
+        "type": "generated-index",
+        "title": "MESSAGING Modules",
+        "description": "Modules for the MESSAGING step type, used for sending asynchronous messages to systems like SQS and SNS."
+    }
+}

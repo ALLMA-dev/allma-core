@@ -1,0 +1,31 @@
+{
+  "name": "@allma/core-cdk",
+  "version": "1.0.0",
+  "description": "Core AWS CDK constructs for deploying the Allma platform.",
+  "main": "dist/lib/allma-stack.js",
+  "types": "dist/lib/allma-stack.d.ts",
+  "type": "module",
+  "files": [
+    "dist/",
+    "bin/",
+    "lib/",
+    "config/"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "cdk": "cdk",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@allma/core-types": "^1.0.0",
+    "aws-cdk-lib": "^2.130.0",
+    "constructs": "^10.3.0"
+  },
+  "devDependencies": {
+    "aws-cdk": "^2.130.0",
+    "typescript": "^5.9.3",
+    "ts-node": "^10.9.2",
+    "eslint": "^9.8.0",
+    "typescript-eslint": "^8.0.0"
+  }
+}

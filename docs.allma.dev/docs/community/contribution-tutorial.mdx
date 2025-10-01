@@ -1,0 +1,211 @@
+---
+title: 'Tutorial: Your First Contribution'
+sidebar_position: 2
+---
+
+# Tutorial: Your First Contribution
+
+The best way to learn how to contribute is by doing. This tutorial will guide you through the process of adding a new, simple feature to Allma from start to finish. It's a practical application of the workflow described in our main **[Contribution Guide](./contribution-guide)**.
+
+### The Goal
+
+We will add a new `DATA_TRANSFORMATION` system module called **`string-case-converter`**. This module will take a string as input and convert it to either `UPPERCASE` or `lowercase`.
+
+### Prerequisites
+
+-   You have forked and cloned the Allma repository.
+-   You have run `npm install` at the root of the project.
+-   You have created a feature branch (e.g., `git checkout -b feature/add-case-converter-module`).
+-   You have a running `dev` deployment of Allma in your AWS account to test the final result.
+
+---
+
+### Step 1: Define the Contract in `allma-types`
+
+Every module starts with a contract. This defines its configuration using **Zod** for type safety and runtime validation.
+
+1.  **Create the file:**
+    `packages/allma-core/types/src/steps/data-transformation/string-case-converter.ts`
+
+2.  **Add the schema:**
+    This schema defines the "API" for our module. Anyone using it must provide these fields.
+
+    ```typescript title="packages/allma-core/types/src/steps/data-transformation/string-case-converter.ts"
+    import { z } from 'zod';
+
+    // The configuration schema for our module's input
+    export const StringCaseConverterConfigSchema = z.object({
+      stringToConvert: z.string().min(1, 'stringToConvert is required.'),
+      case: z.enum(['UPPERCASE', 'lowercase']),
+    });
+
+    // We can infer the TypeScript type directly from the schema
+    export type StringCaseConverterConfig = z.infer<typeof StringCaseConverterConfigSchema>;
+    ```
+
+### Step 2: Implement the Logic in `allma-app-logic`
+
+Now, let's write the core business logic. This function is a standard `StepHandler` that is completely decoupled from AWS Lambda or other infrastructure concerns.
+
+1.  **Create the file:**
+    `packages/allma-core/logic/src/allma-core/data-transformers/string-case-converter.ts`
+
+2.  **Add the handler logic:**
+
+    ```typescript title="packages/allma-core/logic/src/allma-core/data-transformers/string-case-converter.ts"
+    import { StringCaseConverterConfigSchema, StepHandler, StepHandlerOutput } from '@allma/core-types';
+
+    export const executeStringCaseConverter: StepHandler = async (
+      stepDefinition,
+      stepInput,
+      runtimeState,
+    ): Promise<StepHandlerOutput> => {
+      // The `stepInput` is the fully resolved input for our module.
+      // We validate it against the schema we created.
+      const validation = StringCaseConverterConfigSchema.safeParse(stepInput);
+      if (!validation.success) {
+        throw new Error(`Invalid input for string-case-converter: ${validation.error.message}`);
+      }
+
+      const { stringToConvert, case: targetCase } = validation.data;
+
+      const result = targetCase === 'UPPERCASE'
+        ? stringToConvert.toUpperCase()
+        : stringToConvert.toLowerCase();
+
+      // The handler returns an object that will be mapped into the flow's context.
+      return {
+        outputData: {
+          result: result,
+        },
+      };
+    };
+    ```
+
+### Step 3: Write a Test (Your Development Harness)
+
+This is the most important step for a fast development loop. Your test file acts as a local "harness" that simulates the Allma runtime, allowing you to test your logic in milliseconds.
+
+1.  **Create the test file:**
+    `packages/allma-core/logic/src/allma-core/data-transformers/__tests__/string-case-converter.test.ts`
+
+2.  **Add the tests:**
+
+    ```typescript title="packages/allma-core/logic/src/allma-core/data-transformers/__tests__/string-case-converter.test.ts"
+    import { executeStringCaseConverter } from '../string-case-converter';
+    import { StepType } from '@allma/core-types';
+
+    describe('String Case Converter Module', () => {
+      // Mock the standard inputs that every StepHandler receives
+      const mockStepDef: any = { id: 'test-def', stepType: StepType.DATA_TRANSFORMATION };
+      const mockRuntimeState: any = { flowExecutionId: 'test-exec' };
+
+      it('should convert a string to UPPERCASE', async () => {
+        // ARRANGE: Define the input for this specific test case
+        const stepInput = {
+          stringToConvert: 'Hello World',
+          case: 'UPPERCASE',
+        };
+
+        // ACT: Execute the handler logic directly
+        const { outputData } = await executeStringCaseConverter(mockStepDef, stepInput, mockRuntimeState);
+
+        // ASSERT: Verify the output is correct
+        expect(outputData.result).toBe('HELLO WORLD');
+      });
+
+      it('should convert a string to lowercase', async () => {
+        const stepInput = {
+          stringToConvert: 'Hello World',
+          case: 'lowercase',
+        };
+        const { outputData } = await executeStringCaseConverter(mockStepDef, stepInput, mockRuntimeState);
+        expect(outputData.result).toBe('hello world');
+      });
+    });
+    ```
+
+3.  **Run the tests:** Navigate to the `logic` package and run its test script.
+
+    ```bash
+    cd packages/allma-core/logic
+    npm test
+    ```
+    You should see your tests pass instantly!
+
+### Step 4: Integrate the Module into Allma
+
+Now that the logic is working and tested, we need to make the Allma platform aware of it.
+
+1.  **Add a System Identifier:** First, give your module a unique identifier.
+    Modify `packages/allma-core/types/src/steps/system-modules.ts`.
+
+    ```typescript title="packages/allma-core/types/src/steps/system-modules.ts"
+    // Import the schema you created
+    import { StringCaseConverterConfigSchema } from './data-transformation/string-case-converter.js';
+    
+    // Add a new entry to the enum
+    export enum SystemModuleIdentifiers {
+      // ... existing identifiers
+      STRING_CASE_CONVERTER = 'system/string-case-converter',
+    }
+
+    // Add a new definition to the SYSTEM_STEP_DEFINITIONS array
+    export const SYSTEM_STEP_DEFINITIONS = [
+      // ... existing definitions
+      {
+        id: SystemModuleIdentifiers.STRING_CASE_CONVERTER,
+        name: 'String Case Converter',
+        description: 'Converts a string to uppercase or lowercase.',
+        stepType: StepType.DATA_TRANSFORMATION,
+        moduleIdentifier: SystemModuleIdentifiers.STRING_CASE_CONVERTER,
+        customConfigSchema: StringCaseConverterConfigSchema,
+      },
+    ];
+    ```
+
+2.  **Register the Handler:** Now, connect that identifier to your handler function.
+    Modify `packages/allma-core/logic/src/allma-core/step-handlers/data-transformation-handler.ts`.
+
+    ```typescript title="packages/allma-core/logic/src/allma-core/step-handlers/data-transformation-handler.ts"
+    // Import your new handler function
+    import { executeStringCaseConverter } from '../data-transformers/string-case-converter.js';
+    
+    // ...
+    
+    // Add your new module to the registry
+    const dataTransformationModuleRegistry = SYSTEM_STEP_DEFINITIONS
+      .filter(def => def.stepType === StepType.DATA_TRANSFORMATION)
+      .reduce((acc, def) => {
+        switch (def.moduleIdentifier) {
+          // ... existing cases
+          case SystemModuleIdentifiers.STRING_CASE_CONVERTER:
+            acc[def.moduleIdentifier] = executeStringCaseConverter;
+            break;
+        }
+        return acc;
+      }, {} as Record<string, StepHandler>);
+    ```
+
+### Step 5: Deploy and Verify
+
+Your module is now fully integrated into the Allma platform!
+
+1.  **Build All Packages:** From the root of the monorepo, run the build script.
+    ```bash
+    npm run build
+    ```
+
+2.  **Deploy to AWS:** This command will deploy all the updated Lambda functions and infrastructure.
+    ```bash
+    npx cdk deploy --all -c stage=dev
+    ```
+
+3.  **Test in the UI:** After the deployment completes, log in to your Allma Admin Panel.
+    -   Create a new Flow.
+    -   Add a new step and select the `DATA_TRANSFORMATION` type.
+    -   In the "Module" dropdown, you should now see **"String Case Converter"**!
+
+You have successfully added a new feature to Allma. The next steps would be to follow our **[Contribution Workflow Guide](./contribution-guide)** to commit your changes, push your branch, and open a Pull Request.
+
+Thank you for contributing!

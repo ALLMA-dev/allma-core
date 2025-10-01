@@ -1,0 +1,11 @@
+{
+    "label": "Community",
+    "position": 4,
+    "collapsible": true,
+    "collapsed": true,
+    "link": {
+      "type": "generated-index",
+      "title": "Community & Contributing",
+      "description": "Learn how to contribute to the Allma project, understand its architecture, and get involved with the community."
+    }
+}

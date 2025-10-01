@@ -1,0 +1,31 @@
+{
+  "name": "allma-app-logic",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "rimraf ./dist && tsc && tsc-alias",
+    "postbuild": "rimraf ../core-cdk/dist-logic && copyfiles -u 1 \"src/**/*\" ../core-cdk/dist-logic",
+    "test": "vitest run",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@allma/core-sdk": "^1.0.0",
+    "@allma/core-types": "^1.0.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.614.0",
+    "@aws-sdk/client-dynamodb": "^3.500.0",
+    "@langchain/google-vertexai": "^1.0.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.142",
+    "copyfiles": "^2.4.1",
+    "eslint": "^9.8.0",
+    "rimraf": "^5.0.5",
+    "tsc-alias": "^1.8.8",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^1.2.0"
+  }
+}

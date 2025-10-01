@@ -1,0 +1,46 @@
+/**
+ * Defines the deployment stages for the application.
+ */
+export enum Stage {
+    DEV = 'dev',
+    BETA = 'beta',
+    PROD = 'prod',
+}
+
+/**
+ * A centralized constant object for environment variable names used across the system.
+ * This helps prevent typos and provides a single source of truth.
+ */
+export const ENV_VAR_NAMES = {
+    // Table and Bucket Names
+    ALLMA_CONFIG_TABLE_NAME: "ALLMA_CONFIG_TABLE_NAME",
+    ALLMA_FLOW_EXECUTION_LOG_TABLE_NAME: "ALLMA_FLOW_EXECUTION_LOG_TABLE_NAME",
+    ALLMA_EXECUTION_TRACES_BUCKET_NAME: "ALLMA_EXECUTION_TRACES_BUCKET_NAME",
+    ALLMA_CONTINUATION_TABLE_NAME: "ALLMA_CONTINUATION_TABLE_NAME",
+
+    // SQS Queues and SNS Topics
+    ALLMA_FLOW_START_REQUEST_QUEUE_URL: "ALLMA_FLOW_START_REQUEST_QUEUE_URL",
+    ALLMA_FLOW_OUTPUT_TOPIC_ARN: "ALLMA_FLOW_OUTPUT_TOPIC_ARN",
+
+    // State Machine ARNs
+    ALLMA_STATE_MACHINE_ARN: "ALLMA_STATE_MACHINE_ARN",
+    ALLMA_BRANCH_STATE_MACHINE_ARN: "ALLMA_BRANCH_STATE_MACHINE_ARN",
+    ALLMA_POLLING_STATE_MACHINE_ARN: "ALLMA_POLLING_STATE_MACHINE_ARN",
+
+    // Lambda Function ARNs and URLs
+    ITERATIVE_STEP_PROCESSOR_LAMBDA_ARN: "ITERATIVE_STEP_PROCESSOR_LAMBDA_ARN",
+    CRAWLER_WORKER_LAMBDA_ARN: "CRAWLER_WORKER_LAMBDA_ARN",
+    ALLMA_RESUME_API_URL: "ALLMA_RESUME_API_URL",
+     
+    // General Configuration
+    STAGE_NAME: "STAGE_NAME",
+    LOG_LEVEL: "LOG_LEVEL",
+
+    // Secrets and Credentials
+    AI_API_KEY_SECRET_ARN: "AI_API_KEY_SECRET_ARN",
+    COGNITO_USER_POOL_ID: "COGNITO_USER_POOL_ID", 
+
+    // System Limits and Behavior Configs
+    LOG_RETENTION_DAYS: "LOG_RETENTION_DAYS",
+    MAX_CONTEXT_DATA_SIZE_BYTES: "MAX_CONTEXT_DATA_SIZE_BYTES",
+} as const;

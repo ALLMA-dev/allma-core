@@ -1,0 +1,119 @@
+---
+title: Maintainer Guide
+sidebar_position: 4
+---
+
+# The Allma Maintainer's Guide
+
+This document outlines the responsibilities, workflow, and best practices for maintainers of the Allma project. Its purpose is to ensure that we review contributions consistently, maintain a high bar for quality, and foster a welcoming and collaborative community.
+
+## The Maintainer's Pledge
+
+As a maintainer of Allma, you are a steward of the project and a mentor to its contributors. Your primary goals are:
+
+1.  **Guardian of Quality:** Uphold the project's coding standards, architectural principles, and testing requirements.
+2.  **Enabler of Contributions:** Provide timely, constructive, and respectful feedback to help contributors get their work merged.
+3.  **Community Builder:** Thank contributors for their effort and make them feel valued, regardless of whether their contribution is merged.
+
+## The Pull Request Review Workflow
+
+We follow a structured process to ensure every Pull Request (PR) is reviewed thoroughly and fairly.
+
+### Step 1: Initial Triage (The First 5 Minutes)
+
+Before diving into the code, perform a quick triage to ensure the PR is ready for review.
+
+1.  **Check the Title & Description:**
+    -   Does the title follow the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) standard? (e.g., `feat(logic): ...`, `fix(api): ...`)
+    -   Is the description clear? Does it explain the "what" and the "why"?
+    -   **Crucially, does it link to a GitHub Issue using a keyword like `Closes #123`?** If not, ask the contributor to add it. PRs without a linked issue should not be reviewed.
+
+2.  **Check the CI/CD Status:**
+    -   Look for the automated checks at the bottom of the PR. Are they all green?
+    -   If a check is failing (e.g., Lint, Tests), do not proceed with a full review. Ask the contributor to fix the failing checks first. This respects everyone's time.
+    -   *Example Comment:* "Thanks for the PR! It looks like the linting check is failing. Could you please run `npm run lint` locally and push the changes? Let me know when it's ready for another look!"
+
+3.  **Assign Yourself:** If the PR is ready for review, assign it to yourself to signal to other maintainers that it's being handled.
+
+### Step 2: The Code Review Checklist
+
+This is the deep dive. Pull the contributor's branch down to test it locally. Review the code against our core principles.
+
+```bash
+# Example of checking out a contributor's PR locally
+git fetch upstream pull/PR_NUMBER/head:BRANCH_NAME
+git checkout BRANCH_NAME
+```
+
+#### ✅ Correctness & Logic
+-   Does the code solve the problem described in the linked issue?
+-   Does it introduce any new bugs or regressions?
+-   Are there any obvious edge cases that have been missed? (e.g., null inputs, empty arrays, race conditions).
+
+#### ✅ Architecture & Design
+-   Does the code adhere to our "Developer-as-Consumer" pattern? Is the core logic isolated and testable?
+-   Does it follow our SOLID and DRY principles? Is there duplicated code that should be refactored into the `@allma/core-sdk`?
+-   If it adds new infrastructure, does it follow the Principle of Least Privilege in the `allma-cdk` package?
+
+#### ✅ Readability & Style
+-   Is the code clear, concise, and easy to understand?
+-   Are variable and function names meaningful?
+-   Are comments used to explain the *why*, not the *what*?
+-   Does it conform to our ESLint and Prettier rules? (The CI check should catch this, but it's good to double-check).
+
+#### ✅ Testing
+-   Does the PR include new tests for the added feature or bug fix?
+-   Do the tests cover the important success paths and failure cases?
+-   Are all existing tests still passing?
+
+#### ✅ Documentation
+-   If the change affects users or other developers, has the corresponding documentation been updated? (e.g., new step module, API endpoint change).
+-   Are public functions and complex types documented with JSDoc comments?
+
+### Step 3: Providing Feedback
+
+How we communicate is as important as the feedback itself.
+
+-   **Be Kind and Constructive:** Start with a positive comment. Thank the contributor. Frame your feedback as suggestions or questions.
+    -   **Good:** "This is a great start! I'm wondering if we could handle the case where the input array is empty. What do you think about adding a check at the beginning of the function?"
+    -   **Bad:** "You forgot to handle empty arrays. This will break."
+
+-   **Use GitHub's Tools:**
+    -   **Suggestions:** For small changes, use the "Suggest change" feature to provide a ready-to-commit fix.
+    -   **Batch Comments:** Group your comments and submit them as a single review to avoid overwhelming the contributor with notifications.
+
+-   **Be Clear About Requirements:** Prefix your comments to distinguish between mandatory changes and optional suggestions.
+    -   `[Blocking]:` A required change that must be addressed before the PR can be merged.
+    -   `[Suggestion]:` An optional improvement or idea for future consideration.
+    -   `[Question]:` A request for clarification.
+    -   `[Nitpick]:` A minor stylistic preference that isn't blocking.
+
+### Step 4: Approving and Merging
+
+1.  **Approval:** A PR should have at least **one approval** from a maintainer other than the author. For significant architectural changes, aim for two approvals.
+
+2.  **Merge Strategy:** Always use the **"Squash and merge"** option. This combines all of the PR's commits into a single, clean commit on the `main` branch.
+
+3.  **The Squash Commit Message:** This is critical for our release process.
+    -   **Title:** The title should be the single, perfect Conventional Commit message that summarizes the entire PR. You may need to edit the auto-generated title.
+        -   *Example:* `feat(logic): add string-case-converter module`
+    -   **Body:** The body should contain:
+        -   A brief explanation of the changes.
+        -   A reference to the original PR number (e.g., `(pull request #42)`).
+        -   The `Closes #123` keyword to automatically close the linked issue.
+
+    ```
+    feat(logic): add string-case-converter module
+
+    This commit introduces a new DATA_TRANSFORMATION module that can
+    convert a given string to either UPPERCASE or lowercase. It includes
+    the core logic, schema, tests, and integration with the module registry.
+
+    (pull request #42)
+    Closes #38
+    ```
+
+### Step 5: Post-Merge Celebration
+
+-   **Thank the Contributor:** Leave a final comment on the merged PR thanking the contributor for their work (e.g., "Thanks for the great contribution, @username! 🎉").
+-   **Delete the Branch:** GitHub will prompt you to delete the source branch after merging. Do it to keep the repository clean.

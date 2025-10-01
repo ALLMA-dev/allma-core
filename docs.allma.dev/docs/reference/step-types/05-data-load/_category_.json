@@ -1,0 +1,9 @@
+{
+    "label": "DATA_LOAD Modules",
+    "position": 5,
+    "link": {
+        "type": "generated-index",
+        "title": "DATA_LOAD Modules",
+        "description": "Modules for the DATA_LOAD step type, used for fetching data from external sources like S3 and DynamoDB."
+    }
+}

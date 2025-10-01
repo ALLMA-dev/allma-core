@@ -1,0 +1,31 @@
+{
+  "name": "@allma/core-sdk",
+  "version": "1.0.0",
+  "description": "Core SDK for ALLMA platform interactions.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@allma/core-types": "^1.0.0",
+    "@aws-sdk/client-s3": "^3.500.0",
+    "@aws-sdk/client-secrets-manager": "^3.500.0",
+    "@aws-sdk/client-sns": "^3.500.0",
+    "@aws-sdk/client-sqs": "^3.500.0",
+    "@aws-sdk/client-ssm": "^3.500.0",
+    "@aws-sdk/client-sfn": "^3.500.0",
+    "@aws-sdk/lib-dynamodb": "^3.500.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "eslint": "^9.8.0",
+    "typescript-eslint": "^8.0.0"
+  }
+}

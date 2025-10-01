@@ -1,0 +1,44 @@
+{
+  "name": "allma-core",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "main": "index.js",
+  "packageManager": "npm@11.6.1",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run build --watch",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "clean": "npm run clean -ws --if-present && rm -rf node_modules package-lock.json",
+    "deploy:dev": "npm run build && npx cdk deploy --all -c stage=dev -c deployAdminShell=true -c deployDocs=true --require-approval never"
+  },
+  "keywords": [],
+  "author": "@webjema",
+  "license": "ISC",
+  "workspaces": [
+    "packages/*",
+    "examples/basic-deployment",
+    "examples/customer-deployment"
+  ],
+  "dependencies": {
+    "@aws-sdk/client-lambda": "^3.913.0",
+    "@google/genai": "^1.25.0",
+    "fs": "0.0.1-security",
+    "js-tiktoken": "^1.0.21",
+    "jsonpath-plus": "^10.3.0",
+    "jsonrepair": "^3.13.1",
+    "path": "^0.12.7",
+    "use-debounce": "^10.0.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.30",
+    "eslint": "^9.8.0",
+    "rimraf": "^6.0.1",
+    "tsc-alias": "^1.8.16",
+    "tsx": "^4.20.3",
+    "turbo": "^2.5.8",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.0.0"
+  }
+}
