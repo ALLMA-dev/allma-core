@@ -38,7 +38,7 @@ function rewriteJsonPathsInConfig(obj: any, prefix: string): any {
     if (isObject(obj)) {
         const newObj: Record<string, any> = {};
         for (const key in obj) {
-if (Object.prototype.hasOwnProperty.call(obj, key)) {
+            if (Object.prototype.hasOwnProperty.call(obj, key)) {
                 newObj[key] = rewriteJsonPathsInConfig(obj[key], prefix);
             }
         }
@@ -58,8 +58,8 @@ if (Object.prototype.hasOwnProperty.call(obj, key)) {
  * This is the main worker Lambda in the ALLMA orchestration loop.
  * It orchestrates step execution by delegating to specialized modules.
  */
-export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (event) => {
-const isMapContext = Object.prototype.hasOwnProperty.call(event, 'mapContext');
+export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (event, context) => {
+    const isMapContext = Object.prototype.hasOwnProperty.call(event, 'mapContext');
     const originalEvent = event;
     let runtimeState: FlowRuntimeState;
 
@@ -80,10 +80,10 @@ const isMapContext = Object.prototype.hasOwnProperty.call(event, 'mapContext');
 
     const { taskToken, parallelAggregateInput, resumePayload, pollingResult } = originalEvent;
     const correlationId = runtimeState.flowExecutionId;
-    
+
     let flowDef: FlowDefinition | undefined;
     let stepInstance: StepInstance | undefined;
-    
+
     try {
         if (resumePayload || pollingResult) {
             flowDef = await loadFlowDefinition(runtimeState.flowDefinitionId, runtimeState.flowDefinitionVersion, correlationId);
@@ -102,20 +102,26 @@ const isMapContext = Object.prototype.hasOwnProperty.call(event, 'mapContext');
             const aggregationResult = await handleParallelAggregation(parallelAggregateInput, runtimeState, flowDef, correlationId);
             runtimeState = aggregationResult.updatedRuntimeState;
             runtimeState.currentStepInstanceId = aggregationResult.nextStepId;
-            
+
             // After aggregation, return to let the next SFN iteration process the next step.
             // This aligns behavior with other async steps (wait, poll) and simplifies flow logic.
             const nextActionDetails = await determineNextSfnAction(runtimeState, flowDef, correlationId);
 
             // Clean up internal state before returning
-            if (runtimeState._internal) {
+            // For direct Request/Response invocations (like the sandbox), we preserve the _internal state 
+            // for the caller to inspect. For async invocations (like from SFN), we clean it up.
+            // The absence of a function name in the context is a reliable indicator of a direct sync invoke.
+            const isDirectInvocation = !context.functionName;
+            if (runtimeState._internal && !isDirectInvocation) {
                 delete runtimeState._internal.currentStepStartTime;
                 delete runtimeState._internal.currentStepHandlerResult;
-                if (Object.keys(runtimeState._internal).length === 0) delete runtimeState._internal;
+                if (Object.keys(runtimeState._internal).length === 0) {
+                    delete runtimeState._internal;
+                }
             }
 
-            const finalOutput: ProcessorOutput = { 
-                runtimeState, 
+            const finalOutput: ProcessorOutput = {
+                runtimeState,
                 sfnAction: nextActionDetails.sfnAction,
                 ...(nextActionDetails.pollingTaskInput && { pollingTaskInput: nextActionDetails.pollingTaskInput })
             };
@@ -133,20 +139,20 @@ const isMapContext = Object.prototype.hasOwnProperty.call(event, 'mapContext');
         if (!flowDef) {
             flowDef = await loadFlowDefinition(runtimeState.flowDefinitionId, runtimeState.flowDefinitionVersion, correlationId);
         }
-        
+
         const originalStepInstance = flowDef.steps[currentStepInstanceId];
 
         if (!originalStepInstance) {
             throw new Error(`Configuration for step '${currentStepInstanceId}' not found in flow definition.`);
         }
-        
+
         if (isMapContext) {
             log_debug(`Rewriting JSONPaths for map context execution of step '${currentStepInstanceId}'`, {}, correlationId);
             stepInstance = rewriteJsonPathsInConfig(originalStepInstance, '$.mapContext.runtimeState.currentContextData');
         } else {
             stepInstance = originalStepInstance;
         }
-        
+
         const parsedStepInstance = StepInstanceSchema.safeParse(stepInstance);
         if (!parsedStepInstance.success) throw new Error(`Config for step '${currentStepInstanceId}' is invalid: ${parsedStepInstance.error.message}`);
         stepInstance = parsedStepInstance.data;
@@ -167,7 +173,7 @@ const isMapContext = Object.prototype.hasOwnProperty.call(event, 'mapContext');
 
         if (stepType === StepType.END_FLOW) {
             log_info(`Step '${currentStepInstanceId}' is an END_FLOW step. Terminating this flow path.`, {}, correlationId);
-            
+
             if (runtimeState.enableExecutionLogs) {
                 const stepEndTime = new Date().toISOString();
                 await executionLoggerClient.logStepExecution({
@@ -225,13 +231,13 @@ const isMapContext = Object.prototype.hasOwnProperty.call(event, 'mapContext');
             if (stepDef.stepType !== stepType) {
                 log_warn(`Step type mismatch for '${currentStepInstanceId}'. FlowDef says '${stepType}', but resolved StepDef is '${stepDef.stepType}'. Using resolved StepDef type.`, {}, correlationId);
             }
-            
+
             if (taskToken && stepType === StepType.WAIT_FOR_EXTERNAL_EVENT) {
                 await handleWaitForEvent(taskToken, stepDef, runtimeState, correlationId);
                 return;
             }
 
-            const contextForMappings = isMapContext ? (originalEvent as any) : { ...runtimeState, ...runtimeState.currentContextData};
+            const contextForMappings = isMapContext ? (originalEvent as any) : { ...runtimeState, ...runtimeState.currentContextData };
 
             const { preparedInput, events: inputMappingEvents } = await prepareStepInput(
                 stepInstance.inputMappings || {},
@@ -248,7 +254,7 @@ const isMapContext = Object.prototype.hasOwnProperty.call(event, 'mapContext');
                 stepStartTime,
                 correlationId
             );
-            
+
             runtimeState = updatedRuntimeState;
             runtimeState.currentStepInstanceId = nextStepId;
         }
@@ -262,7 +268,7 @@ const isMapContext = Object.prototype.hasOwnProperty.call(event, 'mapContext');
     } catch (error: any) {
         // Terminal error logging, including bootstrapping for unlogged flows, is handled by the FinalizeFlow lambda.
         if (error instanceof RetryableStepError) {
-            throw error; 
+            throw error;
         }
 
         if (stepInstance && runtimeState.currentStepInstanceId) {
@@ -300,8 +306,8 @@ const isMapContext = Object.prototype.hasOwnProperty.call(event, 'mapContext');
             }
 
             runtimeState = await handleTerminalError(
-                error, 
-                stepInstance, 
+                error,
+                stepInstance,
                 runtimeState,
             );
         } else {
@@ -324,19 +330,24 @@ const isMapContext = Object.prototype.hasOwnProperty.call(event, 'mapContext');
         runtimeState.status = 'COMPLETED';
     }
 
-    if (runtimeState._internal) {
+    // For direct Request/Response invocations (like the sandbox), we preserve the _internal state 
+    // for the caller to inspect. For async invocations (like from SFN), we clean it up.
+    const isDirectInvocation = !context.functionName;
+    if (runtimeState._internal && !isDirectInvocation) {
         delete runtimeState._internal.currentStepStartTime;
         delete runtimeState._internal.currentStepHandlerResult;
-        if (Object.keys(runtimeState._internal).length === 0) delete runtimeState._internal;
+        if (Object.keys(runtimeState._internal).length === 0) {
+            delete runtimeState._internal;
+        }
     }
 
-    const finalOutput: ProcessorOutput = { 
-        runtimeState, 
+    const finalOutput: ProcessorOutput = {
+        runtimeState,
         sfnAction: finalSfnAction,
         ...(pollingTaskInput && { pollingTaskInput })
     };
 
     log_debug(`IterativeStepProcessor final output for ${runtimeState.currentStepInstanceId || 'end-of-flow'}:`, finalOutput.pollingTaskInput ? { ...finalOutput, pollingTaskInput: 'OMITTED_FOR_BREVITY' } : finalOutput, correlationId);
-    
+
     return finalOutput;
 };

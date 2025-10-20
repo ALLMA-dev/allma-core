@@ -80,13 +80,6 @@ export const StepExecutionResultSchema = z.object({
   outputData: z.record(z.any()).optional(),
   outputDataS3Pointer: S3PointerSchema.optional(),
   errorInfo: AllmaErrorSchema.optional(),
-  logs: z.object({
-    tokenUsage: z.object({
-      inputTokens: z.number().int().optional(),
-      outputTokens: z.number().int().optional(),
-    }).optional(),
-    durationMs: z.number().int().optional(),
-    customMetrics: z.record(z.number()).optional(),
-  }).optional(),
+  logs: z.record(z.any()).optional(),
 });
 export type StepExecutionResult = z.infer<typeof StepExecutionResultSchema>;

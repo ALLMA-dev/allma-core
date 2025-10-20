@@ -5,6 +5,7 @@ import * as lambdaNodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as sfn from 'aws-cdk-lib/aws-stepfunctions';
 import * as apigwv2 from 'aws-cdk-lib/aws-apigatewayv2';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -26,6 +27,7 @@ export interface ApiConstructProps {
   iterativeStepProcessorLambda: lambda.IFunction;
   resumeFlowLambda: lambda.IFunction;
   flowTriggerApiLambda: lambda.IFunction;
+  flowOrchestratorStateMachine: sfn.IStateMachine;
 }
 
 /**
@@ -41,7 +43,7 @@ export class ApiConstruct extends Construct {
   
     constructor(scope: Construct, id: string, props: ApiConstructProps) {
         super(scope, id);
-        const { stageConfig, configTable, flowExecutionLogTable, executionTracesBucket, iterativeStepProcessorLambda, orchestrationLambdaRole, resumeFlowLambda, flowTriggerApiLambda } = props;
+        const { stageConfig, configTable, flowExecutionLogTable, executionTracesBucket, iterativeStepProcessorLambda, orchestrationLambdaRole, resumeFlowLambda, flowTriggerApiLambda, flowOrchestratorStateMachine } = props;
 
         // --- Authentication ---
         const adminAuth = new AdminAuthentication(this, 'AllmaAdminAuth', { stageConfig });
@@ -65,11 +67,14 @@ export class ApiConstruct extends Construct {
         });
         adminFlowControlLambdaRole.addToPolicy(new iam.PolicyStatement({
             actions: ['states:StartExecution'],
-            resources: [cdk.Stack.of(this).formatArn({ service: 'states', resource: 'stateMachine', resourceName: `AllmaFlowOrchestrator-${stageConfig.stage}` })],
+            resources: [flowOrchestratorStateMachine.stateMachineArn],
         }));
         flowExecutionLogTable.grantReadData(adminFlowControlLambdaRole);
         configTable.grantReadData(adminFlowControlLambdaRole);
         iterativeStepProcessorLambda.grantInvoke(adminFlowControlLambdaRole);
+
+        // Grant the flow control lambda permission to read the debug logs from the S3 bucket.
+        executionTracesBucket.grantRead(adminFlowControlLambdaRole);
 
         // --- API Lambda Functions ---
         const defaultLambdaTimeout = cdk.Duration.seconds(stageConfig.lambdaTimeouts.defaultSeconds);
@@ -92,7 +97,7 @@ export class ApiConstruct extends Construct {
         const adminFlowControlLambda = this.createNodejsLambda('AdminFlowControlLambda', `AllmaAdminFlowControl-${stageConfig.stage}`, 'allma-admin/flow-control.ts', adminFlowControlLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, {
             ...commonEnvVars,
             [ENV_VAR_NAMES.ITERATIVE_STEP_PROCESSOR_LAMBDA_ARN]: iterativeStepProcessorLambda.functionArn,
-            [ENV_VAR_NAMES.ALLMA_STATE_MACHINE_ARN]: cdk.Stack.of(this).formatArn({ service: 'states', resource: 'stateMachine', resourceName: `AllmaFlowOrchestrator-${stageConfig.stage}` }),
+            [ENV_VAR_NAMES.ALLMA_STATE_MACHINE_ARN]: flowOrchestratorStateMachine.stateMachineArn,
         });
         const adminImportExportLambda = this.createNodejsLambda('AdminImportExportLambda', `AllmaAdminImportExport-${stageConfig.stage}`, 'allma-admin/import-export.ts', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars);
 

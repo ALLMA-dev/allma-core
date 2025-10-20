@@ -224,6 +224,14 @@ export class AllmaAdminApi extends Construct {
       authorizer: adminAuthorizer,
     });
 
+    // Test execution of a specific flow version
+    this.httpApi.addRoutes({
+      path: `${ALLMA_ADMIN_API_ROUTES.FLOWS}/{flowId}/versions/{versionNumber}/execute`,
+      methods: [apigwv2.HttpMethod.POST],
+      integration: adminFlowControlIntegration,
+      authorizer: adminAuthorizer,
+    });
+
     // Flow Execution Monitoring
     this.httpApi.addRoutes({
       path: ALLMA_ADMIN_API_ROUTES.FLOW_EXECUTIONS, // Query params for filtering

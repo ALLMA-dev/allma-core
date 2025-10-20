@@ -10,11 +10,11 @@ import {
     SandboxStepInputSchema,
     FlowRuntimeState, ProcessorInput, SfnActionType, StartFlowExecutionInput,
     ITEM_TYPE_ALLMA_FLOW_EXECUTION_RECORD, METADATA_SK_VALUE,
-    StepExecutionResult, ProcessorOutput, AllmaStepExecutionRecord, AllmaFlowExecutionRecordSchema, RedriveFlowApiOutput
+    StepExecutionResult, ProcessorOutput, AllmaStepExecutionRecord, AllmaFlowExecutionRecordSchema, RedriveFlowApiOutput, LogStepExecutionRecord
 } from '@allma/core-types';
 
 import {
-    withAdminAuth, AuthContext, createApiGatewayResponse, buildSuccessResponse, buildErrorResponse, log_error, log_info, log_warn, resolveS3Pointer,
+    withAdminAuth, AuthContext, createApiGatewayResponse, buildSuccessResponse, buildErrorResponse, log_error, log_info, log_warn, resolveS3Pointer, hydrateInputFromS3Pointers, log_debug,
 } from '@allma/core-sdk';
 import { ApiRouter } from './utils/api-router.js';
 
@@ -187,13 +187,15 @@ const handleSandboxStep = async (event: APIGatewayProxyEventV2, authContext: Aut
         flowDefinitionId,
         flowDefinitionVersion,
         flowExecutionId: `sandbox-${correlationId}`,
-        enableExecutionLogs: false,
+        enableExecutionLogs: true, // Force logs to get detailed metadata
         currentStepInstanceId: stepInstanceId,
         status: 'RUNNING',
         startTime: new Date().toISOString(),
         currentContextData: contextData,
         stepRetryAttempts: {},
-        _internal: {},
+        _internal: {
+            sandboxMode: true, // NEW: Enable sandbox mode
+        },
     };
 
     const ispPayload: ProcessorInput = { runtimeState: sandboxState, sfnAction: SfnActionType.PROCESS_STEP };
@@ -214,14 +216,54 @@ const handleSandboxStep = async (event: APIGatewayProxyEventV2, authContext: Aut
         }
         
         const ispOutput: ProcessorOutput = JSON.parse(new TextDecoder().decode(result.Payload));
+        log_debug('Received ISP output in sandbox handler', { ispOutput }, correlationId);
+
         const finalState = ispOutput.runtimeState;
-        const handlerResult = finalState._internal?.currentStepHandlerResult;
-        const sandboxResult: StepExecutionResult = {
-            success: !finalState.errorInfo,
-            ...(finalState.errorInfo && { errorInfo: finalState.errorInfo }),
-            ...(handlerResult?.outputData && { outputData: handlerResult.outputData }),
-            ...(handlerResult?.outputData?._meta && { logs: handlerResult.outputData._meta }),
-        };
+        
+        // NEW LOGIC: Try to get the full debug log from S3 if available
+        const debugLogPointer = finalState._internal?.sandboxDebugLogS3Pointer;
+        let fullDebugLog: LogStepExecutionRecord | undefined;
+
+        if (debugLogPointer) {
+            try {
+                log_debug('Fetching full debug log from S3 for sandbox execution.', { pointer: debugLogPointer }, correlationId);
+                fullDebugLog = (await resolveS3Pointer(debugLogPointer, correlationId)) as LogStepExecutionRecord;
+            } catch (e: any) {
+                log_warn('Failed to fetch full debug log from S3 for sandbox execution.', { error: e.message }, correlationId);
+                // Fallback to legacy extraction if S3 fetch fails
+            }
+        } else {
+            log_warn('No debug log S3 pointer returned from sandbox execution. Debug info will be incomplete.', {}, correlationId);
+        }
+
+        // Construct the result, preferring the full log if available
+        let sandboxResult: StepExecutionResult;
+
+        if (fullDebugLog) {
+             sandboxResult = {
+                success: fullDebugLog.status === 'COMPLETED',
+                outputData: fullDebugLog.outputData || undefined,
+                errorInfo: fullDebugLog.errorInfo,
+                logs: fullDebugLog, // The full, rich debug log
+            };
+        } else {
+            // Fallback legacy logic
+            let handlerResult = finalState._internal?.currentStepHandlerResult;
+            if (handlerResult?.outputData) {
+                handlerResult.outputData = await hydrateInputFromS3Pointers(handlerResult.outputData, correlationId);
+            }
+            // Try to extract legacy logs if they exist in the output
+             const logs = handlerResult?.outputData?._meta;
+             if (handlerResult?.outputData?._meta) {
+                 delete handlerResult.outputData._meta;
+             }
+             sandboxResult = {
+                success: !finalState.errorInfo,
+                ...(finalState.errorInfo && { errorInfo: finalState.errorInfo }),
+                ...(handlerResult?.outputData && { outputData: handlerResult.outputData }),
+                ...(logs && { logs }),
+            };
+        }
 
         return createApiGatewayResponse(200, buildSuccessResponse(sandboxResult), correlationId);
 
@@ -231,10 +273,52 @@ const handleSandboxStep = async (event: APIGatewayProxyEventV2, authContext: Aut
     }
 };
 
+/**
+ * Handles the "Run Test Execution" API request from the Admin UI.
+ */
+const handleExecuteFlow = async (event: APIGatewayProxyEventV2, authContext: AuthContext, params: Record<string, string>): Promise<APIGatewayProxyResultV2> => {
+    const correlationId = event.requestContext.requestId;
+    const { flowId, versionNumber } = params;
+
+    // Note: A Zod schema will be added for this in a subsequent step.
+    const body = JSON.parse(event.body || '{}');
+    const initialContextData = body.initialContextData || {};
+
+    try {
+        const newFlowExecutionId = uuidv4();
+        const startInput: StartFlowExecutionInput = {
+            flowDefinitionId: flowId,
+            flowVersion: versionNumber,
+            initialContextData,
+            flowExecutionId: newFlowExecutionId,
+            triggerSource: `AdminUITestExecution by ${authContext.username}`,
+            enableExecutionLogs: true,
+        };
+
+        await sfnClient.send(new StartExecutionCommand({
+            stateMachineArn: STATE_MACHINE_ARN,
+            input: JSON.stringify(startInput),
+            name: newFlowExecutionId,
+        }));
+
+        log_info(`Successfully initiated test execution for flow ${flowId} v${versionNumber}. New flowExecutionId: ${newFlowExecutionId}`, {}, correlationId);
+
+        const responseBody = {
+            newFlowExecutionId,
+        };
+        return createApiGatewayResponse(200, buildSuccessResponse(responseBody), correlationId);
+
+    } catch (error: any) {
+        log_error(`Failed to start test execution for flow ${flowId} v${versionNumber}`, { error: error.message, stack: error.stack }, correlationId);
+        return createApiGatewayResponse(500, buildErrorResponse('Internal server error during flow execution.', 'SERVER_ERROR'), correlationId);
+    }
+};
+
 // Register routes
 router.post('/allma/flow-executions/{flowExecutionId}/redrive', handleSimpleRedrive, { requiredPermission: AdminPermission.DEFINITIONS_WRITE });
 router.post('/allma/flow-executions/{flowExecutionId}/stateful-redrive', handleStatefulRedrive, { requiredPermission: AdminPermission.DEFINITIONS_WRITE });
 router.post('/allma/flows/sandbox/step', handleSandboxStep, { requiredPermission: AdminPermission.DEFINITIONS_WRITE });
+router.post('/allma/flows/{flowId}/versions/{versionNumber}/execute', handleExecuteFlow, { requiredPermission: AdminPermission.DEFINITIONS_WRITE });
 
 const mainHandler = async (event: APIGatewayProxyEventV2, authContext: AuthContext): Promise<APIGatewayProxyResultV2> => {
     const correlationId = event.requestContext.requestId;

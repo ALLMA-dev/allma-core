@@ -285,7 +285,7 @@ export const executeStandardStep = async (
 
         // Log successful completion, if enabled
         if (runtimeState.enableExecutionLogs) {
-            await executionLoggerClient.logStepExecution({
+            const s3Pointer = await executionLoggerClient.logStepExecution({
                 ...baseRecord,
                 status: 'COMPLETED',
                 eventTimestamp: stepEndTime, // Use step end time as the event time for COMPLETED
@@ -299,6 +299,12 @@ export const executeStandardStep = async (
                 outputMappingContext: runtimeState.currentContextData,
                 stepInstanceConfig: stepInstanceConfig, // Log the exact config used
             });
+
+            // If in sandbox mode, capture the S3 pointer to the full debug log.
+            if (runtimeState._internal?.sandboxMode && s3Pointer) {
+                log_debug('Sandbox mode detected. Captured full debug log S3 pointer.', {}, correlationId);
+                runtimeState._internal.sandboxDebugLogS3Pointer = s3Pointer;
+            }
         }
 
         return { updatedRuntimeState: runtimeState, nextStepId };
@@ -372,7 +378,7 @@ export const executeStandardStep = async (
 
         // Log the failure immediately, if enabled
         if (runtimeState.enableExecutionLogs) {
-            await executionLoggerClient.logStepExecution({
+            const s3Pointer = await executionLoggerClient.logStepExecution({
                 ...baseRecord,
                 status: logStatus,
                 eventTimestamp: stepEndTime,
@@ -387,6 +393,12 @@ export const executeStandardStep = async (
                 templateContextMappingContext: { ...inputContext, ...finalStepInput },
                 stepInstanceConfig: stepInstanceConfig, // Log the exact config used
             });
+
+            // Capture the pointer for failed sandbox executions too, so the UI can see what went wrong.
+            if (runtimeState._internal?.sandboxMode && s3Pointer) {
+                log_debug('Sandbox mode detected (FAILED/RETRYING status). Captured full debug log S3 pointer.', {}, correlationId);
+                runtimeState._internal.sandboxDebugLogS3Pointer = s3Pointer;
+            }
         }
 
         // Re-throw the error so the caller can handle SFN state (retry, fallback, fail).

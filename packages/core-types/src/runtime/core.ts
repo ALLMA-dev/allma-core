@@ -39,6 +39,9 @@ export const FlowRuntimeStateSchema: z.ZodType<any> = z.object({
     stepInstanceConfig: StepInstanceSchema.optional(),
     originalStartInput: z.lazy(() => StartFlowExecutionInputSchema).optional(),
     loggingBootstrapped: z.boolean().optional(),
+    // Flags for sandbox execution mode
+    sandboxMode: z.boolean().optional().describe("If true, indicates this execution is running in a transient sandbox environment."),
+    sandboxDebugLogS3Pointer: S3PointerSchema.optional().describe("Pointer to the full debug log for a sandbox execution step."),
   }).passthrough().optional(),
 });
 export type FlowRuntimeState = z.infer<typeof FlowRuntimeStateSchema>;

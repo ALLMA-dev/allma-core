@@ -42,6 +42,7 @@ export const ALLMA_ADMIN_API_ROUTES = {
   FLOW_VERSION_DETAIL: (flowId: string, versionNumber: string | number) => `/allma/${ARS.FLOWS}/${flowId}/versions/${versionNumber}`,
   FLOW_VERSION_PUBLISH: (flowId: string, versionNumber: string | number) => `/allma/${ARS.FLOWS}/${flowId}/versions/${versionNumber}/publish`,
   FLOW_VERSION_UNPUBLISH: (flowId: string, versionNumber: string | number) => `/allma/${ARS.FLOWS}/${flowId}/versions/${versionNumber}/unpublish`,
+  FLOW_VERSION_EXECUTE: (flowId: string, versionNumber: string | number) => `/allma/${ARS.FLOWS}/${flowId}/versions/${versionNumber}/execute`,
   FLOW_SANDBOX_STEP: `/allma/${ARS.FLOWS}/sandbox/step`,
 
   // Flow Executions

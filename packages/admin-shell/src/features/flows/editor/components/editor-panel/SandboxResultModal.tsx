@@ -47,10 +47,7 @@ export function SandboxResultModal({ opened, onClose, result, input }: SandboxRe
             inputMappingContext: input.contextData,
             outputData: result.outputData,
             errorInfo: result.errorInfo,
-            logDetails: {
-                ...result.logs,
-                // Transition evaluation details are not available in a sandbox run
-            },
+            logDetails: result.logs || {}, // Ensure logDetails is always an object to prevent the accordion from disappearing.
             // This is the key part for the diff view to work.
             // We use the raw output data as the "right" side of the diff.
             outputMappingContext: result.outputData || (result.errorInfo ? { error: 'Step failed, no output data' } : {}),
@@ -65,7 +62,7 @@ export function SandboxResultModal({ opened, onClose, result, input }: SandboxRe
         const fullStepRecord = step as any;
         setDiffData({
             left: fullStepRecord.inputMappingContext,
-            right: fullStepRecord.outputMappingContext, // In sandbox, this is the raw outputData
+            right: fullStepRecord.outputMappingContext, // In sandbox, this is the raw step output
         });
         openDiffModal();
     };
@@ -94,6 +91,7 @@ export function SandboxResultModal({ opened, onClose, result, input }: SandboxRe
                                 onOpenDiff={handleOpenDiff}
                                 onOpenConfig={() => {}} // Not applicable in sandbox
                                 onRedrive={() => {}}   // Not applicable in sandbox
+                                isSandbox={true}
                             />
                         </Accordion>
                     )}
@@ -108,7 +106,7 @@ export function SandboxResultModal({ opened, onClose, result, input }: SandboxRe
                     leftContext={diffData?.left}
                     rightContext={diffData?.right}
                     leftTitle="Input Context (Before)"
-                    rightTitle="Raw Step Output (After)"
+                    rightTitle="Raw Step Output (After - Not Mapped)"
                 />
             )}
         </>

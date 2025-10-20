@@ -1,13 +1,15 @@
 import { useQuery, useMutation, useQueryClient, UseQueryResult } from '@tanstack/react-query';
 import { 
     type FlowDefinition, AdminApiResponse, ALLMA_ADMIN_API_ROUTES, ALLMA_ADMIN_API_VERSION,
-    CreateFlowInput, CreateFlowVersionInput, AdminApiErrorResponse, CloneFlowInput, RedriveFlowApiOutput, UpdateFlowConfigInput, FlowMetadataStorageItem
+    CreateFlowInput, CreateFlowVersionInput, AdminApiErrorResponse, CloneFlowInput, RedriveFlowApiOutput, UpdateFlowConfigInput, FlowMetadataStorageItem,
+    ExecuteFlowApiInput, ExecuteFlowApiOutput
 } from '@allma/core-types';
 import axiosInstance from './axiosInstance';
 import axios from 'axios';
 import { notifications } from '@mantine/notifications';
 import { IconCheck, IconX } from '@tabler/icons-react';
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
 // Params interface for clarity and type safety.
 interface GetFlowsParams {
@@ -305,6 +307,42 @@ export const useFlowRedrive = () => {
         onError: (error: Error) => {
             notifications.show({
                 title: 'Redrive Failed',
+                message: error.message,
+                color: 'red',
+                icon: xIcon,
+            });
+        }
+    });
+};
+
+export const useExecuteFlowVersion = () => {
+    const queryClient = useQueryClient();
+    const navigate = useNavigate();
+    return useMutation({
+        mutationFn: async ({ flowId, version, initialContextData }: { flowId: string, version: string | number, initialContextData: Record<string, any> }): Promise<ExecuteFlowApiOutput> => {
+            const payload: ExecuteFlowApiInput = { initialContextData };
+            const response = await axiosInstance.post<AdminApiResponse<ExecuteFlowApiOutput>>(
+                `/${ALLMA_ADMIN_API_VERSION}${ALLMA_ADMIN_API_ROUTES.FLOW_VERSION_EXECUTE(flowId, version)}`,
+                payload
+            );
+            if (response.data.success) {
+                return response.data.data;
+            }
+            throw new Error(response.data.error?.message || 'Failed to start test execution');
+        },
+        onSuccess: (data, { flowId }) => {
+            queryClient.invalidateQueries({ queryKey: ['executions', { flowId }] });
+            notifications.show({
+                title: 'Execution Started',
+                message: `Successfully started new execution: ${data.newFlowExecutionId.substring(0, 8)}`,
+                color: 'green',
+                icon: checkIcon,
+            });
+            navigate(`/executions?flowId=${flowId}`);
+        },
+        onError: (error: Error) => {
+            notifications.show({
+                title: 'Execution Failed',
                 message: error.message,
                 color: 'red',
                 icon: xIcon,

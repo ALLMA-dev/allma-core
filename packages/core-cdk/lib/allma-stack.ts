@@ -213,6 +213,7 @@ export class AllmaStack extends cdk.Stack {
       orchestrationLambdaRole: compute.orchestrationLambdaRole,
       resumeFlowLambda: compute.resumeFlowLambda,
       flowTriggerApiLambda: compute.flowTriggerApiLambda,
+      flowOrchestratorStateMachine: orchestration.flowOrchestratorStateMachine,
     });
     this.adminUserPool = api.userPool;
     this.adminUserPoolClient = api.userPoolClient;

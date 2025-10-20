@@ -70,9 +70,14 @@ class ExecutionLoggerClient {
         await this.invokeLogger(payload, updateData.flowExecutionId);
     }
 
+    /**
+     * Logs a step execution.
+     * Uploads the full record to S3 and sends a minimal record to DynamoDB via Lambda.
+     * @returns The S3Pointer to the full record if successful, otherwise void.
+     */
     public async logStepExecution(
         fullRecordData: LogStepExecutionRecord
-    ): Promise<void> {
+    ): Promise<S3Pointer | void> {
         const correlationId = fullRecordData.flowExecutionId;
         const s3Identifier = `${fullRecordData.stepInstanceId}_${fullRecordData.attemptNumber || 1}`;
         log_debug(`[execution-logger-client] Logging step execution for '${fullRecordData.stepInstanceId}' using hybrid storage model.`, {}, correlationId);
@@ -124,8 +129,11 @@ class ExecutionLoggerClient {
             // Step 4: Invoke the logger.
             await this.invokeLogger(payload, correlationId);
 
+            return s3Pointer;
+
         } catch (e: any) {
              log_error(`[execution-logger-client] Failed during S3 upload or payload construction for step '${s3Identifier}'`, { error: e.message }, correlationId);
+             // We do not throw here to avoid failing the main execution flow due to a logging error.
         }
     }
 }

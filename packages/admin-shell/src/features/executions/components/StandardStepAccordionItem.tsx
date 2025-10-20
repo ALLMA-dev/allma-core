@@ -14,6 +14,7 @@ interface StandardStepAccordionItemProps {
     onOpenDiff: (step: AllmaStepExecutionRecord) => void;
     onOpenConfig: (step: AllmaStepExecutionRecord) => void;
     onRedrive: (step: AllmaStepExecutionRecord) => void;
+    isSandbox?: boolean;
 }
 
 /**
@@ -32,7 +33,7 @@ const stepHasWarning = (step: AllmaStepExecutionRecord): boolean => {
     return false;
 };
 
-export function StandardStepAccordionItem({ step, stepNumber, onOpenDiff, onOpenConfig, onRedrive }: StandardStepAccordionItemProps) {
+export function StandardStepAccordionItem({ step, stepNumber, onOpenDiff, onOpenConfig, onRedrive, isSandbox = false }: StandardStepAccordionItemProps) {
     const [isExpanded, setIsExpanded] = useState(false);
     const theme = useMantineTheme();
     const { colorScheme } = useMantineColorScheme();
@@ -94,6 +95,7 @@ export function StandardStepAccordionItem({ step, stepNumber, onOpenDiff, onOpen
                     onOpenDiff={() => onOpenDiff(step)}
                     onOpenConfig={() => onOpenConfig(step)}
                     onRedrive={() => onRedrive(step)}
+                    isSandbox={isSandbox}
                 />
             </Accordion.Panel>
         </Accordion.Item>

@@ -48,6 +48,16 @@ export const TriggerFlowApiOutputSchema = z.object({
 });
 export type TriggerFlowApiOutput = z.infer<typeof TriggerFlowApiOutputSchema>;
 
+export const ExecuteFlowApiInputSchema = z.object({
+    initialContextData: z.record(z.any()).optional().default({}),
+});
+export type ExecuteFlowApiInput = z.infer<typeof ExecuteFlowApiInputSchema>;
+
+export const ExecuteFlowApiOutputSchema = z.object({
+    newFlowExecutionId: z.string().uuid(),
+});
+export type ExecuteFlowApiOutput = z.infer<typeof ExecuteFlowApiOutputSchema>;
+
 
 // --- Flow Definition Management ---
 

@@ -22,9 +22,10 @@ interface StepDetailsPanelProps {
     onOpenDiff: () => void;
     onOpenConfig: () => void;
     onRedrive: () => void;
+    isSandbox?: boolean;
 }
 
-export function StepDetailsPanel({ step, onOpenDiff, onOpenConfig, onRedrive }: StepDetailsPanelProps) {
+export function StepDetailsPanel({ step, onOpenDiff, onOpenConfig, onRedrive, isSandbox = false }: StepDetailsPanelProps) {
     const fullStepRecord = step as any;
     const mappingEvents = fullStepRecord.mappingEvents as MappingEvent[] | undefined;
     const logDetails = fullStepRecord.logDetails as Record<string, any> | undefined;
@@ -33,28 +34,30 @@ export function StepDetailsPanel({ step, onOpenDiff, onOpenConfig, onRedrive }: 
 
     return (
         <Stack>
-            <Group justify="flex-end">
-                <Tooltip label="View the step's configuration from this flow version">
-                    <Button
-                        variant="default"
-                        size="xs"
-                        onClick={onOpenConfig}
-                        leftSection={<IconSettings size="1rem" />}
-                    >
-                        View Configuration
-                    </Button>
-                </Tooltip>
-                <Tooltip label="Restart the flow from this step, with the option to modify its input context">
-                    <Button
-                        variant="light"
-                        size="xs"
-                        onClick={onRedrive}
-                        leftSection={<IconPlayerPlay size="1rem" />}
-                    >
-                        Redrive from this Step
-                    </Button>
-                </Tooltip>
-            </Group>
+            {!isSandbox && (
+                <Group justify="flex-end">
+                    <Tooltip label="View the step's configuration from this flow version">
+                        <Button
+                            variant="default"
+                            size="xs"
+                            onClick={onOpenConfig}
+                            leftSection={<IconSettings size="1rem" />}
+                        >
+                            View Configuration
+                        </Button>
+                    </Tooltip>
+                    <Tooltip label="Restart the flow from this step, with the option to modify its input context">
+                        <Button
+                            variant="light"
+                            size="xs"
+                            onClick={onRedrive}
+                            leftSection={<IconPlayerPlay size="1rem" />}
+                        >
+                            Redrive from this Step
+                        </Button>
+                    </Tooltip>
+                </Group>
+            )}
             <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md">
                 <Stack gap="xs">
                     <Group justify="space-between" align="center">
