@@ -158,111 +158,115 @@ export const handler: Handler<ProcessorInput, FinalizeOutput> = async (event) =>
       // Perform system-level resume check and action
       await handleSystemLevelResume(runtimeState);
   
-      const flowDef = await loadFlowDefinition(runtimeState.flowDefinitionId, runtimeState.flowDefinitionVersion, correlationId);
-      const templateService = TemplateService.getInstance();
+      try {
+        const flowDef = await loadFlowDefinition(runtimeState.flowDefinitionId, runtimeState.flowDefinitionVersion, correlationId);
+        const templateService = TemplateService.getInstance();
 
-      if (flowDef.onCompletionActions && flowDef.onCompletionActions.length > 0) {
-          log_info('Processing onCompletionActions...', { count: flowDef.onCompletionActions.length}, correlationId);
-          const templateSourceContext = { ...runtimeState, ...runtimeState.currentContextData };
+        if (flowDef.onCompletionActions && flowDef.onCompletionActions.length > 0) {
+            log_info('Processing onCompletionActions...', { count: flowDef.onCompletionActions.length}, correlationId);
+            const templateSourceContext = { ...runtimeState, ...runtimeState.currentContextData };
 
-          for (const action of flowDef.onCompletionActions) {
-              try {
-                  if (action.executeOnStatus !== 'ANY' && action.executeOnStatus !== finalStatusFromInput) {
-                      log_debug('Skipping onCompletionAction due to status mismatch.', { actionType: action.actionType, executeOnStatus: action.executeOnStatus, finalStatus: finalStatusFromInput }, correlationId);
-                      continue;
-                  }
-                  if (action.condition) {
-                      const { result: conditionMet } = await evaluateCondition(action.condition, templateSourceContext, correlationId);
-                      if (!conditionMet) {
-                          log_debug('Skipping onCompletionAction due to condition not met.', { actionType: action.actionType, condition: action.condition }, correlationId);
-                          continue;
-                      }
-                  }
+            for (const action of flowDef.onCompletionActions) {
+                try {
+                    if (action.executeOnStatus !== 'ANY' && action.executeOnStatus !== finalStatusFromInput) {
+                        log_debug('Skipping onCompletionAction due to status mismatch.', { actionType: action.actionType, executeOnStatus: action.executeOnStatus, finalStatus: finalStatusFromInput }, correlationId);
+                        continue;
+                    }
+                    if (action.condition) {
+                        const { result: conditionMet } = await evaluateCondition(action.condition, templateSourceContext, correlationId);
+                        if (!conditionMet) {
+                            log_debug('Skipping onCompletionAction due to condition not met.', { actionType: action.actionType, condition: action.condition }, correlationId);
+                            continue;
+                        }
+                    }
 
-                  const payloadTemplateForBuilder: Record<string, TemplateContextMappingItem> | undefined = action.payloadTemplate
-                      ? Object.fromEntries(
-                          Object.entries(action.payloadTemplate).map(([key, jsonPath]) => [
-                              key,
-                              { 
-                                  sourceJsonPath: jsonPath, 
-                                  formatAs: 'RAW', 
-                                  joinSeparator: '\n' 
-                              }
-                          ])
-                      )
-                      : undefined;
-                  const { context: payload } = await templateService.buildContextFromMappings(payloadTemplateForBuilder, templateSourceContext, correlationId);
+                    const payloadTemplateForBuilder: Record<string, TemplateContextMappingItem> | undefined = action.payloadTemplate
+                        ? Object.fromEntries(
+                            Object.entries(action.payloadTemplate).map(([key, jsonPath]) => [
+                                key,
+                                { 
+                                    sourceJsonPath: jsonPath, 
+                                    formatAs: 'RAW', 
+                                    joinSeparator: '\n' 
+                                }
+                            ])
+                        )
+                        : undefined;
+                    const { context: payload } = await templateService.buildContextFromMappings(payloadTemplateForBuilder, templateSourceContext, correlationId);
 
-                  switch(action.actionType) {
-                      case 'API_CALL':
-                          if (action.target && action.apiHttpMethod) {
-                              const apiCallDefForExecutor: ApiCallDefinition = {
-                                  apiUrlTemplate: { template: action.target },
-                                  apiHttpMethod: action.apiHttpMethod,
-                                  requestBodyTemplate: payloadTemplateForBuilder,
-                              };
-                              log_info('Executing onCompletion action: API_CALL', { url: action.target, method: action.apiHttpMethod }, correlationId);
-                              await executeConfiguredApiCall(apiCallDefForExecutor, runtimeState, correlationId, templateSourceContext);
-                              log_info('onCompletion action API_CALL executed successfully.', { url: action.target }, correlationId);
-                          } else {
-                              log_warn('API_CALL onCompletionAction is missing target URL or apiHttpMethod.', { action }, correlationId);
-                          }
-                          break;
-
-                      case 'SNS_SEND':
-                          if (action.target) { 
-                              log_info('Executing onCompletion action: SNS_SEND', { topicArn: action.target }, correlationId);
-                              const messageAttributes: Record<string, MessageAttributeValue> = {};
-                              if (action.messageAttributesTemplate) {
-                                  for (const [key, jsonPathValue] of Object.entries(action.messageAttributesTemplate)) {
-                                      const val = JSONPath({ path: jsonPathValue as JsonPathString, json: templateSourceContext, wrap: false });
-                                      if (val !== undefined) {
-                                          if (typeof val === 'number') messageAttributes[key] = { DataType: 'Number', StringValue: String(val) };
-                                          else if (Array.isArray(val) && val.every(item => typeof item === 'string')) messageAttributes[key] = { DataType: 'String.Array', StringValue: JSON.stringify(val) };
-                                          else if (typeof val === 'string') messageAttributes[key] = { DataType: 'String', StringValue: val };
-                                          else if (Buffer.isBuffer(val)) messageAttributes[key] = { DataType: 'Binary', BinaryValue: val};
-                                          else messageAttributes[key] = { DataType: 'String', StringValue: String(val) };
-                                      }
-                                  }
-                              }
-                              await snsClient.send(new PublishCommand({
-                                  TopicArn: action.target,
-                                  Message: JSON.stringify(payload), 
-                                  MessageAttributes: Object.keys(messageAttributes).length > 0 ? messageAttributes : undefined,
-                              }));
-                              log_info('onCompletion action SNS_SEND executed successfully.', { topicArn: action.target }, correlationId);
-                          } else {
-                              log_warn('SNS_SEND onCompletionAction is missing target Topic ARN.', { action }, correlationId);
-                          }
-                          break;
-                      case 'CUSTOM_LAMBDA_INVOKE':
-                            if (action.target) {
-                                log_info('Executing onCompletion action: CUSTOM_LAMBDA_INVOKE', { lambdaArn: action.target, payload }, correlationId);
-                                await lambdaClient.send(new InvokeCommand({
-                                    FunctionName: action.target,
-                                    Payload: JSON.stringify(payload),
-                                    InvocationType: InvocationType.Event,
-                                }));
-                                log_info('onCompletion action CUSTOM_LAMBDA_INVOKE executed successfully.', { lambdaArn: action.target }, correlationId);
+                    switch(action.actionType) {
+                        case 'API_CALL':
+                            if (action.target && action.apiHttpMethod) {
+                                const apiCallDefForExecutor: ApiCallDefinition = {
+                                    apiUrlTemplate: { template: action.target },
+                                    apiHttpMethod: action.apiHttpMethod,
+                                    requestBodyTemplate: payloadTemplateForBuilder,
+                                };
+                                log_info('Executing onCompletion action: API_CALL', { url: action.target, method: action.apiHttpMethod }, correlationId);
+                                await executeConfiguredApiCall(apiCallDefForExecutor, runtimeState, correlationId, templateSourceContext);
+                                log_info('onCompletion action API_CALL executed successfully.', { url: action.target }, correlationId);
                             } else {
-                                log_warn('CUSTOM_LAMBDA_INVOKE onCompletionAction is missing target Lambda ARN.', { action }, correlationId);
+                                log_warn('API_CALL onCompletionAction is missing target URL or apiHttpMethod.', { action }, correlationId);
                             }
                             break;
-                      case 'LOG_ONLY':
-                          log_info('Executing onCompletion action: LOG_ONLY', { payload }, correlationId);
-                          break;
-                      
-                      case 'SQS_SEND':
-                          log_warn('SQS_SEND onCompletionAction not fully implemented yet.', { action }, correlationId);
-                          break;
 
-                      default:
-                          log_warn('Unsupported onCompletionAction type encountered.', { action }, correlationId);
-                  }
-              } catch(actionError: any) {
-                  log_error('Failed to execute an onCompletionAction', { actionType: action.actionType, target: action.target, error: actionError.message, stack: actionError.stack }, correlationId);
-              }
-          }
+                        case 'SNS_SEND':
+                            if (action.target) { 
+                                log_info('Executing onCompletion action: SNS_SEND', { topicArn: action.target }, correlationId);
+                                const messageAttributes: Record<string, MessageAttributeValue> = {};
+                                if (action.messageAttributesTemplate) {
+                                    for (const [key, jsonPathValue] of Object.entries(action.messageAttributesTemplate)) {
+                                        const val = JSONPath({ path: jsonPathValue as JsonPathString, json: templateSourceContext, wrap: false });
+                                        if (val !== undefined) {
+                                            if (typeof val === 'number') messageAttributes[key] = { DataType: 'Number', StringValue: String(val) };
+                                            else if (Array.isArray(val) && val.every(item => typeof item === 'string')) messageAttributes[key] = { DataType: 'String.Array', StringValue: JSON.stringify(val) };
+                                            else if (typeof val === 'string') messageAttributes[key] = { DataType: 'String', StringValue: val };
+                                            else if (Buffer.isBuffer(val)) messageAttributes[key] = { DataType: 'Binary', BinaryValue: val};
+                                            else messageAttributes[key] = { DataType: 'String', StringValue: String(val) };
+                                        }
+                                    }
+                                }
+                                await snsClient.send(new PublishCommand({
+                                    TopicArn: action.target,
+                                    Message: JSON.stringify(payload), 
+                                    MessageAttributes: Object.keys(messageAttributes).length > 0 ? messageAttributes : undefined,
+                                }));
+                                log_info('onCompletion action SNS_SEND executed successfully.', { topicArn: action.target }, correlationId);
+                            } else {
+                                log_warn('SNS_SEND onCompletionAction is missing target Topic ARN.', { action }, correlationId);
+                            }
+                            break;
+                        case 'CUSTOM_LAMBDA_INVOKE':
+                              if (action.target) {
+                                  log_info('Executing onCompletion action: CUSTOM_LAMBDA_INVOKE', { lambdaArn: action.target, payload }, correlationId);
+                                  await lambdaClient.send(new InvokeCommand({
+                                      FunctionName: action.target,
+                                      Payload: JSON.stringify(payload),
+                                      InvocationType: InvocationType.Event,
+                                  }));
+                                  log_info('onCompletion action CUSTOM_LAMBDA_INVOKE executed successfully.', { lambdaArn: action.target }, correlationId);
+                              } else {
+                                  log_warn('CUSTOM_LAMBDA_INVOKE onCompletionAction is missing target Lambda ARN.', { action }, correlationId);
+                              }
+                              break;
+                        case 'LOG_ONLY':
+                            log_info('Executing onCompletion action: LOG_ONLY', { payload }, correlationId);
+                            break;
+                        
+                        case 'SQS_SEND':
+                            log_warn('SQS_SEND onCompletionAction not fully implemented yet.', { action }, correlationId);
+                            break;
+
+                        default:
+                            log_warn('Unsupported onCompletionAction type encountered.', { action }, correlationId);
+                    }
+                } catch(actionError: any) {
+                    log_error('Failed to execute an onCompletionAction', { actionType: action.actionType, target: action.target, error: actionError.message, stack: actionError.stack }, correlationId);
+                }
+            }
+        }
+      } catch (e: any) {
+        log_warn('Could not load flow definition to run onCompletionActions. This is expected if the flow failed due to a configuration error.', { error: e.message }, correlationId);
       }
 
       finalOutput = {

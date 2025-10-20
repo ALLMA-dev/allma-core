@@ -82,7 +82,10 @@ describe('Integration: Iterative Step Processor - Error Handling and Retries', (
                 'failing_step': {
                     stepInstanceId: 'failing_step', stepType: StepType.DATA_LOAD,
                     moduleIdentifier: 'system/s3-data-loader',
-                    stepDefinitionId: 'system/s3-data-loader',
+                    stepDefinitionId: 'system-s3-data-loader',
+                    customConfig: {
+                        sourceS3Uri: 's3://test/test',
+                    },
                     onError: { fallbackStepInstanceId: 'fallback_step',  continueOnFailure: false}
                 },
                 'fallback_step': { stepInstanceId: 'fallback_step', stepType: StepType.END_FLOW },
@@ -121,7 +124,10 @@ describe('Integration: Iterative Step Processor - Error Handling and Retries', (
                 'failing_step': {
                     stepInstanceId: 'failing_step', stepType: StepType.DATA_LOAD,
                     moduleIdentifier: 'system/s3-data-loader',
-                    stepDefinitionId: 'system/s3-data-loader',
+                    stepDefinitionId: 'system-s3-data-loader',
+                    customConfig: {
+                        sourceS3Uri: 's3://test/test',
+                    },
                 },
             }
         };
@@ -163,6 +169,7 @@ describe('Integration: Iterative Step Processor - Error Handling and Retries', (
                     stepDefinitionId: 'system-llm-invocation',
                     llmProvider: LLMProviderType.GEMINI,
                     modelId: 'gemini-pro',
+                    promptTemplateId: 'test',
                     onError: { retryOnContentError: { count: maxRetries, intervalSeconds: 1, backoffRate: 1 }, continueOnFailure: false } 
                 }
             }
@@ -245,6 +252,7 @@ describe('Integration: Iterative Step Processor - Error Handling and Retries', (
                     stepDefinitionId: 'system-llm-invocation',
                     llmProvider: LLMProviderType.GEMINI,
                     modelId: 'gemini-pro',
+                    promptTemplateId: 'test',
                     securityValidatorConfig: { forbiddenStrings: ['secret'] }
                 }
             }

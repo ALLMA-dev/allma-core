@@ -1,5 +1,5 @@
 
-import { defaultConfig } from '../../../cdk/dist/lib/config/default-config.js';
+import { defaultConfig } from '../../../core-cdk/dist/lib/config/default-config.js';
 import { ENV_VAR_NAMES } from '@allma/core-types';
 
 export default async () => {

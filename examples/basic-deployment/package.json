@@ -7,7 +7,6 @@
   "scripts": {
     "build": "npm run build --prefix src/admin-app && tsc",
     "watch": "tsc -w",
-    "test": "jest",
     "cdk": "cdk",
     "deploy": "cdk deploy --all",
     "lint": "eslint ."

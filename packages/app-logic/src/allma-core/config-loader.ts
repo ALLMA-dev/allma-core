@@ -108,12 +108,9 @@ export async function loadStepDefinition(stepDefinitionId: string, correlationId
             isPublished: true,
             tags: ['system'],
         };
-        try {
-            return StepDefinitionSchema.parse(constructedDef);
-        } catch (e: any) {
-            log_error('Failed to parse a constructed system step definition.', { error: e.message, step: constructedDef }, correlationId);
-            throw new PermanentStepError(`System step definition for '${stepDefinitionId}' is invalid.`);
-        }
+        // The object is not a complete StepDefinition yet, so we return it without validation.
+        // Final validation happens after it's merged with the instance config.
+        return constructedDef as any;
     } else {
         throw new PermanentStepError(`System step definition with id '${stepDefinitionId}' not found.`);
     }

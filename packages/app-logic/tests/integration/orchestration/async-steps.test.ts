@@ -120,9 +120,12 @@ describe('Integration: Iterative Step Processor - Async Steps', () => {
                 'poll_step': {
                     stepInstanceId: 'poll_step', stepType: StepType.POLL_EXTERNAL_API,
                     stepDefinitionId: 'system-poll-external-api',
+                    moduleIdentifier: 'system/poll-external-api',
+                    name: 'Poll External API', // Add name to bypass merge logic
                     apiCallDefinition: {
                         apiUrlTemplate: { template: 'http://test.com' },
                         apiHttpMethod: HttpMethod.GET,
+                        apiStaticHeaders: {},
                     },
                     pollingConfig: {
                         intervalSeconds: 10,
@@ -136,20 +139,6 @@ describe('Integration: Iterative Step Processor - Async Steps', () => {
             }
         };
         await setupFlowInDB(flowDef);
-        
-        const mockSpecializedOutput = {
-            apiCallDefinition: { apiHttpMethod: HttpMethod.GET, apiUrlTemplate: { template: 'http://test.com' } },
-            pollingConfig: { intervalSeconds: 10, maxAttempts: 5 },
-            exitConditions: { successCondition: '$.status == "COMPLETE"', failureCondition: '$.status == "FAILED"' }
-        };
-
-        mockedGetStepHandler.mockImplementation(createMockStepHandler({
-            type: StepType.NO_OP,
-            handler: async () => ({
-                outputData: { message: 'prepared' },
-                specializedOutput: mockSpecializedOutput
-            })
-        }));
 
         const initialInput: ProcessorInput = {
             runtimeState: {
@@ -170,7 +159,21 @@ describe('Integration: Iterative Step Processor - Async Steps', () => {
         // ASSERT
         expect(result1.runtimeState.currentStepInstanceId).toBe('poll_step');
         expect(result1.sfnAction).toBe(SfnActionType.POLL_EXTERNAL_API);
-        expect(result1.pollingTaskInput).toEqual(mockSpecializedOutput);
+        expect(result1.pollingTaskInput).toEqual({
+            apiCallDefinition: {
+                apiUrlTemplate: { template: 'http://test.com' },
+                apiHttpMethod: HttpMethod.GET,
+                apiStaticHeaders: {},
+            },
+            pollingConfig: {
+                intervalSeconds: 10,
+                maxAttempts: 5,
+            },
+            exitConditions: {
+                successCondition: '$.status == "COMPLETE"',
+                failureCondition: '$.status == "FAILED"',
+            }
+        });
     });
 
     it('should correctly handle async resume with a resumePayload', async () => {

@@ -85,18 +85,11 @@ export const StepDefinitionSchema = BaseStepDefinitionSchema.and(z.object({
   if (data.stepType === StepTypeSchema.enum.DATA_TRANSFORMATION && !data.customConfig?.script && !data.moduleIdentifier) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Either a script or a moduleIdentifier is required for DATA_TRANSFORMATION steps.", path: ["moduleIdentifier"] });
   }
-  const systemModuleTypes = [
-    StepTypeSchema.enum.DATA_LOAD, StepTypeSchema.enum.DATA_SAVE, StepTypeSchema.enum.DATA_TRANSFORMATION,
-    StepTypeSchema.enum.MESSAGING, StepTypeSchema.enum.START_FLOW_EXECUTION
-  ];
-  if (systemModuleTypes.includes(data.stepType)) {
-    const moduleData = data as any;
-    
-    if (moduleData.id && moduleData.id.startsWith('system') && moduleData.moduleIdentifier) {
-        const normalize = (id: string) => id.toLowerCase().replace(/^([a-z]+)[-/](.*)/, '$1/$2');
-        if (normalize(moduleData.id) !== normalize(moduleData.moduleIdentifier)) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: `For system-provided module definitions, the 'id' must match the 'moduleIdentifier'. Expected '${moduleData.moduleIdentifier}' but got '${moduleData.id}'.`, path: ["id"] });
-        }
+  // This validation applies to ANY system-provided step that has a module identifier.
+  if (data.id && data.id.startsWith('system') && data.moduleIdentifier) {
+    const normalize = (id: string) => id.toLowerCase().replace(/^([a-z]+)[-/](.*)/, '$1/$2');
+    if (normalize(data.id) !== normalize(data.moduleIdentifier)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `For system-provided module definitions, the 'id' must match the 'moduleIdentifier'. Expected '${data.moduleIdentifier}' but got '${data.id}'.`, path: ["id"] });
     }
   }
 });
