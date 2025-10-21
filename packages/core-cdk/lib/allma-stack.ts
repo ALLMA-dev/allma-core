@@ -17,17 +17,7 @@ import { DeepPartial, StageConfig, WebAppConfig } from './config/stack-config.js
 import * as s3_assets from 'aws-cdk-lib/aws-s3-assets';
 import * as customResources from 'aws-cdk-lib/custom-resources';
 
-import * as lambdaNodejs from 'aws-cdk-lib/aws-lambda-nodejs';
-import * as lambda from 'aws-cdk-lib/aws-lambda';
-import * as path from 'path';
-import { fileURLToPath } from 'url';
-import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
-import * as apigwv2 from 'aws-cdk-lib/aws-apigatewayv2';
-
 export * from './config/stack-config.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // A simple deep merge function for configs
 function deepMerge<T>(target: T, source: DeepPartial<T>): T {
@@ -264,29 +254,8 @@ export class AllmaStack extends cdk.Stack {
       const adminShellUrl = `https://${adminShellDeployment.distribution.distributionDomainName}`;
       const finalOrigins = Array.from(new Set([...stageConfig.adminApi.allowedOrigins, adminShellUrl]));
       
-      const corsHandlerLambda = new lambdaNodejs.NodejsFunction(this, 'CorsHandlerLambda', {
-        functionName: `AllmaApiCorsHandler-${stageConfig.stage}`,
-        runtime: lambda.Runtime.NODEJS_22_X,
-        handler: 'handler',
-        entry: path.resolve(__dirname, '..', '..', 'lib', 'lambda-handlers', 'cors-handler.ts'),
-        timeout: cdk.Duration.seconds(5),
-        memorySize: 128,
-        environment: {
-          ALLOWED_ORIGINS: finalOrigins.join(','),
-        },
-        bundling: {
-          minify: true,
-          sourceMap: false,
-          externalModules: [],
-        },
-      });
-
-      api.httpApi.addRoutes({
-        path: '/{proxy+}',
-        methods: [apigwv2.HttpMethod.OPTIONS],
-        integration: new HttpLambdaIntegration('CorsIntegration', corsHandlerLambda),
-        authorizer: new apigwv2.HttpNoneAuthorizer(), // Preflight requests must not be authorized
-      });
+      const cfnApi = api.httpApi.node.defaultChild as cdk.aws_apigatewayv2.CfnApi;
+      cfnApi.addPropertyOverride('CorsConfiguration.AllowOrigins', finalOrigins);
     }
 
     if (props.docsSite) {

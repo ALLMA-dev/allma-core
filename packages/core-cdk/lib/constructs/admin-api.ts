@@ -62,6 +62,18 @@ export class AllmaAdminApi extends Construct {
     this.httpApi = new apigwv2.HttpApi(this, 'AllmaAdminHttpApi', {
       apiName: `AllmaAdminApi-${stageConfig.stage}`,
       description: `Admin API for ALLMA Platform (${stageConfig.stage})`,
+      corsPreflight: {
+        allowHeaders: ['Content-Type', 'X-Amz-Date', 'Authorization', 'X-Api-Key', 'X-Amz-Security-Token', 'X-Amz-User-Agent'],
+        allowMethods: [
+          apigwv2.CorsHttpMethod.OPTIONS,
+          apigwv2.CorsHttpMethod.GET,
+          apigwv2.CorsHttpMethod.POST,
+          apigwv2.CorsHttpMethod.PUT,
+          apigwv2.CorsHttpMethod.DELETE,
+        ],
+        allowOrigins: stageConfig.adminApi.allowedOrigins, // Initialize with static origins
+        maxAge: cdk.Duration.days(1),
+      },
       createDefaultStage: false,
       defaultAuthorizer: adminAuthorizer,
     });
