@@ -19,6 +19,7 @@
   "workspaces": [
     "packages/*",
     "examples/basic-deployment",
+    "examples/basic-deployment-my",
     "examples/customer-deployment"
   ],
   "dependencies": {

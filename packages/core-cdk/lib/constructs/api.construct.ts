@@ -40,6 +40,7 @@ export class ApiConstruct extends Construct {
     public readonly userPoolClient: cdk.aws_cognito.IUserPoolClient;
     public readonly httpApi: apigwv2.HttpApi;
     public readonly apiDomainName: apigwv2.DomainName | undefined;
+    public readonly apiStage: apigwv2.HttpStage; // Expose the stage for URL construction
   
     constructor(scope: Construct, id: string, props: ApiConstructProps) {
         super(scope, id);
@@ -121,6 +122,13 @@ export class ApiConstruct extends Construct {
         this.httpApi = adminApi.httpApi;
         this.apiDomainName = adminApi.apiDomainName;
         
+        
+        this.apiStage = new apigwv2.HttpStage(this, 'ApiGatewayStage', {
+            httpApi: this.httpApi as any, 
+            stageName: stageConfig.adminApi.apiMappingKey,
+            autoDeploy: true,
+        });
+
         // --- Outputs ---
         const stackPrefix = `AllmaPlatform-${stageConfig.stage}`;
         new cdk.CfnOutput(this, 'AdminUserPoolIdOutputExport', {
@@ -134,11 +142,13 @@ export class ApiConstruct extends Construct {
             exportName: `${stackPrefix}-AdminUserPoolClientId`,
         });
         new cdk.CfnOutput(this, 'AllmaAdminApiUrlOutput', {
-            value: this.httpApi.url || (this.apiDomainName ? `https://${this.apiDomainName.name}` : 'API_URL_NOT_YET_AVAILABLE'),
+            // FIX: Construct the URL from the explicit stage
+            value: this.apiStage.url,
             description: 'URL of the ALLMA Admin API Gateway',
         });
         new cdk.CfnOutput(this, 'AllmaResumeApiUrlOutputExport', {
-            value: `${this.httpApi.url}${ALLMA_ADMIN_API_ROUTES.RESUME}`,
+            // FIX: Construct the URL from the explicit stage
+            value: `${this.apiStage.url.slice(0, -1)}${ALLMA_ADMIN_API_ROUTES.RESUME}`,
             description: 'Full URL for the public flow resume endpoint',
             exportName: `${stackPrefix}-ResumeApiUrl`,
         });

@@ -17,18 +17,11 @@ export const devConfig: DeepPartial<StageConfig> = {
   awsRegion: '[set your aws account region here]', // e.g. us-east-1
   stage: Stage.DEV,
 
-  // --- Admin API and Cognito (Example Override) ---
-  adminApi: {
-    domainName: 'allma-admin-api-dev.example.com', 
-    certificateArn: 'arn:aws:acm:...',
-    allowedOrigins: ['http://localhost:3001', 'http://localhost:5173', 'https://admin-ui-dev.example.com'],
-  },
-
   // --- Logging (Override of default value) ---
   logging: {
     logLevel: LogLevel.DEBUG,
   },
 
   // --- Secrets (Required to store AI LLM API keys) ---
-  aiApiKeySecretArn: 'arn:aws:secretsmanager:...',
+  aiApiKeySecretArn: '',
 };

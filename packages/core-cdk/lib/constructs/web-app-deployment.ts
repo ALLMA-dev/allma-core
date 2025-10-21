@@ -5,12 +5,18 @@ import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
 import * as iam from 'aws-cdk-lib/aws-iam';
-import * as cr from 'aws-cdk-lib/custom-resources';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import * as route53Targets from 'aws-cdk-lib/aws-route53-targets';
 import * as acm from 'aws-cdk-lib/aws-certificatemanager';
+import * as lambdaNodejs from 'aws-cdk-lib/aws-lambda-nodejs';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export interface WebAppDeploymentProps {
   /**
@@ -128,35 +134,46 @@ export class WebAppDeployment extends Construct {
       });
     }
 
-    // 4. Securely inject the runtime configuration into index.html
+    // 4. Securely inject the runtime configuration into index.html using a Lambda-backed custom resource
     const indexPath = path.join(props.assetPath, 'index.html');
     if (!fs.existsSync(indexPath)) {
       throw new Error(`The specified assetPath "${props.assetPath}" does not contain an index.html file.`);
     }
+    const indexHtmlContent = fs.readFileSync(indexPath, 'utf8');
 
-    const originalIndexHtml = fs.readFileSync(indexPath, 'utf8');
-    const configScript = `<script>window.runtimeConfig = ${JSON.stringify(props.runtimeConfig)};</script>`;
-    const modifiedIndexHtml = originalIndexHtml.replace('</head>', `${configScript}</head>`);
-
-    const configInjector = new cr.AwsCustomResource(this, `${props.deploymentId}ConfigInjector`, {
-      onUpdate: {
-        service: 'S3',
-        action: 'putObject',
-        parameters: {
-          Bucket: assetsBucket.bucketName,
-          Key: 'index.html',
-          Body: modifiedIndexHtml,
-          ContentType: 'text/html',
-        },
-        physicalResourceId: cr.PhysicalResourceId.of(`${props.deploymentId}ConfigInjector-${Date.now()}`),
-      },
-      policy: cr.AwsCustomResourcePolicy.fromStatements([
-        new iam.PolicyStatement({
-          actions: ['s3:PutObject'],
-          resources: [assetsBucket.arnForObjects('index.html')],
-        }),
-      ]),
+    const configInjectorRole = new iam.Role(this, `${props.deploymentId}ConfigInjectorRole`, {
+      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole')
+      ],
     });
+    // Grant least-privilege permission to write only the index.html file
+    assetsBucket.grantPut(configInjectorRole, 'index.html');
+
+    const configInjectorLambda = new lambdaNodejs.NodejsFunction(this, `${props.deploymentId}ConfigInjectorLambda`, {
+      entry: path.resolve(__dirname, '..', '..', '..', 'lib', 'lambda-handlers', 'config-injector.ts'),
+      handler: 'handler',
+      runtime: lambda.Runtime.NODEJS_22_X,
+      role: configInjectorRole,
+      timeout: cdk.Duration.minutes(1),
+      bundling: {
+        minify: true,
+        sourceMap: true,
+        externalModules: ['@aws-sdk/client-s3'],
+      },
+    });
+
+    const configInjector = new cdk.CustomResource(this, `${props.deploymentId}ConfigInjector`, {
+      serviceToken: configInjectorLambda.functionArn,
+      properties: {
+        DestinationBucketName: assetsBucket.bucketName,
+        IndexHtmlContent: indexHtmlContent,
+        RuntimeConfig: props.runtimeConfig,
+        // Trigger an update whenever the source index.html or the config changes.
+        UpdateTrigger: crypto.createHash('md5').update(indexHtmlContent + JSON.stringify(props.runtimeConfig)).digest('hex'),
+      },
+    });
+
 
     // 5. Deploy the rest of the static assets to the S3 bucket
     new s3deploy.BucketDeployment(this, `${props.deploymentId}AssetDeployment`, {
@@ -167,7 +184,7 @@ export class WebAppDeployment extends Construct {
       exclude: ['index.html'], // Exclude index.html as it's handled by the custom resource
     });
 
-    // Ensure the config injection happens before the asset deployment
+    // Ensure the bucket exists before the custom resource tries to write to it.
     configInjector.node.addDependency(assetsBucket);
 
     // Output the CloudFront distribution domain name

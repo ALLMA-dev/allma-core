@@ -54,26 +54,15 @@ export class AllmaAdminApi extends Construct {
 
     const adminAuthorizer = new HttpUserPoolAuthorizer('AdminCognitoAuthorizer', props.adminUserPool, {
       userPoolClients: [adminUserPoolClient],
-      // The Identity Source is where the token is expected (Authorization header)
-      // This is automatically handled by the default HttpUserPoolAuthorizer based on Cognito setup.
-      // We will rely on JWT claims directly in Lambda for group membership.
     });
 
+    // CORS is now handled explicitly via a dedicated Lambda and a catch-all OPTIONS route
+    // defined in the AllmaStack. This provides a more robust and debuggable solution for
+    // handling the circular dependency with the Admin UI's dynamic CloudFront URL.
     this.httpApi = new apigwv2.HttpApi(this, 'AllmaAdminHttpApi', {
       apiName: `AllmaAdminApi-${stageConfig.stage}`,
       description: `Admin API for ALLMA Platform (${stageConfig.stage})`,
-      corsPreflight: {
-        allowHeaders: ['Content-Type', 'X-Amz-Date', 'Authorization', 'X-Api-Key', 'X-Amz-Security-Token', 'X-Amz-User-Agent'],
-        allowMethods: [
-          apigwv2.CorsHttpMethod.OPTIONS,
-          apigwv2.CorsHttpMethod.GET,
-          apigwv2.CorsHttpMethod.POST,
-          apigwv2.CorsHttpMethod.PUT,
-          apigwv2.CorsHttpMethod.DELETE,
-        ],
-        allowOrigins: stageConfig.adminApi.allowedOrigins,
-        maxAge: cdk.Duration.days(1),
-      },
+      createDefaultStage: false,
       defaultAuthorizer: adminAuthorizer,
     });
 
@@ -317,7 +306,7 @@ export class AllmaAdminApi extends Construct {
       resources: [
         cdk.Stack.of(this).formatArn({
           service: 'execute-api',
-          resource: `${this.httpApi.apiId}/${props.stageConfig.stage}/*${ALLMA_ADMIN_API_ROUTES.RESUME}`,
+          resource: `${this.httpApi.apiId}/${props.stageConfig.adminApi.apiMappingKey}/*${ALLMA_ADMIN_API_ROUTES.RESUME}`,
         }),
       ],
     });

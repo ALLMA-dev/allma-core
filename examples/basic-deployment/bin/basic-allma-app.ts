@@ -3,6 +3,7 @@ import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
 import { AllmaStack } from '@allma/core-cdk';
 import { devConfig } from '../config/allma.config';
+import * as path from 'path';
 
 const app = new cdk.App();
 
@@ -23,4 +24,8 @@ new AllmaStack(app, `AllmaPlatformStack-${stageName}`, {
 
   /* For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html */
   stageConfig: devConfig,
+
+    adminShell: {
+      assetPath: path.join(__dirname, '../src/admin-app/dist'),
+  },
 });

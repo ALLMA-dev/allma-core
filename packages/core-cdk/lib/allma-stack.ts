@@ -17,7 +17,17 @@ import { DeepPartial, StageConfig, WebAppConfig } from './config/stack-config.js
 import * as s3_assets from 'aws-cdk-lib/aws-s3-assets';
 import * as customResources from 'aws-cdk-lib/custom-resources';
 
+import * as lambdaNodejs from 'aws-cdk-lib/aws-lambda-nodejs';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
+import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
+import * as apigwv2 from 'aws-cdk-lib/aws-apigatewayv2';
+
 export * from './config/stack-config.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // A simple deep merge function for configs
 function deepMerge<T>(target: T, source: DeepPartial<T>): T {
@@ -218,8 +228,13 @@ export class AllmaStack extends cdk.Stack {
     this.adminUserPool = api.userPool;
     this.adminUserPoolClient = api.userPoolClient;
 
-    // Provide the finalizeFlowLambda with the URL of the resume API endpoint.
-    const resumeApiUrl = `${api.httpApi.url?.slice(0, -1)}${ALLMA_ADMIN_API_ROUTES.RESUME}`;
+    // The L2 HttpApi's `.url` property returns the execute-api URL, not the custom domain.
+    // We must construct the URL conditionally to ensure correctness.
+    const apiBaseUrlWithStage = stageConfig.adminApi.domainName && stageConfig.adminApi.apiMappingKey
+        ? `https://${stageConfig.adminApi.domainName}/${stageConfig.adminApi.apiMappingKey}`
+        : api.apiStage.url.slice(0, -1); // Remove trailing slash
+    
+    const resumeApiUrl = `${apiBaseUrlWithStage}${ALLMA_ADMIN_API_ROUTES.RESUME}`;
     compute.finalizeFlowLambda.addEnvironment(ENV_VAR_NAMES.ALLMA_RESUME_API_URL, resumeApiUrl);
 
     // --- UI Deployments (Admin Shell & Docs) ---
@@ -235,24 +250,43 @@ export class AllmaStack extends cdk.Stack {
           VITE_AWS_REGION: this.region,
           VITE_COGNITO_USER_POOL_ID: api.userPool.userPoolId,
           VITE_COGNITO_USER_POOL_CLIENT_ID: api.userPoolClient.userPoolClientId,
-          VITE_API_BASE_URL: api.httpApi.url,
+          VITE_API_BASE_URL: apiBaseUrlWithStage,
         },
       });
 
-      // --- Circular Dependency Resolution for Admin UI ---
-      // The Admin UI needs the API URL at build time, and the API needs the Admin UI's
-      // generated CloudFront URL for its CORS configuration at deployment time. This creates
-      // a circular dependency when custom domains are not used.
-      // To resolve this, we create the API first, then the Admin UI deployment (which
-      // generates the CloudFront URL), and then we retrospectively add the Admin UI's
-      // URL to the API's CORS allowed origins list.
-      // We use an L1 construct override (`CfnApi`) because the L2 `HttpApi` construct
-      // does not expose a method to modify CORS after instantiation.
+      // --- Explicit CORS Handling to Resolve Circular Dependency ---
+      // We create a dedicated Lambda to handle all OPTIONS preflight requests.
+      // This Lambda is created *after* the Admin UI is deployed, so we have access to
+      // its dynamic CloudFront URL. This URL is passed to the Lambda via an env var.
+      // A single catch-all OPTIONS /{proxy+} route is then added to the API Gateway.
+      // This is the most robust way to handle CORS in this scenario.
+      
       const adminShellUrl = `https://${adminShellDeployment.distribution.distributionDomainName}`;
       const finalOrigins = Array.from(new Set([...stageConfig.adminApi.allowedOrigins, adminShellUrl]));
+      
+      const corsHandlerLambda = new lambdaNodejs.NodejsFunction(this, 'CorsHandlerLambda', {
+        functionName: `AllmaApiCorsHandler-${stageConfig.stage}`,
+        runtime: lambda.Runtime.NODEJS_22_X,
+        handler: 'handler',
+        entry: path.resolve(__dirname, '..', '..', 'lib', 'lambda-handlers', 'cors-handler.ts'),
+        timeout: cdk.Duration.seconds(5),
+        memorySize: 128,
+        environment: {
+          ALLOWED_ORIGINS: finalOrigins.join(','),
+        },
+        bundling: {
+          minify: true,
+          sourceMap: false,
+          externalModules: [],
+        },
+      });
 
-      const cfnApi = api.httpApi.node.defaultChild as cdk.aws_apigatewayv2.CfnApi;
-      cfnApi.addPropertyOverride('CorsConfiguration.AllowOrigins', finalOrigins);
+      api.httpApi.addRoutes({
+        path: '/{proxy+}',
+        methods: [apigwv2.HttpMethod.OPTIONS],
+        integration: new HttpLambdaIntegration('CorsIntegration', corsHandlerLambda),
+        authorizer: new apigwv2.HttpNoneAuthorizer(), // Preflight requests must not be authorized
+      });
     }
 
     if (props.docsSite) {

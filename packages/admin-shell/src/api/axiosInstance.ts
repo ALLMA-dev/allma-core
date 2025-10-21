@@ -1,6 +1,8 @@
 import axios, { type InternalAxiosRequestConfig } from 'axios';
 import { fetchAuthSession } from 'aws-amplify/auth';
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL; // Example: VITE_API_BASE_URL=https://admin-api-allma-dev.symanty.com
+import { getAppConfig } from '../config/app-config.ts';
+const { VITE_API_BASE_URL: apiBaseUrl } = getAppConfig();
+
 if (!apiBaseUrl) {
   const errorMessage = 'Configuration Error: VITE_API_BASE_URL environment variable is not set. The application cannot connect to the backend API.';
   console.error(errorMessage);
