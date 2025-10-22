@@ -2,6 +2,7 @@ export * from './api-calls.js';
 export * from './crawler.js';
 export * from './dynamodb-loader.js';
 export * from './llm.js';
+export * from './email.js';
 export * from './messaging.js';
 export * from './s3-loader.js';
 export * from './s3-saver.js';

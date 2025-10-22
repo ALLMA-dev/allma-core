@@ -45,11 +45,20 @@ export class AllmaDataStores extends Construct {
       projectionType: dynamodb.ProjectionType.ALL, // Adjust as needed
     });
 
-    // GSI for listing master config items (flows, prompts)
+    // --- GSI for listing items ---
+    
     this.allmaConfigTable.addGlobalSecondaryIndex({
         indexName: 'GSI_ListItems',
         partitionKey: { name: 'itemType', type: dynamodb.AttributeType.STRING },
-        sortKey: { name: 'name', type: dynamodb.AttributeType.STRING }, // Sort by name for easier listing
+        sortKey: { name: 'name', type: dynamodb.AttributeType.STRING },
+        nonKeyAttributes: ['id', 'description', 'latestVersion', 'publishedVersion', 'tags', 'updatedAt', 'stepType'],
+        projectionType: dynamodb.ProjectionType.INCLUDE,
+    });
+
+    this.allmaConfigTable.addGlobalSecondaryIndex({
+        indexName: 'GSI_ListItems_v2',
+        partitionKey: { name: 'itemType', type: dynamodb.AttributeType.STRING },
+        sortKey: { name: 'name', type: dynamodb.AttributeType.STRING },
         nonKeyAttributes: ['id', 'description', 'latestVersion', 'publishedVersion', 'tags', 'updatedAt', 'stepType', 'emailTriggerAddress'],
         projectionType: dynamodb.ProjectionType.INCLUDE,
     });

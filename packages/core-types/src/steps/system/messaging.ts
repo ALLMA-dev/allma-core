@@ -3,26 +3,24 @@ import { StepTypeSchema } from '../../common/enums.js';
 import { SystemModuleIdentifiers } from '../system-module-identifiers.js';
 
 /**
- * Defines the payload for a MESSAGING step that uses a specific module to send a message.
- * This is the base schema for messaging steps.
+ * Defines the payload for the 'system/sqs-send' module.
  */
-export const MessagingStepPayloadSchema = z.object({
-  stepType: z.literal(StepTypeSchema.enum.MESSAGING),
-  moduleIdentifier: z.string().optional(),
-  customConfig: z.record(z.any()).optional().describe("Custom Config|json|Module-specific configuration object."),
+export const SqsSendStepPayloadSchema = z.object({
+  stepType: z.literal(StepTypeSchema.enum.SQS_SEND), // FIX: Use unique step type
+  moduleIdentifier: z.literal(SystemModuleIdentifiers.SQS_SEND),
+  queueUrl: z.string().url().describe("The URL of the SQS queue."),
+  payload: z.record(z.any()).describe("The JSON payload to send as the message body."),
+  messageGroupId: z.string().optional().describe("For FIFO queues: The message group ID."),
+  messageDeduplicationId: z.string().optional().describe("For FIFO queues: The message deduplication ID."),
 }).passthrough();
 
-
 /**
- * Defines the payload for the 'system/email-send' module.
- * This is a specific type of MESSAGING step.
+ * Defines the payload for the 'system/sns-publish' module.
  */
-export const EmailSendStepPayloadSchema = z.object({
-    stepType: z.literal(StepTypeSchema.enum.MESSAGING),
-    moduleIdentifier: z.literal(SystemModuleIdentifiers.EMAIL_SEND),
-    from: z.string().email().describe("The sender's email address (must be a verified SES identity). Supports templates."),
-    to: z.union([z.string().email(), z.array(z.string().email())]).describe("Recipient email address(es). Supports templates."),
-    replyTo: z.union([z.string().email(), z.array(z.string().email())]).optional().describe("Optional Reply-To email address(es). Supports templates."),
-    subject: z.string().describe("The email subject. Supports templates."),
-    body: z.string().describe("The email body (HTML or text). Supports templates."),
-  }).passthrough();
+export const SnsPublishStepPayloadSchema = z.object({
+  stepType: z.literal(StepTypeSchema.enum.SNS_PUBLISH), // FIX: Use unique step type
+  moduleIdentifier: z.literal(SystemModuleIdentifiers.SNS_PUBLISH),
+  topicArn: z.string().startsWith('arn:aws:sns:').describe("The ARN of the SNS topic."),
+  payload: z.record(z.any()).describe("The JSON payload to send as the message body."),
+  messageAttributes: z.record(z.any()).optional().describe("Key-value pairs for SNS message attributes."),
+}).passthrough();

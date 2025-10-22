@@ -20,9 +20,9 @@ const __dirname_email = dirname(__filename_email);
 
 interface EmailIntegrationProps {
     stageConfig: StageConfig;
-    emailMappingTable: dynamodb.Table; // FIX: Use concrete class instead of interface
+    emailMappingTable: dynamodb.Table;
     flowStartQueue: sqs.IQueue;
-    httpApi: apigwv2.HttpApi; // FIX: Use concrete class instead of interface
+    httpApi: apigwv2.HttpApi;
 }
 
 /**
@@ -56,7 +56,6 @@ export class EmailIntegration extends Construct {
         emailMappingTable.grantReadData(emailIngressRole);
         flowStartQueue.grantSendMessages(emailIngressRole);
 
-        // Grant permission to invoke the public /resume endpoint
         emailIngressRole.addToPolicy(new iam.PolicyStatement({
             effect: iam.Effect.ALLOW,
             actions: ['execute-api:Invoke'],
@@ -83,6 +82,8 @@ export class EmailIntegration extends Construct {
                 [ENV_VAR_NAMES.ALLMA_FLOW_START_REQUEST_QUEUE_URL]: flowStartQueue.queueUrl,
                 [ENV_VAR_NAMES.ALLMA_RESUME_API_URL]: `${httpApi.apiEndpoint}/${stageConfig.adminApi.apiMappingKey}${ALLMA_ADMIN_API_ROUTES.RESUME}`,
                 'EMAIL_TO_FLOW_MAPPING_TABLE_NAME': emailMappingTable.tableName,
+                // NEW: Pass the bucket name to the Lambda
+                'INCOMING_EMAILS_BUCKET_NAME': incomingEmailsBucket.bucketName,
             },
             bundling: {
                 minify: true,
@@ -93,10 +94,8 @@ export class EmailIntegration extends Construct {
         });
 
         // 4. SES Receipt Rule
-        // A rule set must exist. We create one and make it active if it doesn't already exist.
         const ruleSet = new ses.ReceiptRuleSet(this, 'AllmaReceiptRuleSet', {
             receiptRuleSetName: `AllmaRuleSet-${stageConfig.stage}`,
-            dropSpam: true,
         });
 
         const rule = ruleSet.addRule('AllmaEmailIngressRule', {
@@ -106,23 +105,22 @@ export class EmailIntegration extends Construct {
                 // Action 1: Store the email in S3
                 new sesActions.S3({
                     bucket: incomingEmailsBucket,
+                    // FIX: Set the object key prefix. SES will automatically append the message ID.
                     objectKeyPrefix: 'inbound/',
                 }),
                 // Action 2: Trigger our Lambda function
                 new sesActions.Lambda({
                     function: emailIngressLambda,
-                    invocationType: sesActions.LambdaInvocationType.EVENT, // Asynchronous
+                    invocationType: sesActions.LambdaInvocationType.EVENT,
                 }),
             ],
         });
         
-        // FIX: Construct the rule ARN manually for the permission
         const ruleArn = cdk.Stack.of(this).formatArn({
             service: 'ses',
             resource: `receipt-rule-set/${ruleSet.receiptRuleSetName}/receipt-rule/${rule.receiptRuleName}`,
         });
 
-        // Ensure the Lambda has permission to be invoked by SES
         emailIngressLambda.addPermission('AllowSesInvoke', {
             principal: new iam.ServicePrincipal('ses.amazonaws.com'),
             action: 'lambda:InvokeFunction',
@@ -130,7 +128,6 @@ export class EmailIntegration extends Construct {
             sourceArn: ruleArn,
         });
 
-        // Grant SES permission to write to our S3 bucket
         incomingEmailsBucket.addToResourcePolicy(new iam.PolicyStatement({
             actions: ['s3:PutObject'],
             resources: [incomingEmailsBucket.arnForObjects('*')],

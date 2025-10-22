@@ -1,4 +1,4 @@
-import { StepType, StepHandler, SYSTEM_STEP_DEFINITIONS, SystemModuleIdentifiers } from '@allma/core-types';
+import { StepType, StepHandler } from '@allma/core-types';
 import { log_error } from '@allma/core-sdk';
 
 // Import handlers for specific step types
@@ -16,60 +16,7 @@ import { handleCustomLambdaInvoke } from './custom-lambda-invoke-handler.js';
 import { executeSqsSender } from '../data-savers/sqs-sender.js';
 import { executeSnsPublisher } from '../data-savers/sns-publisher.js';
 import { executeStartFlowExecution } from '../data-savers/start-flow-execution.js';
-import { executeSendEmail } from './messaging/send-email-handler.js';
-
-
-// --- Dispatcher for MESSAGING steps ---
-const messagingModuleRegistry = SYSTEM_STEP_DEFINITIONS
-    .filter(def => def.stepType === StepType.MESSAGING)
-    .reduce((acc, def) => {
-        switch (def.moduleIdentifier) {
-            case SystemModuleIdentifiers.SQS_SEND:
-                acc[def.moduleIdentifier] = executeSqsSender;
-                break;
-            case SystemModuleIdentifiers.SNS_PUBLISH:
-                acc[def.moduleIdentifier] = executeSnsPublisher;
-                break;
-            case SystemModuleIdentifiers.EMAIL_SEND: // NEW
-                acc[def.moduleIdentifier] = executeSendEmail;
-                break;
-        }
-        return acc;
-    }, {} as Record<string, StepHandler>);
-export const handleMessaging: StepHandler = async (stepDefinition, stepInput, runtimeState) => {
-  const moduleIdentifier = (stepDefinition as any).moduleIdentifier;
-  if (typeof moduleIdentifier !== 'string' || !moduleIdentifier) {
-    throw new Error(`Module identifier is missing for MESSAGING step ${stepDefinition.id}.`);
-  }
-  const handler = messagingModuleRegistry[moduleIdentifier];
-  if (handler) {
-    const combinedInput = { ...((stepDefinition as any).customConfig || {}), ...stepInput };
-    return handler(stepDefinition, combinedInput, runtimeState);
-  }
-  throw new Error(`Unsupported MESSAGING module: ${moduleIdentifier}`);
-};
-
-// --- Dispatcher for START_FLOW_EXECUTION steps ---
-const flowControlModuleRegistry = SYSTEM_STEP_DEFINITIONS
-    .filter(def => def.stepType === StepType.START_FLOW_EXECUTION)
-    .reduce((acc, def) => {
-        if (def.moduleIdentifier === SystemModuleIdentifiers.START_FLOW_EXECUTION) {
-            acc[def.moduleIdentifier] = executeStartFlowExecution;
-        }
-        return acc;
-    }, {} as Record<string, StepHandler>);
-export const handleStartFlowExecution: StepHandler = async (stepDefinition, stepInput, runtimeState) => {
-    const moduleIdentifier = (stepDefinition as any).moduleIdentifier;
-    if (typeof moduleIdentifier !== 'string' || !moduleIdentifier) {
-        throw new Error(`Module identifier is missing for START_FLOW_EXECUTION step ${stepDefinition.id}.`);
-    }
-    const handler = flowControlModuleRegistry[moduleIdentifier];
-    if (handler) {
-        const combinedInput = { ...((stepDefinition as any).customConfig || {}), ...stepInput };
-        return handler(stepDefinition, combinedInput, runtimeState);
-    }
-    throw new Error(`Unsupported START_FLOW_EXECUTION module: ${moduleIdentifier}`);
-};
+import { executeSendEmail } from './email/send-email-handler.js';
 
 
 const handlerRegistry: Partial<Record<StepType, StepHandler>> = {
@@ -82,8 +29,13 @@ const handlerRegistry: Partial<Record<StepType, StepHandler>> = {
   [StepType.DATA_TRANSFORMATION]: handleDataTransformation,
   [StepType.DATA_SAVE]: handleDataSave,
   [StepType.CUSTOM_LAMBDA_INVOKE]: handleCustomLambdaInvoke,
-  [StepType.MESSAGING]: handleMessaging,
-  [StepType.START_FLOW_EXECUTION]: handleStartFlowExecution,
+  [StepType.START_FLOW_EXECUTION]: executeStartFlowExecution,
+
+  
+  [StepType.EMAIL]: executeSendEmail,
+  [StepType.SQS_SEND]: executeSqsSender,
+  [StepType.SNS_PUBLISH]: executeSnsPublisher,
+
   // Future handlers would be registered here
 };
 

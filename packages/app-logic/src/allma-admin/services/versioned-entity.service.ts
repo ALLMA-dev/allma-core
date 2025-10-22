@@ -75,7 +75,7 @@ export class VersionedEntityManager<TMaster extends MasterItem, TVersion extends
 
             const { Items } = await ddbDocClient.send(new ScanCommand({
                 TableName: CONFIG_TABLE_NAME,
-                IndexName: 'GSI_ListItems',
+                IndexName: 'GSI_ListItems_v2',
                 FilterExpression: filterExpressions.join(' AND '),
                 ExpressionAttributeNames: expressionAttributeNames,
                 ExpressionAttributeValues: expressionAttributeValues,
@@ -96,7 +96,7 @@ export class VersionedEntityManager<TMaster extends MasterItem, TVersion extends
 
             const { Items } = await ddbDocClient.send(new QueryCommand({
                 TableName: CONFIG_TABLE_NAME,
-                IndexName: 'GSI_ListItems',
+                IndexName: 'GSI_ListItems_v2',
                 KeyConditionExpression: 'itemType = :itemType',
                 FilterExpression: filterExpressions.join(' AND '),
                 ExpressionAttributeValues: expressionAttributeValues,
@@ -112,7 +112,7 @@ export class VersionedEntityManager<TMaster extends MasterItem, TVersion extends
         do {
             const { Items, LastEvaluatedKey } = await ddbDocClient.send(new QueryCommand({
                 TableName: CONFIG_TABLE_NAME,
-                IndexName: 'GSI_ListItems',
+                IndexName: 'GSI_ListItems_v2',
                 KeyConditionExpression: 'itemType = :itemType',
                 FilterExpression: 'SK = :skMetadata',
                 ExpressionAttributeValues: {

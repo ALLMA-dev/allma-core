@@ -34,11 +34,14 @@ export type DelayOptions = z.infer<typeof DelayOptionsSchema>;
 
 
 // --- Full Step Definition Schemas (Base + Specific Payload) ---
+export const SqsSendStepSchema = SystemSteps.SqsSendStepPayloadSchema;
+export const SnsPublishStepSchema = SystemSteps.SnsPublishStepPayloadSchema;
+
 export const LlmInvocationStepSchema = z.object({}).merge(SystemSteps.LlmInvocationStepPayloadSchema);
 export const DataLoadStepSchema = z.object({}).merge(SystemSteps.DataLoadStepPayloadSchema);
 export const DataSaveStepSchema = z.object({}).merge(SystemSteps.DataSaveStepPayloadSchema);
-export const MessagingStepSchema = z.object({}).merge(SystemSteps.MessagingStepPayloadSchema);
 export const EmailSendStepSchema = z.object({}).merge(SystemSteps.EmailSendStepPayloadSchema);
+
 export const StartFlowExecutionStepSchema = z.object({}).merge(SystemSteps.StartFlowExecutionStepPayloadSchema);
 export const DataTransformationStepSchema = z.object({}).merge(SystemSteps.DataTransformationStepPayloadSchema);
 export const CustomLogicStepSchema = z.object({}).merge(SystemSteps.CustomLogicStepPayloadSchema);
@@ -61,7 +64,11 @@ export const BaseStepDefinitionSchema = z.discriminatedUnion("stepType", [
   CustomLogicStepSchema, ApiCallStepSchema, StartSubFlowStepSchema, NoOpStepSchema,
   EndFlowStepSchema, WaitForExternalEventStepSchema, PollExternalApiStepSchema,
   CustomLambdaInvokeStepSchema, ParallelForkManagerStepSchema,
-  MessagingStepSchema, StartFlowExecutionStepSchema, EmailSendStepSchema, // NEW
+  StartFlowExecutionStepSchema,
+  SqsSendStepSchema,
+  SnsPublishStepSchema,
+  
+  EmailSendStepSchema,
 ]).and(z.object({
     // Common configuration applicable to most step types.
     customConfig: z.record(z.any()).optional(),
@@ -135,9 +142,9 @@ export const SYSTEM_STEP_DEFINITIONS: Pick<StepDefinition, 'id' | 'name' | 'step
     { id: 'system-dynamodb-query-and-update', name: 'DynamoDB Query and Update', stepType: StepTypeSchema.enum.DATA_SAVE, moduleIdentifier: SystemModuleIdentifiers.DYNAMODB_QUERY_AND_UPDATE },
     { id: 'system-dynamodb-update-item', name: 'DynamoDB Update Item', stepType: StepTypeSchema.enum.DATA_SAVE, moduleIdentifier: SystemModuleIdentifiers.DYNAMODB_UPDATE_ITEM },
     { id: 'system-s3-data-saver', name: 'S3 Data Saver', stepType: StepTypeSchema.enum.DATA_SAVE, moduleIdentifier: SystemModuleIdentifiers.S3_DATA_SAVER },
-    { id: 'system-sns-publish', name: 'SNS Publish Message', stepType: StepTypeSchema.enum.MESSAGING, moduleIdentifier: SystemModuleIdentifiers.SNS_PUBLISH },
-    { id: 'system-sqs-send', name: 'SQS Send Message', stepType: StepTypeSchema.enum.MESSAGING, moduleIdentifier: SystemModuleIdentifiers.SQS_SEND },
-    { id: 'system-email-send', name: 'Send Email', stepType: StepTypeSchema.enum.MESSAGING, moduleIdentifier: SystemModuleIdentifiers.EMAIL_SEND },
+    { id: 'system-sns-publish', name: 'SNS Publish Message', stepType: StepTypeSchema.enum.SNS_PUBLISH, moduleIdentifier: SystemModuleIdentifiers.SNS_PUBLISH },
+    { id: 'system-sqs-send', name: 'SQS Send Message', stepType: StepTypeSchema.enum.SQS_SEND, moduleIdentifier: SystemModuleIdentifiers.SQS_SEND },
+    { id: 'system-email-send', name: 'Send Email', stepType: StepTypeSchema.enum.EMAIL, moduleIdentifier: SystemModuleIdentifiers.EMAIL_SEND },
     { id: 'system-start-flow-execution', name: 'Start Flow Execution', stepType: StepTypeSchema.enum.START_FLOW_EXECUTION, moduleIdentifier: SystemModuleIdentifiers.START_FLOW_EXECUTION },
     { id: 'system-array-aggregator', name: 'Array Aggregator', stepType: StepTypeSchema.enum.DATA_TRANSFORMATION, moduleIdentifier: SystemModuleIdentifiers.ARRAY_AGGREGATOR },
     { id: 'system-compose-object-from-input', name: 'Compose Object', stepType: StepTypeSchema.enum.DATA_TRANSFORMATION, moduleIdentifier: SystemModuleIdentifiers.COMPOSE_OBJECT_FROM_INPUT },

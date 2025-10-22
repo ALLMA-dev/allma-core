@@ -45,43 +45,32 @@ export const AggregationStrategySchema = z.nativeEnum(AggregationStrategy);
  */
 export enum StepType {
   // --- Core Logic & Control ---
-  /** A no-operation step, often used as a starting point or placeholder. */
   NO_OP = 'NO_OP',
-  /** A step that terminates the current execution path of the flow. */
   END_FLOW = 'END_FLOW',
-  /** Executes a custom-coded business logic module. */
   CUSTOM_LOGIC = 'CUSTOM_LOGIC',
-  /** Directly invokes a specified external Lambda function. */
   CUSTOM_LAMBDA_INVOKE = 'CUSTOM_LAMBDA_INVOKE',
 
   // --- Data Handling ---
-  /** Loads data from an external source (e.g., S3, DynamoDB) into the context. */
   DATA_LOAD = 'DATA_LOAD',
-  /** Saves data from the context to an external destination (e.g., S3, DynamoDB). */
   DATA_SAVE = 'DATA_SAVE',
-  /** Manipulates data within the flow's context (e.g., scripting, composing objects). */
   DATA_TRANSFORMATION = 'DATA_TRANSFORMATION',
 
   // --- AI & Language Models ---
-  /** Invokes a Large Language Model for generation, classification, etc. */
   LLM_INVOCATION = 'LLM_INVOCATION',
 
   // --- Orchestration & Flow Management ---
-  /** Manages parallel execution of branches within a flow. */
   PARALLEL_FORK_MANAGER = 'PARALLEL_FORK_MANAGER',
-  /** Starts another Allma flow as a sub-process (can be sync or async). */
   START_SUB_FLOW = 'START_SUB_FLOW',
-  /** Triggers a new, independent Allma flow execution asynchronously. */
   START_FLOW_EXECUTION = 'START_FLOW_EXECUTION',
 
   // --- External System Integrations ---
-  /** Makes a synchronous, request-response call to an external HTTP API. */
   API_CALL = 'API_CALL',
-  /** Pauses the flow to wait for an external callback or event to resume it. */
   WAIT_FOR_EXTERNAL_EVENT = 'WAIT_FOR_EXTERNAL_EVENT',
-  /** Initiates a long-running, asynchronous polling loop against an external API. */
   POLL_EXTERNAL_API = 'POLL_EXTERNAL_API',
-  /** Sends an asynchronous message to a messaging system (e.g., SQS, SNS). */
-  MESSAGING = 'MESSAGING',
+  
+  SQS_SEND = 'SQS_SEND',
+  SNS_PUBLISH = 'SNS_PUBLISH',
+  EMAIL = 'EMAIL'
+
 }
 export const StepTypeSchema = z.nativeEnum(StepType);
