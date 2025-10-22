@@ -58,11 +58,6 @@ export interface AllmaStackProps extends cdk.StackProps {
    */
   adminShell?: WebAppConfig;
 
-  /**
-   * Optional configuration for deploying the documentation site.
-   * If provided, the docs site will be deployed to S3/CloudFront.
-   */
-  docsSite?: WebAppConfig;
 }
 
 /**
@@ -220,11 +215,13 @@ export class AllmaStack extends cdk.Stack {
 
     // The L2 HttpApi's `.url` property returns the execute-api URL, not the custom domain.
     // We must construct the URL conditionally to ensure correctness.
-    const apiBaseUrlWithStage = stageConfig.adminApi.domainName && stageConfig.adminApi.apiMappingKey
-        ? `https://${stageConfig.adminApi.domainName}/${stageConfig.adminApi.apiMappingKey}`
-        : api.apiStage.url.slice(0, -1); // Remove trailing slash
+    const apiRootUrl = stageConfig.adminApi.domainName
+        ? `https://${stageConfig.adminApi.domainName}`
+        : api.httpApi.apiEndpoint;
+
+    const fullApiBaseUrl = `${apiRootUrl}/${stageConfig.adminApi.apiMappingKey}`;
+    const resumeApiUrl = `${fullApiBaseUrl}${ALLMA_ADMIN_API_ROUTES.RESUME}`;
     
-    const resumeApiUrl = `${apiBaseUrlWithStage}${ALLMA_ADMIN_API_ROUTES.RESUME}`;
     compute.finalizeFlowLambda.addEnvironment(ENV_VAR_NAMES.ALLMA_RESUME_API_URL, resumeApiUrl);
 
     // --- UI Deployments (Admin Shell & Docs) ---
@@ -240,7 +237,7 @@ export class AllmaStack extends cdk.Stack {
           VITE_AWS_REGION: this.region,
           VITE_COGNITO_USER_POOL_ID: api.userPool.userPoolId,
           VITE_COGNITO_USER_POOL_CLIENT_ID: api.userPoolClient.userPoolClientId,
-          VITE_API_BASE_URL: apiBaseUrlWithStage,
+          VITE_API_BASE_URL: apiRootUrl,
         },
       });
 
@@ -257,20 +254,6 @@ export class AllmaStack extends cdk.Stack {
       const cfnApi = api.httpApi.node.defaultChild as cdk.aws_apigatewayv2.CfnApi;
       cfnApi.addPropertyOverride('CorsConfiguration.AllowOrigins', finalOrigins);
     }
-
-    if (props.docsSite) {
-      if (!fs.existsSync(props.docsSite.assetPath)) {
-        throw new Error(`Docs site assetPath not found at ${props.docsSite.assetPath}. Please ensure the path is correct and the site has been built.`);
-      }
-      new WebAppDeployment(this, 'DocsDeployment', {
-        deploymentId: 'Docs',
-        ...props.docsSite,
-        runtimeConfig: {
-          // Docs site may not need runtime config, but the prop is required.
-        },
-      });
-    }
-
 
     // --- Core CloudFormation Outputs ---
     new cdk.CfnOutput(this, 'AllmaConfigTableNameOutput', {

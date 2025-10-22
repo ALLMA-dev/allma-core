@@ -1,0 +1,53 @@
+name: CI/CD for Allma Websites
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'allma.cdk/**'
+      - 'docs.allma.dev/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'allma.cdk/**'
+      - 'docs.allma.dev/**'
+
+jobs:
+  build-and-deploy-websites:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies for docs site
+        run: npm install --prefix docs.allma.dev
+
+      - name: Build docs site
+        run: npm run build --prefix docs.allma.dev
+
+      - name: Install dependencies for CDK
+        run: npm install --prefix allma.cdk
+
+      - name: Build CDK
+        run: npm run build --prefix allma.cdk
+
+      - name: Deploy Websites Stack
+        run: >
+          npx cdk deploy --
+          -c stage=prod
+          -c account=${{ secrets.AWS_ACCOUNT_ID }}
+          -c region=us-east-1
+          -c domainName=docs.allma.dev
+          -c certificateArn=${{ secrets.AWS_CERTIFICATE_ARN }}
+          --require-approval never
+        working-directory: ./allma.cdk
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

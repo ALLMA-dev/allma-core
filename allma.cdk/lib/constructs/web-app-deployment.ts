@@ -13,10 +13,6 @@ import * as route53Targets from 'aws-cdk-lib/aws-route53-targets';
 import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as lambdaNodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 export interface WebAppDeploymentProps {
   /**
@@ -150,7 +146,7 @@ export class WebAppDeployment extends Construct {
     assetsBucket.grantPut(configInjectorRole, 'index.html');
 
     const configInjectorLambda = new lambdaNodejs.NodejsFunction(this, `${props.deploymentId}ConfigInjectorLambda`, {
-      entry: path.resolve(__dirname, '..', '..', '..', 'lib', 'lambda-handlers', 'config-injector.ts'),
+      entry: path.join(__dirname, '..', 'lambda-handlers', 'config-injector.ts'),
       handler: 'handler',
       runtime: lambda.Runtime.NODEJS_20_X,
       role: configInjectorRole,

@@ -11,11 +11,11 @@ const config: Config = {
     v4: true,
   },
 
-  url: 'https://allma.io', // Replace with your actual domain
+  url: 'https://docs.allma.dev',
   baseUrl: '/',
 
-  organizationName: 'allma', // Replace with your GitHub org
-  projectName: 'allma', // Replace with your repo name
+  organizationName: 'ALLMA-dev', // Replace with your GitHub org
+  projectName: 'allma-core', // Replace with your repo name
 
   onBrokenLinks: 'throw',
 
@@ -33,7 +33,7 @@ const config: Config = {
           routeBasePath: 'docs', // Serve docs at the root
           // Please change this to your repo.
           editUrl:
-            'https://github.com/your-org/allma/tree/main/packages/allma-core/docs/',
+            'https://github.com/ALLMA-dev/allma-core/tree/main/docs.allma.dev',
         },
         blog: false, // Disabling the blog for now to focus on docs
         theme: {
@@ -98,12 +98,12 @@ const config: Config = {
           items: [
             {
               label: 'GitHub',
-              href: 'https://github.com/your-org/allma',
+              href: 'https://github.com/ALLMA-dev/allma-core',
             },
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} Allma. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} Allma.dev | Built with Docusaurus.`,
     },
     prism: {
       theme: prismThemes.github,
