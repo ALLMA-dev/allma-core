@@ -17,6 +17,7 @@ export class AllmaDataStores extends Construct {
   public readonly allmaFlowExecutionLogTable: dynamodb.Table;
   public readonly allmaExecutionTracesBucket: s3.Bucket;
   public readonly allmaFlowContinuationStateTable: dynamodb.Table;
+  public readonly emailToFlowMappingTable: dynamodb.Table; // NEW
 
   constructor(scope: Construct, id: string, props: AllmaDataStoresProps) {
     super(scope, id);
@@ -49,7 +50,7 @@ export class AllmaDataStores extends Construct {
         indexName: 'GSI_ListItems',
         partitionKey: { name: 'itemType', type: dynamodb.AttributeType.STRING },
         sortKey: { name: 'name', type: dynamodb.AttributeType.STRING }, // Sort by name for easier listing
-        nonKeyAttributes: ['id', 'description', 'latestVersion', 'publishedVersion', 'tags', 'updatedAt', 'stepType'],
+        nonKeyAttributes: ['id', 'description', 'latestVersion', 'publishedVersion', 'tags', 'updatedAt', 'stepType', 'emailTriggerAddress'],
         projectionType: dynamodb.ProjectionType.INCLUDE,
     });
 
@@ -133,6 +134,15 @@ export class AllmaDataStores extends Construct {
       // A TTL is CRITICAL to clean up abandoned flows.
       // e.g., if a user never replies, the token will be deleted after N days.
       timeToLiveAttribute: 'ttl',
+    });
+
+    // --- NEW: Email Trigger to Flow Mapping Table ---
+    this.emailToFlowMappingTable = new dynamodb.Table(this, 'EmailToFlowMappingTable', {
+        tableName: `AllmaEmailToFlowMapping-${stageConfig.stage}`,
+        partitionKey: { name: 'emailAddress', type: dynamodb.AttributeType.STRING },
+        billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+        removalPolicy,
+        pointInTimeRecovery: isProd,
     });
 
 

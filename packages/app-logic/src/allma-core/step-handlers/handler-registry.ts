@@ -16,7 +16,7 @@ import { handleCustomLambdaInvoke } from './custom-lambda-invoke-handler.js';
 import { executeSqsSender } from '../data-savers/sqs-sender.js';
 import { executeSnsPublisher } from '../data-savers/sns-publisher.js';
 import { executeStartFlowExecution } from '../data-savers/start-flow-execution.js';
-
+import { executeSendEmail } from './messaging/send-email-handler.js';
 
 
 // --- Dispatcher for MESSAGING steps ---
@@ -29,6 +29,9 @@ const messagingModuleRegistry = SYSTEM_STEP_DEFINITIONS
                 break;
             case SystemModuleIdentifiers.SNS_PUBLISH:
                 acc[def.moduleIdentifier] = executeSnsPublisher;
+                break;
+            case SystemModuleIdentifiers.EMAIL_SEND: // NEW
+                acc[def.moduleIdentifier] = executeSendEmail;
                 break;
         }
         return acc;

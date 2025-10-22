@@ -61,15 +61,6 @@ export const DataSaveStepPayloadSchema = z.object({
 }).passthrough();
 
 /**
- * Defines the payload for a MESSAGING step, which uses a module to send a message.
- */
-export const MessagingStepPayloadSchema = z.object({
-  stepType: z.literal(StepTypeSchema.enum.MESSAGING),
-  moduleIdentifier: z.string().optional(),
-  customConfig: z.record(z.any()).optional().describe("Custom Config|json|Module-specific configuration object."),
-}).passthrough();
-
-/**
  * Defines the payload for a START_FLOW_EXECUTION step.
  */
 export const StartFlowExecutionStepPayloadSchema = z.object({

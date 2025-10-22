@@ -213,6 +213,25 @@ export interface StageConfig {
   aiApiKeySecretArn: string;
 
   /**
+   * Optional configuration for AWS Simple Email Service (SES).
+   * Required for email sending and receiving features.
+   */
+  ses?: {
+    /**
+     * A domain name that has been verified in AWS SES in the same region.
+     * This is required for receiving emails.
+     * @example 'your-domain.com'
+     */
+    verifiedDomain: string;
+    /**
+     * The default "From" address for sending emails.
+     * This address must be verified in SES.
+     * @example 'noreply@your-domain.com'
+     */
+    fromEmailAddress: string;
+  };
+
+  /**
    * Optional path to a local JSON file containing initial Allma configuration (Flows, Steps)
    * to be imported during CDK deployment.
    * @example './config/initial-setup.json'

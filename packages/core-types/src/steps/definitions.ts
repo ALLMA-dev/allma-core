@@ -37,8 +37,9 @@ export type DelayOptions = z.infer<typeof DelayOptionsSchema>;
 export const LlmInvocationStepSchema = z.object({}).merge(SystemSteps.LlmInvocationStepPayloadSchema);
 export const DataLoadStepSchema = z.object({}).merge(SystemSteps.DataLoadStepPayloadSchema);
 export const DataSaveStepSchema = z.object({}).merge(SystemSteps.DataSaveStepPayloadSchema);
-export const MessagingStepSchema = z.object({}).merge(SystemSteps.MessagingStepPayloadSchema); // NEW
-export const StartFlowExecutionStepSchema = z.object({}).merge(SystemSteps.StartFlowExecutionStepPayloadSchema); // NEW
+export const MessagingStepSchema = z.object({}).merge(SystemSteps.MessagingStepPayloadSchema);
+export const EmailSendStepSchema = z.object({}).merge(SystemSteps.EmailSendStepPayloadSchema);
+export const StartFlowExecutionStepSchema = z.object({}).merge(SystemSteps.StartFlowExecutionStepPayloadSchema);
 export const DataTransformationStepSchema = z.object({}).merge(SystemSteps.DataTransformationStepPayloadSchema);
 export const CustomLogicStepSchema = z.object({}).merge(SystemSteps.CustomLogicStepPayloadSchema);
 export const ApiCallStepSchema = z.object({}).merge(SystemSteps.ApiCallStepPayloadSchema);
@@ -60,7 +61,7 @@ export const BaseStepDefinitionSchema = z.discriminatedUnion("stepType", [
   CustomLogicStepSchema, ApiCallStepSchema, StartSubFlowStepSchema, NoOpStepSchema,
   EndFlowStepSchema, WaitForExternalEventStepSchema, PollExternalApiStepSchema,
   CustomLambdaInvokeStepSchema, ParallelForkManagerStepSchema,
-  MessagingStepSchema, StartFlowExecutionStepSchema, // NEW
+  MessagingStepSchema, StartFlowExecutionStepSchema, EmailSendStepSchema, // NEW
 ]).and(z.object({
     // Common configuration applicable to most step types.
     customConfig: z.record(z.any()).optional(),
@@ -136,6 +137,7 @@ export const SYSTEM_STEP_DEFINITIONS: Pick<StepDefinition, 'id' | 'name' | 'step
     { id: 'system-s3-data-saver', name: 'S3 Data Saver', stepType: StepTypeSchema.enum.DATA_SAVE, moduleIdentifier: SystemModuleIdentifiers.S3_DATA_SAVER },
     { id: 'system-sns-publish', name: 'SNS Publish Message', stepType: StepTypeSchema.enum.MESSAGING, moduleIdentifier: SystemModuleIdentifiers.SNS_PUBLISH },
     { id: 'system-sqs-send', name: 'SQS Send Message', stepType: StepTypeSchema.enum.MESSAGING, moduleIdentifier: SystemModuleIdentifiers.SQS_SEND },
+    { id: 'system-email-send', name: 'Send Email', stepType: StepTypeSchema.enum.MESSAGING, moduleIdentifier: SystemModuleIdentifiers.EMAIL_SEND },
     { id: 'system-start-flow-execution', name: 'Start Flow Execution', stepType: StepTypeSchema.enum.START_FLOW_EXECUTION, moduleIdentifier: SystemModuleIdentifiers.START_FLOW_EXECUTION },
     { id: 'system-array-aggregator', name: 'Array Aggregator', stepType: StepTypeSchema.enum.DATA_TRANSFORMATION, moduleIdentifier: SystemModuleIdentifiers.ARRAY_AGGREGATOR },
     { id: 'system-compose-object-from-input', name: 'Compose Object', stepType: StepTypeSchema.enum.DATA_TRANSFORMATION, moduleIdentifier: SystemModuleIdentifiers.COMPOSE_OBJECT_FROM_INPUT },

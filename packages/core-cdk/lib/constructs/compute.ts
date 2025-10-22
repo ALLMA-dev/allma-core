@@ -89,6 +89,26 @@ export class AllmaCompute extends Construct {
         resources: [stageConfig.aiApiKeySecretArn],
       }));
     }
+
+    // NEW: Grant SES SendEmail permission
+    if (stageConfig.ses?.fromEmailAddress) {
+        this.orchestrationLambdaRole.addToPolicy(new iam.PolicyStatement({
+            effect: iam.Effect.ALLOW,
+            actions: ['ses:SendEmail'],
+            // Resource should be the ARN of the verified identity (domain or email)
+            resources: [
+                `arn:aws:ses:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:identity/${stageConfig.ses.verifiedDomain}`,
+                `arn:aws:ses:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:identity/${stageConfig.ses.fromEmailAddress}`
+            ],
+            // It is a best practice to restrict the 'From' address
+            conditions: {
+                "StringEquals": {
+                    "ses:FromAddress": stageConfig.ses.fromEmailAddress
+                }
+            }
+        }));
+    }
+
     configTable.grantReadData(this.orchestrationLambdaRole);
     executionTracesBucket.grantReadWrite(this.orchestrationLambdaRole);
     flowContinuationStateTable.grantReadWriteData(this.orchestrationLambdaRole);
@@ -262,7 +282,7 @@ export class AllmaCompute extends Construct {
       bundling: {
         minify: true,
         sourceMap: true,
-        externalModules: ['aws-sdk', '@aws-sdk/client-dynamodb', '@aws-sdk/lib-dynamodb', '@aws-sdk/client-s3', '@aws-sdk/client-sqs', '@aws-sdk/client-sns', '@aws-sdk/client-lambda', '@aws-sdk/client-sfn', '@aws-sdk/client-bedrock-runtime'],
+        externalModules: ['aws-sdk', '@aws-sdk/client-dynamodb', '@aws-sdk/lib-dynamodb', '@aws-sdk/client-s3', '@aws-sdk/client-sqs', '@aws-sdk/client-sns', '@aws-sdk/client-lambda', '@aws-sdk/client-sfn', '@aws-sdk/client-bedrock-runtime', '@aws-sdk/client-sesv2'],
         forceDockerBundling: false,
         ...bundlingOptions,
       },
