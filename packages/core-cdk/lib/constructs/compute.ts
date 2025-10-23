@@ -90,22 +90,21 @@ export class AllmaCompute extends Construct {
       }));
     }
 
-    // NEW: Grant SES SendEmail permission
+    // Grant SES SendEmail permission
     if (stageConfig.ses?.fromEmailAddress) {
         this.orchestrationLambdaRole.addToPolicy(new iam.PolicyStatement({
             effect: iam.Effect.ALLOW,
-            actions: ['ses:SendEmail'],
-            // Resource should be the ARN of the verified identity (domain or email)
-            resources: [
-                `arn:aws:ses:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:identity/${stageConfig.ses.verifiedDomain}`,
-                `arn:aws:ses:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:identity/${stageConfig.ses.fromEmailAddress}`
+            actions: [
+                'ses:SendEmail',
+                'ses:SendRawEmail'
             ],
-            // It is a best practice to restrict the 'From' address
-            conditions: {
-                "StringEquals": {
-                    "ses:FromAddress": stageConfig.ses.fromEmailAddress
-                }
-            }
+            // Allow sending from ANY verified identity and using ANY configuration set.
+            // Security is maintained by SES, which only allows sending from verified identities.
+            // Using configuration sets is optional but this permission provides that flexibility.
+            resources: [
+                `arn:aws:ses:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:identity/*`,
+                `arn:aws:ses:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:configuration-set/*`
+            ],
         }));
     }
 

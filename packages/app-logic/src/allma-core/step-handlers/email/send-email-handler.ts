@@ -22,17 +22,22 @@ export const executeSendEmail: StepHandler = async (
   runtimeState: FlowRuntimeState,
 ): Promise<StepHandlerOutput> => {
   const correlationId = runtimeState.flowExecutionId;
+
+  // Combine static/literal config from the step definition with dynamic input.
+  // stepInput (from mappings/literals) overrides properties on stepDefinition.
+  const combinedInput = { ...stepDefinition, ...stepInput };
   
   const templateContext = { ...runtimeState.currentContextData, ...runtimeState, ...stepInput };
-  const renderedInput = renderNestedTemplates(stepInput, templateContext, correlationId);
+  const renderedInput = renderNestedTemplates(combinedInput, templateContext, correlationId);
   
   const validationResult = EmailSendStepPayloadSchema.safeParse(renderedInput);
 
   if (!validationResult.success) {
     log_error("Invalid input for system/email-send module.", { 
         errors: validationResult.error.flatten(), 
-        receivedInput: stepInput,
-        renderedInput: renderedInput
+        receivedStepInput: stepInput,
+        combinedInputBeforeRender: combinedInput,
+        finalInputAfterRender: renderedInput,
     }, correlationId);
     throw new Error(`Invalid input for email-send: ${validationResult.error.message}`);
   }

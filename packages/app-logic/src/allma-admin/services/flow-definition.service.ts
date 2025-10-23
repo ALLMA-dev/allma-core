@@ -162,10 +162,14 @@ export const FlowDefinitionService = {
      * Updates the master (metadata) record of a flow, including managing the email trigger mapping.
      */
     async updateMaster(id: string, data: Partial<Omit<FlowMetadataStorageItem, 'PK' | 'SK' | 'itemType' | 'id' | 'createdAt' | 'updatedAt' | 'latestVersion' | 'publishedVersion'>>): Promise<FlowMetadataStorageItem> {
+        
         const existingMaster = await entityManager.getMaster(id);
         if (!existingMaster) {
             throw new Error(`Flow with id ${id} not found.`);
         }
+
+        console.log("EMAIL_MAPPING_TABLE_NAME: " + EMAIL_MAPPING_TABLE_NAME);
+        console.log(data);
         
         // Handle email mapping logic
         if (EMAIL_MAPPING_TABLE_NAME && 'emailTriggerAddress' in data) {
@@ -186,6 +190,23 @@ export const FlowDefinitionService = {
             await manageEmailMapping(null, input.emailTriggerAddress, id, input.name);
         }
         return entityManager.createMasterWithInitialVersion(id, input);
+    },
+
+    /**
+     * Creates a new flow and its first version from a full FlowDefinition object, typically from an import.
+     * @param flow The complete FlowDefinition object to create.
+     * @returns An object containing the new metadata and the created version.
+     */
+    async createFlowFromImport(flow: FlowDefinition): Promise<{ metadata: FlowMetadataStorageItem, version: FlowDefinition }> {
+        const createInput: CreateFlowInput = { name: String(flow.name), description: flow.description };
+        
+        // The FlowDefinition schema uses passthrough, so custom properties like emailTriggerAddress can exist.
+        const emailTriggerAddress = (flow as any).emailTriggerAddress;
+        if (EMAIL_MAPPING_TABLE_NAME && emailTriggerAddress) {
+            await manageEmailMapping(null, emailTriggerAddress, flow.id, String(flow.name));
+        }
+        
+        return entityManager.createMasterWithInitialVersion(flow.id, createInput, flow);
     },
 
     /**

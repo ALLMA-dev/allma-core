@@ -207,28 +207,47 @@ export class VersionedEntityManager<TMaster extends MasterItem, TVersion extends
 
     /**
      * Creates a new master entity record and its initial version 1 in a single transaction.
+     * Can create from a factory or a provided override object (for imports).
      * @param id The pre-generated unique ID for the new entity.
      * @param createInput The data for the new entity (e.g., name, description).
+     * @param initialVersionOverride An optional full version object to use instead of the factory.
      */
-    async createMasterWithInitialVersion(id: string, createInput: TCreateInput): Promise<{ metadata: TMaster, version: TVersion }> {
+    async createMasterWithInitialVersion(id: string, createInput: TCreateInput, initialVersionOverride?: TVersion): Promise<{ metadata: TMaster, version: TVersion }> {
         const now = new Date().toISOString();
-        const initialVersion = this.config.initialVersionFactory(id, now, createInput);
         
-        const metadataInput: Omit<MasterItem, 'PK'> & { PK?: string } = {
+        const initialVersion = initialVersionOverride 
+            ? {
+                ...initialVersionOverride,
+                id: id,
+                // Preserve created/updated from import file if valid, otherwise set to now.
+                createdAt: initialVersionOverride.createdAt && !isNaN(new Date(initialVersionOverride.createdAt).getTime()) ? initialVersionOverride.createdAt : now,
+                updatedAt: now, // The 'updatedAt' for this new record in our system is now.
+            }
+            : this.config.initialVersionFactory(id, now, createInput);
+        
+        const validatedInitialVersion = this.config.versionSchema.parse(initialVersion);
+        
+        const metadataInput: Omit<MasterItem, 'PK'> & { [key: string]: any } = {
             id,
-            name: createInput.name,
-            description: createInput.description ?? null,
-            latestVersion: 1,
+            name: (validatedInitialVersion as any).name,
+            description: (validatedInitialVersion as any).description ?? null,
+            latestVersion: validatedInitialVersion.version,
+            publishedVersion: (validatedInitialVersion as any).isPublished ? validatedInitialVersion.version : undefined,
             createdAt: now,
             updatedAt: now,
-            tags: (createInput as any).tags ?? [],
+            tags: (validatedInitialVersion as any).tags ?? [],
         };
+
+        // Handle entity-specific properties that need to be on the master record (like emailTriggerAddress for flows)
+        if ((validatedInitialVersion as any).emailTriggerAddress) {
+            metadataInput.emailTriggerAddress = (validatedInitialVersion as any).emailTriggerAddress;
+        }
 
         const { pk } = this.getKeys(id);
         const finalMetadataInput = { ...metadataInput, PK: pk, SK: 'METADATA', itemType: this.config.itemType };
         const metadataItem = this.config.masterSchema.parse(finalMetadataInput);
 
-        const versionItem = { ...initialVersion, PK: pk, SK: 'VERSION#1', itemType: this.config.itemType };
+        const versionItem = { ...validatedInitialVersion, PK: pk, SK: `VERSION#${validatedInitialVersion.version}`, itemType: this.config.itemType };
 
         await ddbDocClient.send(new TransactWriteCommand({
             TransactItems: [
@@ -236,7 +255,7 @@ export class VersionedEntityManager<TMaster extends MasterItem, TVersion extends
                 { Put: { TableName: CONFIG_TABLE_NAME, Item: versionItem as Record<string, any> } },
             ]
         }));
-        return { metadata: metadataItem, version: initialVersion };
+        return { metadata: metadataItem, version: validatedInitialVersion };
     }
     
     /**

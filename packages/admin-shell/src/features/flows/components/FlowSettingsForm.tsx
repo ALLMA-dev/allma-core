@@ -16,7 +16,7 @@ export function FlowSettingsForm({ flowId, flowConfig, isLoading }: FlowSettings
   const updateConfigMutation = useUpdateFlowConfig();
 
   const form = useForm<UpdateFlowConfigInput>({
-    initialValues: { name: '', description: '', tags: [] },
+    initialValues: { name: '', description: '', tags: [], emailTriggerAddress: '' },
     validate: zodResolver(UpdateFlowConfigInputSchema),
   });
 
@@ -26,10 +26,11 @@ export function FlowSettingsForm({ flowId, flowConfig, isLoading }: FlowSettings
         name: flowConfig.name,
         description: flowConfig.description || '',
         tags: flowConfig.tags || [],
+        emailTriggerAddress: flowConfig.emailTriggerAddress || '',
       });
       form.resetDirty();
     }
-  }, [flowConfig?.name, flowConfig?.description, JSON.stringify(flowConfig?.tags), form.setValues, form.resetDirty]);
+  }, [flowConfig?.name, flowConfig?.description, JSON.stringify(flowConfig?.tags), flowConfig?.emailTriggerAddress, form.setValues, form.resetDirty]);
 
   if (isLoading) {
     return <LoadingOverlay visible />;
@@ -57,6 +58,11 @@ export function FlowSettingsForm({ flowId, flowConfig, isLoading }: FlowSettings
             data={allTags || []}
             {...form.getInputProps('tags')}
             disabled={isLoadingTags}
+          />
+          <TextInput
+            label="Email Trigger Address"
+            description="A unique email address that will trigger this flow. Leave blank to disable."
+            {...form.getInputProps('emailTriggerAddress')}
           />
           <Group justify="flex-end">
             <Button

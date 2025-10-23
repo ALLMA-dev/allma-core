@@ -18,7 +18,6 @@ const RESUME_API_URL = process.env[ENV_VAR_NAMES.ALLMA_RESUME_API_URL]!;
 const INCOMING_EMAILS_BUCKET_NAME = process.env.INCOMING_EMAILS_BUCKET_NAME!; // NEW
 const RESUME_CODE_REGEX = /\[\[resume-code:\s*([0-9a-fA-F-]+)\]\]/;
 
-// FIX: This interface now correctly reflects the payload given to a Lambda invoked by SES
 interface SesEventRecord {
     eventSource: 'aws:ses';
     eventVersion: string;
@@ -47,9 +46,7 @@ export const handler = async (event: { Records: SesEventRecord[] }): Promise<voi
     for (const record of event.Records) {
         const correlationId = uuidv4();
         
-        // FIX: Get the messageId from the event payload
         const messageId = record.ses.mail.messageId;
-        // FIX: Construct the S3 object key. The prefix is configured in the CDK.
         const objectKey = `inbound/${messageId}`;
 
         log_info('Processing inbound email from SES', { bucket: INCOMING_EMAILS_BUCKET_NAME, key: objectKey, messageId }, correlationId);
