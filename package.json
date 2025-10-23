@@ -19,7 +19,8 @@
   "workspaces": [
     "packages/*",
     "examples/basic-deployment",
-    "examples/basic-deployment-my"
+    "examples/basic-deployment-my",
+    "examples/amazon_hack"
   ],
   "dependencies": {
     "@aws-sdk/client-lambda": "^3.913.0",

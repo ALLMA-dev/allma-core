@@ -194,7 +194,8 @@ export function createCrudHandler(config: CrudHandlerConfig) {
         router.post(clonePath, async (e, a, p) => {
             const v = parseJsonBody(e.body, config.schemas.cloneMaster);
             if (!v.success) return createApiGatewayResponse(400, buildErrorResponse('Invalid input', 'VALIDATION_ERROR', v.error.flatten()), e.requestContext.requestId);
-            return handleServiceCall(() => config.service.clone(p[idParam], v.data), e.requestContext.requestId, 201);
+            // The clone service expects the name as a string, not the whole input object.
+            return handleServiceCall(() => config.service.clone(p[idParam], (v.data as { name: string }).name), e.requestContext.requestId, 201);
         }, writePermission);
         
     router.post(listVersionsPath, async (e, _a, p) => {
