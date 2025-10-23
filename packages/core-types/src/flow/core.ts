@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { JsonPathStringSchema } from '../common/core.js';
+import { StepTypeSchema } from '../common/enums.js';
 import { LlmParametersSchema } from '../llm/index.js';
 import { OnCompletionActionSchema } from './actions.js';
 import { StepErrorHandlerSchema } from '../steps/common.js';
@@ -65,7 +66,9 @@ export const FlowDefinitionSchema = z.object({
     step.transitions?.forEach((t: { condition: string; nextStepInstanceId: string; }) => { if (!data.steps[t.nextStepInstanceId]) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Transition in step '${stepId}' points to non-existent step '${t.nextStepInstanceId}'.`, path: ["steps", stepId, "transitions"] }); });
     if (step.defaultNextStepInstanceId && !data.steps[step.defaultNextStepInstanceId]) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `defaultNextStepInstanceId in step '${stepId}' points to non-existent step '${step.defaultNextStepInstanceId}'.`, path: ["steps", stepId, "defaultNextStepInstanceId"] });
     if (step.onError?.fallbackStepInstanceId && !data.steps[step.onError.fallbackStepInstanceId]) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `onError.fallbackStepInstanceId in step '${stepId}' points to non-existent step '${step.onError.fallbackStepInstanceId}'.`, path: ["steps", stepId, "onError", "fallbackStepInstanceId"] });
-    if (step.aggregationConfig?.dataPath) checkJsonPath(['steps', stepId, 'aggregationConfig', 'dataPath'], step.aggregationConfig.dataPath, ctx);
+    if (step.stepType === StepTypeSchema.enum.PARALLEL_FORK_MANAGER && step.aggregationConfig?.dataPath) {
+        checkJsonPath(['steps', stepId, 'aggregationConfig', 'dataPath'], step.aggregationConfig.dataPath, ctx);
+    }
     if (step.inputMappings) Object.entries(step.inputMappings).forEach(([k, v]) => checkJsonPath(['steps', stepId, 'inputMappings', k], v, ctx));
     if (step.outputMappings) Object.entries(step.outputMappings).forEach(([k, v]) => { checkJsonPath(['steps', stepId, 'outputMappings', k], k, ctx); checkJsonPath(['steps', stepId, 'outputMappings', k], v, ctx); });
     if (step.transitions) step.transitions.forEach((t: { condition: string }, i: number) => checkJsonPath(['steps', stepId, 'transitions', i, 'condition'], t.condition, ctx));

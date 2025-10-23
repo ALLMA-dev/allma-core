@@ -92,13 +92,13 @@ export const executeStandardStep = async (
 
     let hydratedStepInput: Record<string, any>;
 
-    // Hydrate any S3 pointers found in the prepared input, unless it's a custom lambda
-    // which might need to receive the pointer itself.
-    if (stepInstanceConfig.stepType !== StepType.CUSTOM_LAMBDA_INVOKE) {
-        log_info(`Hydrating step input for internal step '${currentStepInstanceId}' from any S3 pointers.`, {}, correlationId);
+    // MODIFIED LOGIC:
+    // Hydrate S3 pointers unless it's a custom lambda that has NOT opted in to hydration.
+    if (stepInstanceConfig.stepType !== StepType.CUSTOM_LAMBDA_INVOKE || (stepInstanceConfig.customConfig as any)?.hydrateInputFromS3 === true) {
+        log_info(`Hydrating step input for step '${currentStepInstanceId}' from any S3 pointers.`, {}, correlationId);
         hydratedStepInput = await hydrateInputFromS3Pointers(stepInput, correlationId);
     } else {
-        log_info(`Skipping input hydration for CUSTOM_LAMBDA_INVOKE step '${currentStepInstanceId}'. Pointers will be passed directly.`, {}, correlationId);
+        log_info(`Skipping input hydration for CUSTOM_LAMBDA_INVOKE step '${currentStepInstanceId}' (hydrateInputFromS3 is not true). Pointers will be passed directly.`, {}, correlationId);
         hydratedStepInput = stepInput;
     }
 

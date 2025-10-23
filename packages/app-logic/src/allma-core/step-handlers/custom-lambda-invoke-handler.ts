@@ -1,5 +1,3 @@
-// packages/allma-app-logic/src/allma-core/step-handlers/custom-lambda-invoke-handler.ts
-
 import { LambdaClient, InvokeCommand, InvocationType } from '@aws-sdk/client-lambda';
 import {
   FlowRuntimeState,
@@ -18,11 +16,15 @@ const lambdaClient = new LambdaClient({});
 // Get the bucket name from environment variables
 const EXECUTION_TRACES_BUCKET_NAME = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME];
 
+// MODIFIED: Zod schema now includes the optional customConfig for hydration control.
 const CustomLambdaInvokeStepSchema = z.object({
   stepType: z.literal('CUSTOM_LAMBDA_INVOKE'),
   lambdaFunctionArnTemplate: z.string(),
-  moduleIdentifier: z.string(),
+  moduleIdentifier: z.string().optional(),
   payloadTemplate: z.record(z.string()).optional(),
+  customConfig: z.object({
+    hydrateInputFromS3: z.boolean().optional(),
+  }).passthrough().optional(),
 });
 
 export const handleCustomLambdaInvoke: StepHandler = async (
@@ -37,7 +39,7 @@ export const handleCustomLambdaInvoke: StepHandler = async (
     throw new Error(`Invalid StepDefinition for CUSTOM_LAMBDA_INVOKE: ${parsedStepDef.error.message}`);
   }
 
-  // Check if the bucket name is configured.
+  // Check if the bucket name is configured for offloading.
   if (!EXECUTION_TRACES_BUCKET_NAME) {
     log_error("ALLMA_EXECUTION_TRACES_BUCKET_NAME env var not set. Cannot offload large payloads from custom lambda.", {}, correlationId);
     // This is a critical configuration error. We should fail the step.
@@ -76,10 +78,9 @@ export const handleCustomLambdaInvoke: StepHandler = async (
 
     const responsePayload = result.Payload ? JSON.parse(new TextDecoder().decode(result.Payload)) : null;
 
-    // --- Payload Offloading Logic ---
-    // The invoked lambda (e.g., chatbot-custom-logic-handler) might have already offloaded
-    // a very large payload. If so, responsePayload will be an S3OutputPointerWrapper.
-    // We don't want to wrap a wrapper.
+    // --- NEW: Payload Offloading Logic ---
+    // The invoked lambda might have already offloaded a very large payload. 
+    // If so, responsePayload will be an S3OutputPointerWrapper. We don't want to wrap a wrapper.
     if (isS3OutputPointerWrapper(responsePayload)) {
         log_info('Invoked custom lambda returned a pre-offloaded S3 pointer. Passing it through.', { s3Pointer: responsePayload._s3_output_pointer }, correlationId);
         return {
@@ -88,14 +89,13 @@ export const handleCustomLambdaInvoke: StepHandler = async (
     }
 
     // If the payload is not already a pointer, check if it's large and offload it
-    // to protect the Step Function state limit (256KB). offloadIfLarge defaults to a safe 220KB threshold.
+    // to protect the Step Function state limit (256KB). offloadIfLarge uses a safe threshold.
     const s3KeyPrefix = `step_outputs/${runtimeState.flowExecutionId}/${stepDefinition.id}`;
     const finalPayloadForSfn = await offloadIfLarge(
         responsePayload,
         EXECUTION_TRACES_BUCKET_NAME,
         s3KeyPrefix,
         correlationId
-        // Use default threshold (PAYLOAD_OFFLOAD_THRESHOLD_BYTES from s3Utils) for SFN
     );
     // --- END: Offloading Logic ---
 

@@ -11,6 +11,7 @@ import {
     BranchExecutionPayload,
     FlowDefinition,
     isS3OutputPointerWrapper,
+    StepType,
 } from '@allma/core-types';
 import {
     log_info, log_error, log_warn, log_debug, resolveS3Pointer,
@@ -239,28 +240,34 @@ export const handleParallelFork = async (
     runtimeState: FlowRuntimeState,
     correlationId: string
 ): Promise<ProcessorOutput | null> => {
+    // Add a type guard to ensure we are dealing with a parallel fork manager step.
+    if (stepInstanceConfig.stepType !== StepType.PARALLEL_FORK_MANAGER) {
+        throw new Error(`handleParallelFork called with incorrect step type: ${stepInstanceConfig.stepType}`);
+    }
+
     log_info(`Step '${stepInstanceConfig.stepInstanceId}' is a parallel fork. Preparing branches.`, {}, correlationId);
     
-    const branchTemplates = stepInstanceConfig.parallelBranches || [];
+    const { itemsPath, parallelBranches, aggregationConfig } = stepInstanceConfig;
+
+    const branchTemplates = parallelBranches || [];
     if (branchTemplates.length === 0) {
          log_warn(`Step '${stepInstanceConfig.stepInstanceId}' is PARALLEL_FORK_MANAGER but has no parallelBranches defined.`, {}, correlationId);
          return null;
     }
 
-    const itemsPath = (stepInstanceConfig as any).itemsPath;
     if (!itemsPath) {
         throw new Error(`Parallel fork step '${stepInstanceConfig.stepInstanceId}' must have an 'itemsPath' defined.`);
     }
 
-    const maxConcurrency = stepInstanceConfig.aggregationConfig?.maxConcurrency ?? 0;
+    const maxConcurrency = aggregationConfig?.maxConcurrency ?? 0;
     const finalAggregationConfig: AggregationConfig = {
         strategy: AggregationStrategy.COLLECT_ARRAY,
         failOnBranchError: true,
-        ...stepInstanceConfig.aggregationConfig,
+        ...aggregationConfig,
         maxConcurrency,
     };
     
-    // FIX: Perform a simple, non-hydrating lookup first to check for an S3 pointer wrapper.
+    // Perform a simple, non-hydrating lookup first to check for an S3 pointer wrapper.
     const itemsValueWrapper = JSONPath({ path: itemsPath, json: runtimeState.currentContextData, wrap: false });
     
     if (isS3OutputPointerWrapper(itemsValueWrapper)) {

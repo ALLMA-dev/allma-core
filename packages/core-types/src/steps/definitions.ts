@@ -2,7 +2,6 @@ import { z } from 'zod';
 import { StepTypeSchema } from '../common/enums.js';
 import * as SystemSteps from './system/index.js';
 import { StepInputMappingSchema, StepOutputMappingSchema, StepErrorHandlerSchema, StepDefinitionIdSchema } from './common.js';
-import { BranchDefinitionSchema, AggregationConfigSchema } from '../flow/branching.js';
 import { SystemModuleIdentifiers } from './system-module-identifiers.js';
 
 export const DelayPositionSchema = z.enum(['before', 'after']);
@@ -120,8 +119,6 @@ export const StepInstanceSchema = BaseStepDefinitionSchema.and(z.object({
         nextStepInstanceId: z.string().min(1),
     })).optional(),
     defaultNextStepInstanceId: z.string().min(1).optional(),
-    parallelBranches: z.array(BranchDefinitionSchema).optional(),
-    aggregationConfig: AggregationConfigSchema.optional(),
     delay: DelayOptionsSchema.optional(),
     disableS3Offload: z.boolean().optional(),
 }));

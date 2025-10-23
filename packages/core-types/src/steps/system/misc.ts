@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { StepTypeSchema } from '../../common/enums.js';
+import { JsonPathStringSchema } from '../../common/core.js';
+import { BranchDefinitionSchema, AggregationConfigSchema } from '../../flow/branching.js';
 
 /**
  * Defines the payload for a simple NO_OP (No Operation) step.
@@ -32,6 +34,10 @@ export const CustomLambdaInvokeStepPayloadSchema = z.object({
   moduleIdentifier: z.string().optional(),
   lambdaFunctionArnTemplate: z.string().min(1).describe("Lambda Function ARN|text|ARN of the function to invoke. Supports templates."),
   payloadTemplate: z.record(z.string()).optional().describe("Payload Template|json|Map context data to the Lambda's input payload."),
+  // MODIFIED: Add customConfig to allow for the new hydration flag.
+  customConfig: z.object({
+    hydrateInputFromS3: z.boolean().optional().describe("If true, automatically resolve S3 pointers in the step's input before invoking the Lambda."),
+  }).passthrough().optional(),
 }).passthrough();
 
 /**
@@ -40,6 +46,9 @@ export const CustomLambdaInvokeStepPayloadSchema = z.object({
  */
 export const ParallelForkManagerStepPayloadSchema = z.object({
     stepType: z.literal(StepTypeSchema.enum.PARALLEL_FORK_MANAGER),
+    itemsPath: JsonPathStringSchema.optional().describe("Items Path|text|For parallel steps, JSONPath to an array in the context to iterate over."),
+    parallelBranches: z.array(BranchDefinitionSchema).optional().describe("Branches|json|Configuration for each parallel branch of execution."),
+    aggregationConfig: AggregationConfigSchema.optional().describe("Aggregation|json|Configuration for how to combine results from branches."),
 }).passthrough();
 
 /**
