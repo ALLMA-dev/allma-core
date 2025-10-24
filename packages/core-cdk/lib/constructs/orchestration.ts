@@ -286,135 +286,134 @@ export class AllmaOrchestration extends Construct {
    * @param branchStateMachine The sub-state machine to execute.
    * @returns An IChainable object representing the processing chain with error handling.
    */
-  private createBranchProcessorChain(idPrefix: string, branchStateMachine: sfn.IStateMachine): sfn.IChainable {
-    const passStateToInjectInternal = new sfn.Pass(this, `${idPrefix}InjectInternalContext`, {
-        inputPath: '$',
-        resultPath: '$.branchItem.branchInput._internal', 
-        parameters: {
-            'currentStepStartTime.$': '$$.State.EnteredTime',
-            'executionName.$': '$.uniqueBranchExecutionId',
-        },
-    });
+    private createBranchProcessorChain(idPrefix: string, branchStateMachine: sfn.IStateMachine): sfn.IChainable {
+        const passStateToInjectInternal = new sfn.Pass(this, `${idPrefix}InjectInternalContext`, {
+            inputPath: '$',
+            resultPath: '$.branchItem.branchInput._internal', 
+            parameters: {
+                'currentStepStartTime.$': '$$.State.EnteredTime',
+                'executionName.$': '$.uniqueBranchExecutionId',
+            },
+        });
 
-    const executeBranch = new sfnTasks.StepFunctionsStartExecution(this, `${idPrefix}ExecuteBranch`, {
-        stateMachine: branchStateMachine,
-        integrationPattern: sfn.IntegrationPattern.RUN_JOB,
-        input: sfn.TaskInput.fromObject({
-            'sfnAction': SfnActionType.PROCESS_STEP,
-            'runtimeState': {
-                'flowDefinitionId.$': '$.mapContext.runtimeState.flowDefinitionId',
-                'flowDefinitionVersion.$': '$.mapContext.runtimeState.flowDefinitionVersion',
-                'flowExecutionId.$': '$.mapContext.runtimeState.flowExecutionId',
-                'enableExecutionLogs.$': '$.branchItem.enableExecutionLogs',
-                'branchId.$': '$.branchItem.branchId',
-                'branchExecutionId.$': '$.uniqueBranchExecutionId',
-                'currentStepInstanceId.$': '$.branchItem.branchDefinition.stepInstanceId',
-                'status': 'RUNNING',
-                'startTime.$': '$$.State.EnteredTime',
-                'stepRetryAttempts': {},
-                'currentContextData.$': '$.branchItem.branchInput',
-                '_internal': {
-                    'branchDefinition.$': '$.branchItem.branchDefinition',
-                    'currentStepStartTime.$': '$$.State.EnteredTime',
-                    'executionName.$': '$.uniqueBranchExecutionId',
+        const executeBranch = new sfnTasks.StepFunctionsStartExecution(this, `${idPrefix}ExecuteBranch`, {
+            stateMachine: branchStateMachine,
+            integrationPattern: sfn.IntegrationPattern.RUN_JOB,
+            input: sfn.TaskInput.fromObject({
+                'sfnAction': SfnActionType.PROCESS_STEP,
+                'runtimeState': {
+                    'flowDefinitionId.$': '$.mapContext.runtimeState.flowDefinitionId',
+                    'flowDefinitionVersion.$': '$.mapContext.runtimeState.flowDefinitionVersion',
+                    'flowExecutionId.$': '$.mapContext.runtimeState.flowExecutionId',
+                    'enableExecutionLogs.$': '$.branchItem.enableExecutionLogs',
+                    'branchId.$': '$.branchItem.branchId',
+                    'branchExecutionId.$': '$.uniqueBranchExecutionId',
+                    'currentStepInstanceId.$': '$.branchItem.branchDefinition.stepInstanceId',
+                    'status': 'RUNNING',
+                    'startTime.$': '$$.State.EnteredTime',
+                    'stepRetryAttempts': {},
+                    'currentContextData.$': '$.branchItem.branchInput',
+                    '_internal': {
+                        'branchDefinition.$': '$.branchItem.branchDefinition',
+                        'currentStepStartTime.$': '$$.State.EnteredTime',
+                        'executionName.$': '$.uniqueBranchExecutionId',
+                    }
                 }
-            }
-        }),
-        resultPath: '$.sfnSubExecutionResult',
-    });
+            }),
+            resultPath: '$.sfnSubExecutionResult',
+        });
 
-    const parseOutput = new sfn.Pass(this, `${idPrefix}ParseOutput`, {
-        parameters: {
-            'branchId.$': '$.branchItem.branchId',
-            'output.$': '$.sfnSubExecutionResult.Output'
-        },
-    });
+        const parseOutput = new sfn.Pass(this, `${idPrefix}ParseOutput`, {
+            parameters: {
+                'branchId.$': '$.branchItem.branchId',
+                'output.$': '$.sfnSubExecutionResult.Output'
+            },
+        });
 
-    // --- error handling chain ---
-    
-    const parseOuterErrorCause = new sfn.Pass(this, `${idPrefix}ParseOuterErrorCause`, {
-        parameters: {
-            'Error.$': '$.errorInfo.Error',
-            'Cause.$': '$.errorInfo.Cause',
-            'OuterCause.$': 'States.StringToJson($.errorInfo.Cause)'
-        },
-        resultPath: '$.errorInfo' 
-    });
+        // --- MULTI-STEP ERROR HANDLING CHAIN ---
 
-    const checkIfInnerCauseExists = new sfn.Choice(this, `${idPrefix}CheckIfInnerCauseExists`);
+        const formatStringCause = new sfn.Pass(this, `${idPrefix}FormatStringCause`, {
+            comment: 'Handles non-JSON error causes (e.g., SFN timeouts) and formats a standard error object.',
+            parameters: {
+                'branchId.$': '$.branchItem.branchId',
+                'error': {
+                    'errorName.$': '$.errorInfo.Error',
+                    'errorMessage.$': '$.errorInfo.Cause',
+                    'isRetryable': false,
+                }
+            },
+            resultPath: '$',
+        });
 
-    const parseInnerErrorCause = new sfn.Pass(this, `${idPrefix}ParseInnerErrorCause`, {
-        parameters: {
-            'Error.$': '$.errorInfo.Error',
-            'Cause.$': '$.errorInfo.Cause',
-            'OuterCause.$': '$.errorInfo.OuterCause',
-            'InnerCause.$': 'States.StringToJson($.errorInfo.OuterCause.Cause)'
-        },
-        resultPath: '$.errorInfo' 
-    });
+        const parseJsonCause = new sfn.Pass(this, `${idPrefix}ParseJsonCause`, {
+            comment: 'Parses the JSON string from the Cause field into an object.',
+            parameters: {
+                'parsedCause.$': 'States.StringToJson($.errorInfo.Cause)'
+            },
+            resultPath: '$.errorInfo',
+        });
 
-    const checkInnerCauseType = new sfn.Choice(this, `${idPrefix}CheckInnerCauseType`);
+        const formatLogicalError = new sfn.Pass(this, `${idPrefix}FormatLogicalError`, {
+            comment: 'Formats a standard error object from a parsed logical AllmaError.',
+            parameters: {
+                'branchId.$': '$.branchItem.branchId',
+                'error': {
+                    'errorName.$': '$.errorInfo.parsedCause.errorName',
+                    'errorMessage.$': '$.errorInfo.parsedCause.errorMessage',
+                    'errorDetails.$': '$.errorInfo.parsedCause.errorDetails',
+                    'isRetryable': false,
+                }
+            },
+            resultPath: '$',
+        });
 
-    const formatLogicalBranchError = new sfn.Pass(this, `${idPrefix}FormatLogicalBranchError`, {
-        parameters: {
-            'branchId.$': '$.branchItem.branchId',
-            'error': {
-                'errorName.$': '$.errorInfo.InnerCause.errorName',
-                'errorMessage.$': '$.errorInfo.InnerCause.errorMessage',
-                'errorDetails.$': '$.errorInfo.InnerCause.errorDetails',
-                'isRetryable': false,
-            }
-        }
-    });
+        const formatLambdaError = new sfn.Pass(this, `${idPrefix}FormatLambdaError`, {
+            comment: 'Formats a standard error object from a parsed Lambda runtime error.',
+            parameters: {
+                'branchId.$': '$.branchItem.branchId',
+                'error': {
+                    'errorName.$': '$.errorInfo.parsedCause.errorType',
+                    'errorMessage.$': '$.errorInfo.parsedCause.errorMessage',
+                    'errorDetails': {
+                        'stackTrace.$': '$.errorInfo.parsedCause.stackTrace'
+                    },
+                    'isRetryable': false,
+                }
+            },
+            resultPath: '$',
+        });
+        
+        const formatSfnDataLimitError = new sfn.Pass(this, `${idPrefix}FormatSfnDataLimitError`, {
+            comment: 'Formats a standard error object for a nested SFN execution failure like DataLimitExceeded.',
+            parameters: {
+                'branchId.$': '$.branchItem.branchId',
+                'error': {
+                    'errorName.$': '$.errorInfo.parsedCause.error',
+                    'errorMessage.$': '$.errorInfo.parsedCause.cause',
+                    'isRetryable': false,
+                }
+            },
+            resultPath: '$',
+        });
 
-    const formatInternalRuntimeBranchError = new sfn.Pass(this, `${idPrefix}FormatInternalRuntimeBranchError`, {
-        parameters: {
-            'branchId.$': '$.branchItem.branchId',
-            'error': {
-                'errorName.$': '$.errorInfo.OuterCause.Error',
-                'errorMessage.$': '$.errorInfo.InnerCause',
-                'errorDetails': {
-                    sfnSubExecutionFailure: true,
-                    originalErrorName: sfn.JsonPath.stringAt('$.errorInfo.Error'),
-                },
-                'isRetryable': false,
-            }
-        }
-    });
+        const checkJsonCauseType = new sfn.Choice(this, `${idPrefix}CheckJsonCauseType`)
+            .when(sfn.Condition.isPresent('$.errorInfo.parsedCause.errorName'), formatLogicalError)
+            .when(sfn.Condition.isPresent('$.errorInfo.parsedCause.errorType'), formatLambdaError)
+            .when(sfn.Condition.isPresent('$.errorInfo.parsedCause.error'), formatSfnDataLimitError) // For nested SFN errors
+            .otherwise(formatStringCause); // Fallback if parsed JSON has an unknown structure
 
-    const formatExternalRuntimeBranchError = new sfn.Pass(this, `${idPrefix}FormatExternalRuntimeBranchError`, {
-        parameters: {
-            'branchId.$': '$.branchItem.branchId',
-            'error': {
-                'errorName.$': '$.errorInfo.OuterCause.Status',
-                'errorMessage': 'The parallel branch execution failed due to a timeout or other external runtime error.',
-                'errorDetails': {
-                    sfnSubExecutionFailure: true,
-                    originalErrorName: sfn.JsonPath.stringAt('$.errorInfo.Error'),
-                    outerCause: sfn.JsonPath.objectAt('$.errorInfo.OuterCause'),
-                },
-                'isRetryable': false,
-            }
-        }
-    });
+        const handleBranchErrorChoice = new sfn.Choice(this, `${idPrefix}IsCauseJsonChoice`)
+            .when(sfn.Condition.stringMatches('$.errorInfo.Cause', '{*'), parseJsonCause.next(checkJsonCauseType))
+            .otherwise(formatStringCause);
 
-    executeBranch.next(parseOutput);
-    executeBranch.addCatch(parseOuterErrorCause, {
-        resultPath: '$.errorInfo'
-    });
+        // Main success path
+        executeBranch.next(parseOutput);
 
-    parseOuterErrorCause.next(checkIfInnerCauseExists);
-    
-    checkIfInnerCauseExists
-        .when(sfn.Condition.isPresent('$.errorInfo.OuterCause.Cause'), parseInnerErrorCause)
-        .otherwise(formatExternalRuntimeBranchError);
+        // Attach the catch handler to the Step Functions execution task.
+        executeBranch.addCatch(handleBranchErrorChoice, {
+            resultPath: '$.errorInfo'
+        });
 
-    parseInnerErrorCause.next(checkInnerCauseType);
-
-    checkInnerCauseType
-        .when(sfn.Condition.isNotString('$.errorInfo.InnerCause'), formatLogicalBranchError)
-        .otherwise(formatInternalRuntimeBranchError);
-
-    return passStateToInjectInternal.next(executeBranch);
-  }
+        return passStateToInjectInternal.next(executeBranch);
+    }
 }
