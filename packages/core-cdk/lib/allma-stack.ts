@@ -10,6 +10,7 @@ import { AllmaOrchestration } from './constructs/orchestration.js';
 import { ApiConstruct } from './constructs/api.construct.js';
 import { PollingOrchestrator } from './constructs/polling-orchestrator.js';
 import { BranchOrchestrator } from './constructs/branch-orchestrator.js';
+import { EmailIntegration } from './constructs/email-integration.js';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
@@ -203,6 +204,7 @@ export class AllmaStack extends cdk.Stack {
       stageConfig,
       configTable: dataStores.allmaConfigTable,
       flowExecutionLogTable: dataStores.allmaFlowExecutionLogTable,
+      emailToFlowMappingTable: dataStores.emailToFlowMappingTable, // NEW
       executionTracesBucket: dataStores.allmaExecutionTracesBucket,
       iterativeStepProcessorLambda: compute.iterativeStepProcessorLambda,
       orchestrationLambdaRole: compute.orchestrationLambdaRole,
@@ -212,6 +214,16 @@ export class AllmaStack extends cdk.Stack {
     });
     this.adminUserPool = api.userPool;
     this.adminUserPoolClient = api.userPoolClient;
+
+    // NEW: Email Integration (SES, S3, Lambda)
+    if (stageConfig.ses?.verifiedDomain) {
+        new EmailIntegration(this, 'AllmaEmailIntegration', {
+            stageConfig,
+            emailMappingTable: dataStores.emailToFlowMappingTable,
+            flowStartQueue: this.flowStartRequestQueue,
+            httpApi: api.httpApi,
+        });
+    }
 
     // The L2 HttpApi's `.url` property returns the execute-api URL, not the custom domain.
     // We must construct the URL conditionally to ensure correctness.

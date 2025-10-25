@@ -1,4 +1,6 @@
 import { JSONPath } from 'jsonpath-plus';
+import { v4 as uuidv4 } from 'uuid';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import {
     FlowRuntimeState,
     StepInstance,
@@ -11,13 +13,20 @@ import {
     BranchExecutionPayload,
     FlowDefinition,
     isS3OutputPointerWrapper,
+    StepType,
+    ENV_VAR_NAMES,
+    PermanentStepError,
 } from '@allma/core-types';
 import {
-    log_info, log_error, log_warn, log_debug, resolveS3Pointer,
+    log_info, log_error, log_warn, log_debug, resolveS3Pointer, offloadIfLarge,
 } from '@allma/core-sdk';
 import { getSmartValueByJsonPath, processStepOutput } from '../../allma-core/data-mapper.js';
 import { executionLoggerClient } from '../../allma-core/execution-logger-client.js';
 import { resolveNextStep } from './transition-resolver.js';
+
+const s3Client = new S3Client({});
+const EXECUTION_TRACES_BUCKET_NAME = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME];
+const SFN_INLINE_PAYLOAD_LIMIT_BYTES = 250 * 1024; // 250KB, slightly less than the 256KB hard limit.
 
 /**
  * Aggregates the results from parallel branch executions based on the defined strategy.
@@ -239,33 +248,39 @@ export const handleParallelFork = async (
     runtimeState: FlowRuntimeState,
     correlationId: string
 ): Promise<ProcessorOutput | null> => {
+    // Add a type guard to ensure we are dealing with a parallel fork manager step.
+    if (stepInstanceConfig.stepType !== StepType.PARALLEL_FORK_MANAGER) {
+        throw new Error(`handleParallelFork called with incorrect step type: ${stepInstanceConfig.stepType}`);
+    }
+
     log_info(`Step '${stepInstanceConfig.stepInstanceId}' is a parallel fork. Preparing branches.`, {}, correlationId);
     
-    const branchTemplates = stepInstanceConfig.parallelBranches || [];
+    const { itemsPath, parallelBranches, aggregationConfig } = stepInstanceConfig;
+
+    const branchTemplates = parallelBranches || [];
     if (branchTemplates.length === 0) {
          log_warn(`Step '${stepInstanceConfig.stepInstanceId}' is PARALLEL_FORK_MANAGER but has no parallelBranches defined.`, {}, correlationId);
          return null;
     }
 
-    const itemsPath = (stepInstanceConfig as any).itemsPath;
     if (!itemsPath) {
         throw new Error(`Parallel fork step '${stepInstanceConfig.stepInstanceId}' must have an 'itemsPath' defined.`);
     }
 
-    const maxConcurrency = stepInstanceConfig.aggregationConfig?.maxConcurrency ?? 0;
+    const maxConcurrency = aggregationConfig?.maxConcurrency ?? 0;
     const finalAggregationConfig: AggregationConfig = {
         strategy: AggregationStrategy.COLLECT_ARRAY,
         failOnBranchError: true,
-        ...stepInstanceConfig.aggregationConfig,
+        ...aggregationConfig,
         maxConcurrency,
     };
     
-    // FIX: Perform a simple, non-hydrating lookup first to check for an S3 pointer wrapper.
+    // Perform a simple, non-hydrating lookup first to check for an S3 pointer wrapper.
     const itemsValueWrapper = JSONPath({ path: itemsPath, json: runtimeState.currentContextData, wrap: false });
     
     if (isS3OutputPointerWrapper(itemsValueWrapper)) {
         const s3Pointer = itemsValueWrapper._s3_output_pointer;
-        log_info(`Initiating S3-powered distributed map state`, { s3Pointer, itemsPath }, correlationId);
+        log_info(`Initiating S3-powered distributed map state from pre-existing manifest.`, { s3Pointer, itemsPath }, correlationId);
         
         if (runtimeState.enableExecutionLogs) {
             await executionLoggerClient.logStepExecution({
@@ -304,6 +319,55 @@ export const handleParallelFork = async (
     } else if (itemsValue) {
         itemsToProcess = [itemsValue];
     }
+    
+        if (!EXECUTION_TRACES_BUCKET_NAME) {
+            throw new PermanentStepError('ALLMA_EXECUTION_TRACES_BUCKET_NAME is not configured.');
+        }
+        const itemsString = JSON.stringify(itemsToProcess);
+        const totalSize = Buffer.byteLength(itemsString, 'utf-8');
+
+        if (totalSize > SFN_INLINE_PAYLOAD_LIMIT_BYTES) {
+            log_warn(`Item array for parallel step is large (${totalSize} bytes). Automatically creating S3 manifest and switching to Distributed Map.`, {}, correlationId);
+            
+            let manifestContent = '';
+            let itemsOffloaded = 0;
+            for (const item of itemsToProcess) {
+                const offloadKeyPrefix = `manifest_items/${correlationId}/${stepInstanceConfig.stepInstanceId}`;
+                const offloadedItemOrPointer = await offloadIfLarge(
+                    item,
+                    EXECUTION_TRACES_BUCKET_NAME,
+                    `${offloadKeyPrefix}/${uuidv4()}`,
+                    correlationId
+                );
+                if (offloadedItemOrPointer && '_s3_output_pointer' in offloadedItemOrPointer) {
+                    itemsOffloaded++;
+                }
+                manifestContent += JSON.stringify(offloadedItemOrPointer) + '\n';
+            }
+            
+            const manifestKey = `manifests/${correlationId}/${stepInstanceConfig.stepInstanceId}-${new Date().toISOString()}.jsonl`;
+            await s3Client.send(new PutObjectCommand({
+                Bucket: EXECUTION_TRACES_BUCKET_NAME,
+                Key: manifestKey,
+                Body: manifestContent,
+                ContentType: 'application/x-jsonlines',
+            }));
+
+            log_info(`Auto-created manifest for Distributed Map with ${itemsToProcess.length} items (${itemsOffloaded} offloaded).`, { manifestKey }, correlationId);
+
+            return {
+                runtimeState,
+                sfnAction: SfnActionType.PARALLEL_FORK_S3,
+                s3ItemReader: {
+                    bucket: EXECUTION_TRACES_BUCKET_NAME,
+                    key: manifestKey,
+                    parallelBranches: branchTemplates,
+                    aggregationConfig: finalAggregationConfig,
+                    originalStepInstanceId: stepInstanceConfig.stepInstanceId,
+                }
+            };
+        }
+    // --- END: AUTO-OFFLOAD LOGIC ---
 
     const branchesToExecute: BranchExecutionPayload[] = [];
 

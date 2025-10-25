@@ -22,6 +22,7 @@ export interface ApiConstructProps {
   stageConfig: StageConfig;
   configTable: dynamodb.Table;
   flowExecutionLogTable: dynamodb.Table;
+  emailToFlowMappingTable: dynamodb.Table; // NEW
   executionTracesBucket: s3.IBucket;
   orchestrationLambdaRole: iam.Role;
   iterativeStepProcessorLambda: lambda.IFunction;
@@ -44,7 +45,7 @@ export class ApiConstruct extends Construct {
   
     constructor(scope: Construct, id: string, props: ApiConstructProps) {
         super(scope, id);
-        const { stageConfig, configTable, flowExecutionLogTable, executionTracesBucket, iterativeStepProcessorLambda, orchestrationLambdaRole, resumeFlowLambda, flowTriggerApiLambda, flowOrchestratorStateMachine } = props;
+        const { stageConfig, configTable, flowExecutionLogTable, emailToFlowMappingTable, executionTracesBucket, iterativeStepProcessorLambda, orchestrationLambdaRole, resumeFlowLambda, flowTriggerApiLambda, flowOrchestratorStateMachine } = props;
 
         // --- Authentication ---
         const adminAuth = new AdminAuthentication(this, 'AllmaAdminAuth', { stageConfig });
@@ -59,6 +60,7 @@ export class ApiConstruct extends Construct {
         });
         configTable.grantReadWriteData(adminApiLambdaRole);
         flowExecutionLogTable.grantReadData(adminApiLambdaRole);
+        emailToFlowMappingTable.grantReadWriteData(adminApiLambdaRole); // NEW
         executionTracesBucket.grantRead(adminApiLambdaRole);
 
         const adminFlowControlLambdaRole = new iam.Role(this, 'AllmaAdminFlowControlRole', {
@@ -86,6 +88,7 @@ export class ApiConstruct extends Construct {
             [ENV_VAR_NAMES.LOG_LEVEL]: stageConfig.logging.logLevel,
             [ENV_VAR_NAMES.ALLMA_CONFIG_TABLE_NAME]: configTable.tableName,
             [ENV_VAR_NAMES.ALLMA_FLOW_EXECUTION_LOG_TABLE_NAME]: flowExecutionLogTable.tableName,
+            'EMAIL_TO_FLOW_MAPPING_TABLE_NAME': emailToFlowMappingTable.tableName, // NEW
             [ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME]: executionTracesBucket.bucketName,
             AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
         };
@@ -170,7 +173,7 @@ export class ApiConstruct extends Construct {
             bundling: {
                 minify: true,
                 sourceMap: true,
-                externalModules: ['aws-sdk', '@aws-sdk/client-dynamodb', '@aws-sdk/lib-dynamodb', '@aws-sdk/client-s3', '@aws-sdk/client-sqs', '@aws-sdk/client-sns', '@aws-sdk/client-lambda', '@aws-sdk/client-sfn', '@aws-sdk/client-bedrock-runtime'],
+                externalModules: ['aws-sdk', '@aws-sdk/client-dynamodb', '@aws-sdk/lib-dynamodb', '@aws-sdk/client-s3', '@aws-sdk/client-sqs', '@aws-sdk/client-sns', '@aws-sdk/client-lambda', '@aws-sdk/client-sfn', '@aws-sdk/client-bedrock-runtime', '@aws-sdk/client-sesv2'],
                 forceDockerBundling: false,
             },
             architecture: lambda.Architecture.ARM_64,

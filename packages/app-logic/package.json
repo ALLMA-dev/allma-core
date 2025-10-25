@@ -15,11 +15,14 @@
     "@allma/core-types": "^1.0.0",
     "@aws-sdk/client-bedrock-runtime": "^3.614.0",
     "@aws-sdk/client-dynamodb": "^3.500.0",
+    "@aws-sdk/client-sesv2": "^3.626.0",
     "@langchain/google-vertexai": "^1.0.0",
+    "mailparser": "^3.7.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.142",
+    "@types/mailparser": "^3.4.4",
     "copyfiles": "^2.4.1",
     "eslint": "^9.8.0",
     "rimraf": "^5.0.5",

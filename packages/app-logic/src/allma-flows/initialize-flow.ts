@@ -120,7 +120,7 @@ export const handler: Handler<StartFlowExecutionInput, ProcessorOutput> = async 
       flowDefinitionVersion: flowDefinition.version,
       flowExecutionId: effectiveFlowExecutionId,
       enableExecutionLogs: enableLogs,
-      currentStepInstanceId: flowDefinition.startStepInstanceId,
+      currentStepInstanceId: startInput.executionOverrides?.startStepInstanceId || flowDefinition.startStepInstanceId,
       status: 'RUNNING',
       startTime: startTime,
       currentContextData: initialContextWithSystemValues,

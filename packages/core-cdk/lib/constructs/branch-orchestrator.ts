@@ -54,10 +54,11 @@ export class BranchOrchestrator extends Construct {
       outputPath: '$.runtimeState.currentContextData.output',
     });
 
-    // A fallback Pass state to return the entire context data if no specific "output" property is set.
-    const returnFullContextData = new sfn.Pass(this, 'ReturnFullContextData', {
-        comment: 'Returns the entire currentContextData as the branch output since no specific "output" property was set.',
-        outputPath: '$.runtimeState.currentContextData',
+    // FIX: A fallback Pass state that returns an empty object if no specific "output" property is set.
+    // This prevents the entire (potentially large) context from being returned, avoiding DataLimitExceeded errors.
+    const returnEmptyOutput = new sfn.Pass(this, 'ReturnEmptyOutput', {
+        comment: 'Returns an empty object as the branch output since no specific "output" property was set.',
+        result: sfn.Result.fromObject({}),
     });
 
     // A Choice state to decide which output to return.
@@ -66,7 +67,7 @@ export class BranchOrchestrator extends Construct {
             sfn.Condition.isPresent('$.runtimeState.currentContextData.output'),
             extractSpecificOutput
         )
-        .otherwise(returnFullContextData);
+        .otherwise(returnEmptyOutput);
 
     // --- FAILURE HANDLING STATES ---
 
@@ -83,8 +84,8 @@ export class BranchOrchestrator extends Construct {
     const normalizeLambdaErrorState = new sfn.Pass(this, 'NormalizeBranchError', {
         parameters: {
             'Error.$': '$.Error',
-            // The Cause from a Lambda failure is already a stringified object. We just need to ensure it's passed as a string.
-            'Cause.$': 'States.JsonToString($.Cause)',
+            // The Cause from a Lambda failure is already a stringified object. Just pass it through.
+            'Cause.$': '$.Cause',
         }
     });
 

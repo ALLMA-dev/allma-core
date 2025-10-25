@@ -154,7 +154,7 @@ After deploying the Admin Shell, you need to create the first super administrato
     *   Set the **Value** to `{"roles": ["SUPER_ADMIN"], "permissions": []}`.
     *   Save the changes.
 
-You can now log into the Admin Shell with this user's credentials, and you will have full super administrator access.
+You can now log into the Admin Shell with this user's credentials, and you will have full super administrator access. If you still see "Access Denied" sign out and login again.
 
 ### Using a Custom Domain for the UI
 

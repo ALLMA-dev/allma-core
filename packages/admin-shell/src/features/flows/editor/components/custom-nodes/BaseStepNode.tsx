@@ -4,7 +4,7 @@ import { Card, Text, Badge, Group, useMantineTheme, Tooltip, Code, Box, Stack } 
 import { IconPlayerPlay, IconPencil, IconGitBranch, IconGitFork, IconArrowBackUp } from '@tabler/icons-react';
 import { StepNodeData } from '../../types';
 import { getStepConfig } from '../../step-configs';
-import { StepType } from '@allma/core-types';
+import { StepType, StepInstance } from '@allma/core-types';
 import useFlowEditorStore from '../../hooks/useFlowEditorStore';
 
 // Defines all possible handle positions, including correct CSS for centering.
@@ -21,7 +21,6 @@ const allHandles: { id: string; position: Position; style: React.CSSProperties }
 
 function BaseStepNode({ data, selected, id: nodeId }: NodeProps<StepNodeData>) {
   const { label, stepType, isStartNode, isDirty, branchInfo, isBranchEnd, config } = data;
-  const { itemsPath, parallelBranches } = config;
   const theme = useMantineTheme();
   const edges = useFlowEditorStore((state) => state.edges);
   const [isNodeHovered, setIsNodeHovered] = useState(false);
@@ -134,18 +133,21 @@ function BaseStepNode({ data, selected, id: nodeId }: NodeProps<StepNodeData>) {
               <Text component="div" size="xs" c="dimmed">
                 Type: <Badge variant="light" color="gray">{stepType}</Badge>
               </Text>
-              {isParallelFork && (
-                  <Text component="div" size="xs" c="dimmed">
-                    <Group gap={4} align="center" wrap="nowrap">
-                      <IconGitFork size={14} style={{ flexShrink: 0 }} />
-                      {itemsPath && typeof itemsPath === 'string' ? (
-                        <Text span truncate>Dynamic: <Code fz="xs">{itemsPath}</Code></Text>
-                      ) : (
-                        <Text span>{parallelBranches?.length || 0} branches</Text>
-                      )}
-                    </Group>
-                  </Text>
-              )}
+              {isParallelFork && (() => {
+                const parallelConfig = config as Extract<StepInstance, { stepType: 'PARALLEL_FORK_MANAGER' }>;
+                return (
+                    <Text component="div" size="xs" c="dimmed">
+                        <Group gap={4} align="center" wrap="nowrap">
+                            <IconGitFork size={14} style={{ flexShrink: 0 }} />
+                            {parallelConfig.itemsPath && typeof parallelConfig.itemsPath === 'string' ? (
+                                <Text span truncate>Dynamic: <Code fz="xs">{parallelConfig.itemsPath}</Code></Text>
+                            ) : (
+                                <Text span>{parallelConfig.parallelBranches?.length || 0} branches</Text>
+                            )}
+                        </Group>
+                    </Text>
+                );
+              })()}
             </Stack>
         </Group>
       </Card>

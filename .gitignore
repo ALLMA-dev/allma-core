@@ -57,5 +57,4 @@ cdk.out/
 .nx/
 .turbo/
 
-**/examples/customer*
-**/examples/basic-deployment-my
+**/examples/basic-deployment*

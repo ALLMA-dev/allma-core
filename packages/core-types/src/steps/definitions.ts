@@ -2,7 +2,6 @@ import { z } from 'zod';
 import { StepTypeSchema } from '../common/enums.js';
 import * as SystemSteps from './system/index.js';
 import { StepInputMappingSchema, StepOutputMappingSchema, StepErrorHandlerSchema, StepDefinitionIdSchema } from './common.js';
-import { BranchDefinitionSchema, AggregationConfigSchema } from '../flow/branching.js';
 import { SystemModuleIdentifiers } from './system-module-identifiers.js';
 
 export const DelayPositionSchema = z.enum(['before', 'after']);
@@ -34,11 +33,16 @@ export type DelayOptions = z.infer<typeof DelayOptionsSchema>;
 
 
 // --- Full Step Definition Schemas (Base + Specific Payload) ---
+export const SqsSendStepSchema = SystemSteps.SqsSendStepPayloadSchema;
+export const SnsPublishStepSchema = SystemSteps.SnsPublishStepPayloadSchema;
+export const EmailStartPointStepSchema = z.object({}).merge(SystemSteps.EmailStartPointStepPayloadSchema);
+
 export const LlmInvocationStepSchema = z.object({}).merge(SystemSteps.LlmInvocationStepPayloadSchema);
 export const DataLoadStepSchema = z.object({}).merge(SystemSteps.DataLoadStepPayloadSchema);
 export const DataSaveStepSchema = z.object({}).merge(SystemSteps.DataSaveStepPayloadSchema);
-export const MessagingStepSchema = z.object({}).merge(SystemSteps.MessagingStepPayloadSchema); // NEW
-export const StartFlowExecutionStepSchema = z.object({}).merge(SystemSteps.StartFlowExecutionStepPayloadSchema); // NEW
+export const EmailSendStepSchema = z.object({}).merge(SystemSteps.EmailSendStepPayloadSchema);
+
+export const StartFlowExecutionStepSchema = z.object({}).merge(SystemSteps.StartFlowExecutionStepPayloadSchema);
 export const DataTransformationStepSchema = z.object({}).merge(SystemSteps.DataTransformationStepPayloadSchema);
 export const CustomLogicStepSchema = z.object({}).merge(SystemSteps.CustomLogicStepPayloadSchema);
 export const ApiCallStepSchema = z.object({}).merge(SystemSteps.ApiCallStepPayloadSchema);
@@ -60,7 +64,11 @@ export const BaseStepDefinitionSchema = z.discriminatedUnion("stepType", [
   CustomLogicStepSchema, ApiCallStepSchema, StartSubFlowStepSchema, NoOpStepSchema,
   EndFlowStepSchema, WaitForExternalEventStepSchema, PollExternalApiStepSchema,
   CustomLambdaInvokeStepSchema, ParallelForkManagerStepSchema,
-  MessagingStepSchema, StartFlowExecutionStepSchema, // NEW
+  StartFlowExecutionStepSchema,
+  SqsSendStepSchema,
+  SnsPublishStepSchema,
+  EmailStartPointStepSchema,
+  EmailSendStepSchema,
 ]).and(z.object({
     // Common configuration applicable to most step types.
     customConfig: z.record(z.any()).optional(),
@@ -112,8 +120,6 @@ export const StepInstanceSchema = BaseStepDefinitionSchema.and(z.object({
         nextStepInstanceId: z.string().min(1),
     })).optional(),
     defaultNextStepInstanceId: z.string().min(1).optional(),
-    parallelBranches: z.array(BranchDefinitionSchema).optional(),
-    aggregationConfig: AggregationConfigSchema.optional(),
     delay: DelayOptionsSchema.optional(),
     disableS3Offload: z.boolean().optional(),
 }));
@@ -134,8 +140,9 @@ export const SYSTEM_STEP_DEFINITIONS: Pick<StepDefinition, 'id' | 'name' | 'step
     { id: 'system-dynamodb-query-and-update', name: 'DynamoDB Query and Update', stepType: StepTypeSchema.enum.DATA_SAVE, moduleIdentifier: SystemModuleIdentifiers.DYNAMODB_QUERY_AND_UPDATE },
     { id: 'system-dynamodb-update-item', name: 'DynamoDB Update Item', stepType: StepTypeSchema.enum.DATA_SAVE, moduleIdentifier: SystemModuleIdentifiers.DYNAMODB_UPDATE_ITEM },
     { id: 'system-s3-data-saver', name: 'S3 Data Saver', stepType: StepTypeSchema.enum.DATA_SAVE, moduleIdentifier: SystemModuleIdentifiers.S3_DATA_SAVER },
-    { id: 'system-sns-publish', name: 'SNS Publish Message', stepType: StepTypeSchema.enum.MESSAGING, moduleIdentifier: SystemModuleIdentifiers.SNS_PUBLISH },
-    { id: 'system-sqs-send', name: 'SQS Send Message', stepType: StepTypeSchema.enum.MESSAGING, moduleIdentifier: SystemModuleIdentifiers.SQS_SEND },
+    { id: 'system-sns-publish', name: 'SNS Publish Message', stepType: StepTypeSchema.enum.SNS_PUBLISH, moduleIdentifier: SystemModuleIdentifiers.SNS_PUBLISH },
+    { id: 'system-sqs-send', name: 'SQS Send Message', stepType: StepTypeSchema.enum.SQS_SEND, moduleIdentifier: SystemModuleIdentifiers.SQS_SEND },
+    { id: 'system-email-send', name: 'Send Email', stepType: StepTypeSchema.enum.EMAIL, moduleIdentifier: SystemModuleIdentifiers.EMAIL_SEND },
     { id: 'system-start-flow-execution', name: 'Start Flow Execution', stepType: StepTypeSchema.enum.START_FLOW_EXECUTION, moduleIdentifier: SystemModuleIdentifiers.START_FLOW_EXECUTION },
     { id: 'system-array-aggregator', name: 'Array Aggregator', stepType: StepTypeSchema.enum.DATA_TRANSFORMATION, moduleIdentifier: SystemModuleIdentifiers.ARRAY_AGGREGATOR },
     { id: 'system-compose-object-from-input', name: 'Compose Object', stepType: StepTypeSchema.enum.DATA_TRANSFORMATION, moduleIdentifier: SystemModuleIdentifiers.COMPOSE_OBJECT_FROM_INPUT },
@@ -148,4 +155,5 @@ export const SYSTEM_STEP_DEFINITIONS: Pick<StepDefinition, 'id' | 'name' | 'step
     { id: 'system-poll-external-api', name: 'Poll External API', stepType: StepTypeSchema.enum.POLL_EXTERNAL_API, moduleIdentifier: SystemModuleIdentifiers.POLL_EXTERNAL_API },
     { id: 'system-start-sub-flow', name: 'Start Sub-Flow', stepType: StepTypeSchema.enum.START_SUB_FLOW, moduleIdentifier: SystemModuleIdentifiers.START_SUB_FLOW },
     { id: 'system-wait-for-external-event', name: 'Wait for External Event', stepType: StepTypeSchema.enum.WAIT_FOR_EXTERNAL_EVENT, moduleIdentifier: SystemModuleIdentifiers.WAIT_FOR_EXTERNAL_EVENT },
+    { id: 'system-email-start-point', name: 'Email Start Point', stepType: StepTypeSchema.enum.EMAIL_START_POINT, moduleIdentifier: SystemModuleIdentifiers.EMAIL_START_POINT },
 ];

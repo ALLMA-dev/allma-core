@@ -15,7 +15,7 @@ export function FlowSettingsForm({ flowId, flowConfig, isLoading }: FlowSettings
   const { data: allTags, isLoading: isLoadingTags } = useGetAllFlowTags();
   const updateConfigMutation = useUpdateFlowConfig();
 
-  const form = useForm<UpdateFlowConfigInput>({
+  const form = useForm<Omit<UpdateFlowConfigInput, 'emailTriggerAddress'>>({
     initialValues: { name: '', description: '', tags: [] },
     validate: zodResolver(UpdateFlowConfigInputSchema),
   });

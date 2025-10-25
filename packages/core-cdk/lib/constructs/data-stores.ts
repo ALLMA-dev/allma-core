@@ -17,6 +17,7 @@ export class AllmaDataStores extends Construct {
   public readonly allmaFlowExecutionLogTable: dynamodb.Table;
   public readonly allmaExecutionTracesBucket: s3.Bucket;
   public readonly allmaFlowContinuationStateTable: dynamodb.Table;
+  public readonly emailToFlowMappingTable: dynamodb.Table; // NEW
 
   constructor(scope: Construct, id: string, props: AllmaDataStoresProps) {
     super(scope, id);
@@ -44,12 +45,21 @@ export class AllmaDataStores extends Construct {
       projectionType: dynamodb.ProjectionType.ALL, // Adjust as needed
     });
 
-    // GSI for listing master config items (flows, prompts)
+    // --- GSI for listing items ---
+    
     this.allmaConfigTable.addGlobalSecondaryIndex({
         indexName: 'GSI_ListItems',
         partitionKey: { name: 'itemType', type: dynamodb.AttributeType.STRING },
-        sortKey: { name: 'name', type: dynamodb.AttributeType.STRING }, // Sort by name for easier listing
+        sortKey: { name: 'name', type: dynamodb.AttributeType.STRING },
         nonKeyAttributes: ['id', 'description', 'latestVersion', 'publishedVersion', 'tags', 'updatedAt', 'stepType'],
+        projectionType: dynamodb.ProjectionType.INCLUDE,
+    });
+
+    this.allmaConfigTable.addGlobalSecondaryIndex({
+        indexName: 'GSI_ListItems_v2',
+        partitionKey: { name: 'itemType', type: dynamodb.AttributeType.STRING },
+        sortKey: { name: 'name', type: dynamodb.AttributeType.STRING },
+        nonKeyAttributes: ['id', 'description', 'latestVersion', 'publishedVersion', 'tags', 'updatedAt', 'stepType', 'emailTriggerAddress'],
         projectionType: dynamodb.ProjectionType.INCLUDE,
     });
 
@@ -133,6 +143,22 @@ export class AllmaDataStores extends Construct {
       // A TTL is CRITICAL to clean up abandoned flows.
       // e.g., if a user never replies, the token will be deleted after N days.
       timeToLiveAttribute: 'ttl',
+    });
+
+    // --- Email Trigger to Flow Mapping Table ---
+    this.emailToFlowMappingTable = new dynamodb.Table(this, 'EmailToFlowMappingTable', {
+        tableName: `AllmaEmailToFlowMapping-${stageConfig.stage}`,
+        partitionKey: { name: 'emailAddress', type: dynamodb.AttributeType.STRING },
+        sortKey: { name: 'keyword', type: dynamodb.AttributeType.STRING },
+        billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+        removalPolicy,
+        pointInTimeRecovery: isProd,
+    });
+
+    this.emailToFlowMappingTable.addGlobalSecondaryIndex({
+        indexName: 'GSI_ByFlow',
+        partitionKey: { name: 'flowDefinitionId', type: dynamodb.AttributeType.STRING },
+        projectionType: dynamodb.ProjectionType.ALL,
     });
 
 

@@ -59,6 +59,7 @@ export const StartFlowExecutionInputSchema = z.object({
   executionOverrides: z.object({
     stepOverrides: FlowStepOverridesSchema.optional(),
     startFromState: z.lazy((): typeof FlowRuntimeStateSchema => FlowRuntimeStateSchema).optional(),
+    startStepInstanceId: z.string().optional(),
   }).optional(),
 });
 export type StartFlowExecutionInput = z.infer<typeof StartFlowExecutionInputSchema>;

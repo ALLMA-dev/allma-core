@@ -1,10 +1,15 @@
 import { v4 as uuidv4 } from 'uuid';
 import {
-    FlowDefinition, FlowDefinitionSchema, FlowMetadataStorageItem, FlowMetadataStorageItemSchema, ITEM_TYPE_ALLMA_FLOW_DEFINITION, StepType, CreateFlowInput, StepInstance
+    FlowDefinition, FlowDefinitionSchema, FlowMetadataStorageItem, FlowMetadataStorageItemSchema, ITEM_TYPE_ALLMA_FLOW_DEFINITION, StepType, CreateFlowInput, StepInstance, ENV_VAR_NAMES
 } from '@allma/core-types';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { VersionedEntityManager } from './versioned-entity.service.js';
 import { StepDefinitionService } from './step-definition.service.js';
-import { log_info } from '@allma/core-sdk';
+import { EmailMappingService } from './email-mapping.service.js';
+import { log_info, log_error } from '@allma/core-sdk';
+
+const ddbDocClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
 const initialVersionFactory = (id: string, now: string, input: CreateFlowInput): FlowDefinition => {
     const startStepId = `start_step_${uuidv4().substring(0, 8)}`;
@@ -39,10 +44,15 @@ const entityManager = new VersionedEntityManager<FlowMetadataStorageItem, FlowDe
     initialVersionFactory,
 });
 
+
+
 /**
  * Custom update logic for Flow Definitions to handle validation and hydration of step properties.
  */
 const customUpdateVersion = async (id: string, version: number, data: FlowDefinition): Promise<FlowDefinition> => {
+    const oldVersionResult = await entityManager.getVersion(id, version);
+    const oldVersion = oldVersionResult === null ? undefined : oldVersionResult;
+    
     // 1. Create a deep copy for validation to avoid mutating the original data.
     const flowForValidation: FlowDefinition = JSON.parse(JSON.stringify(data));
 
@@ -78,7 +88,11 @@ const customUpdateVersion = async (id: string, version: number, data: FlowDefini
     FlowDefinitionSchema.parse(flowForValidation);
 
     // 4. If validation passes, persist the HYDRATED AND VALIDATED flow object.
-    return entityManager.updateVersion(id, version, data, { skipValidation: true });
+    const newVersion = await entityManager.updateVersion(id, version, data, { skipValidation: true });
+
+    await EmailMappingService.syncMappingsForFlowVersion(id, oldVersion, newVersion);
+
+    return newVersion;
 };
 
 /**
@@ -90,25 +104,49 @@ export const FlowDefinitionService = {
     listMasters: (filters?: { tag?: string; searchText?: string }) => entityManager.listMasters(filters),
     getAllTags: entityManager.getAllTags.bind(entityManager),
     getMaster: entityManager.getMaster.bind(entityManager),
-    updateMaster: entityManager.updateMaster.bind(entityManager),
     listVersions: entityManager.listVersions.bind(entityManager),
     getVersion: entityManager.getVersion.bind(entityManager),
     createVersion: entityManager.createVersion.bind(entityManager),
     publishVersion: entityManager.publishVersion.bind(entityManager),
     unpublishVersion: entityManager.unpublishVersion.bind(entityManager),
-    deleteVersion: entityManager.deleteVersion.bind(entityManager),
+    async deleteVersion(id: string, version: number): Promise<void> {
+        const versionToDeleteResult = await entityManager.getVersion(id, version);
+        const versionToDelete = versionToDeleteResult === null ? undefined : versionToDeleteResult;
+        await EmailMappingService.syncMappingsForFlowVersion(id, versionToDelete, undefined);
+        return entityManager.deleteVersion(id, version);
+    },
     
     // Use the custom update logic for versions
     updateVersion: customUpdateVersion,
+
+    /**
+     * Updates the master (metadata) record of a flow, including managing the email trigger mapping.
+     */
+    async updateMaster(id: string, data: Partial<Omit<FlowMetadataStorageItem, 'PK' | 'SK' | 'itemType' | 'id' | 'createdAt' | 'updatedAt' | 'latestVersion' | 'publishedVersion'>>): Promise<FlowMetadataStorageItem> {
+        return entityManager.updateMaster(id, data);
+    },
 
     /**
      * Creates a new flow definition with an initial version.
      * @param input The data for the new flow.
      * @returns An object containing the new metadata and the initial version.
      */
-    async createFlow(input: CreateFlowInput): Promise<{ metadata: FlowMetadataStorageItem, version: FlowDefinition }> {
-        const id = uuidv4();
-        return entityManager.createMasterWithInitialVersion(id, input);
+    async createFlow(input: CreateFlowInput & { emailTriggerAddress?: string }): Promise<{ metadata: FlowMetadataStorageItem, version: FlowDefinition }> {
+        const { metadata, version } = await entityManager.createMasterWithInitialVersion(uuidv4(), input);
+        await EmailMappingService.syncMappingsForFlowVersion(metadata.id, undefined, version);
+        return { metadata, version };
+    },
+
+    /**
+     * Creates a new flow and its first version from a full FlowDefinition object, typically from an import.
+     * @param flow The complete FlowDefinition object to create.
+     * @returns An object containing the new metadata and the created version.
+     */
+    async createFlowFromImport(flow: FlowDefinition): Promise<{ metadata: FlowMetadataStorageItem, version: FlowDefinition }> {
+        const createInput: CreateFlowInput = { name: String(flow.name), description: flow.description };
+        const { metadata, version } = await entityManager.createMasterWithInitialVersion(flow.id, createInput, flow);
+        await EmailMappingService.syncMappingsForFlowVersion(metadata.id, undefined, version);
+        return { metadata, version };
     },
 
     /**

@@ -1,4 +1,4 @@
-import { AllmaExportFormat, ImportApiResponse } from '@allma/core-types';
+import { AllmaExportFormat, ImportApiResponse, FlowDefinition } from '@allma/core-types';
 import { FlowDefinitionService } from '../allma-admin/services/flow-definition.service.js';
 import { StepDefinitionService } from '../allma-admin/services/step-definition.service.js';
 
@@ -41,37 +41,34 @@ export class AllmaImporterService {
     }
 
     // Step 2: Import Flow Definitions
+    // TODO: For robust multi-version imports, this logic should first group flows by ID.
+    // The current loop processes each version from the file individually, which has limitations
+    // when importing multiple versions of the same new flow.
     for (const flow of data.flows) {
       try {
-        const existing = await FlowDefinitionService.getMaster(flow.id);
-        if (existing) {
+        const existingMaster = await FlowDefinitionService.getMaster(flow.id);
+        if (existingMaster) {
           if (options.overwrite) {
-            // We need to decide on the update strategy. A simple approach is to
-            // update the latest version. A more complex one might create a new version.
-            // For now, let's assume we update the latest version if it exists.
-            const versions = await FlowDefinitionService.listVersions(flow.id);
-            const sortedVersions = versions
-              .filter(v => typeof v.version === 'number')
-              .sort((a, b) => b.version! - a.version!);
-
-            if (sortedVersions.length > 0) {
-              const latestVersion = sortedVersions[0];
-              await FlowDefinitionService.updateVersion(flow.id, latestVersion.version!, flow);
+            const existingVersion = await FlowDefinitionService.getVersion(flow.id, flow.version);
+            if (existingVersion) {
+              // This version exists, so update it.
+              if (existingVersion.isPublished) {
+                  result.errors.push({ id: flow.id, type: 'flow', message: `Version ${flow.version} is published and cannot be overwritten.` });
+                  continue;
+              }
+              await FlowDefinitionService.updateVersion(flow.id, flow.version, flow);
               result.updated.flows++;
             } else {
-              // If no versions exist for some reason, we can't update.
-              result.errors.push({ id: flow.id, type: 'flow', message: 'Cannot update flow with no existing versions.' });
+              // This version doesn't exist for a flow that is already in the system.
+              // Creating new versions on an existing flow during import is not supported yet.
+              result.errors.push({ id: flow.id, type: 'flow', message: `Cannot overwrite flow: version ${flow.version} does not exist. Creating new versions for existing flows on import is not supported.` });
             }
           } else {
             result.skipped.flows++;
           }
         } else {
-          // The `createFlow` service method expects a specific input shape.
-          // We need to adapt the imported `FlowDefinition` to match `CreateFlowInput`.
-          await FlowDefinitionService.createFlow({
-            name: String(flow.name), // Ensure name is a string
-            description: flow.description,
-          });
+          // This flow does not exist. Create it from the imported definition.
+          await FlowDefinitionService.createFlowFromImport(flow);
           result.created.flows++;
         }
       } catch (error: any) {

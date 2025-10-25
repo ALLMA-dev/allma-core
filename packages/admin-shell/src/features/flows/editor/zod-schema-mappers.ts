@@ -11,7 +11,11 @@ import {
     CustomLambdaInvokeStepSchema,
     StepInstanceSchema,
     StepDefinitionSchema,
-    BaseStepDefinitionSchema
+    BaseStepDefinitionSchema,
+    EmailSendStepSchema,
+    SqsSendStepSchema,
+    SnsPublishStepSchema,
+    EmailStartPointStepSchema
 } from '@allma/core-types';
 import { z } from 'zod';
 
@@ -72,6 +76,10 @@ const stepSchemaMap: Partial<Record<StepType, z.ZodObject<any, any>>> = {
     [StepType.WAIT_FOR_EXTERNAL_EVENT]: WaitForExternalEventStepSchema,
     [StepType.POLL_EXTERNAL_API]: PollExternalApiStepSchema,
     [StepType.CUSTOM_LAMBDA_INVOKE]: CustomLambdaInvokeStepSchema,
+    [StepType.EMAIL]: EmailSendStepSchema,
+    [StepType.SQS_SEND]: SqsSendStepSchema,
+    [StepType.SNS_PUBLISH]: SnsPublishStepSchema,
+    [StepType.EMAIL_START_POINT]: EmailStartPointStepSchema,
     // Add other step types here as they are created
 };
 

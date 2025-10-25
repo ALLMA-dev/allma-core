@@ -5,7 +5,7 @@ import { log_info, log_error, log_warn, log_debug } from "./logger.js";
 
 const s3Client = new S3Client({});
 
-const MAX_CONTEXT_DATA_SIZE_BYTES_DEFAULT = 220 * 1024; // 220KB default
+const MAX_CONTEXT_DATA_SIZE_BYTES_DEFAULT = 10 * 1024; // 10KB default
 const PAYLOAD_OFFLOAD_THRESHOLD_BYTES = process.env[ENV_VAR_NAMES.MAX_CONTEXT_DATA_SIZE_BYTES]
     ? parseInt(process.env[ENV_VAR_NAMES.MAX_CONTEXT_DATA_SIZE_BYTES] || '', 10)
     : MAX_CONTEXT_DATA_SIZE_BYTES_DEFAULT;

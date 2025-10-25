@@ -138,6 +138,43 @@ If set to \`true\`, this prevents the step's output from being automatically sav
         },
     },
 
+    [StepType.EMAIL_START_POINT]: {
+        general: 'Creates a dedicated email address that acts as a starting point for this flow. When an email is sent to this address, a new flow execution will begin.',
+        fields: {
+            emailAddress: 'The unique email address that will trigger this start point. This must be a valid email address and unique across all flows.',
+            keyword: 'An optional, unique code to distinguish between multiple start points for the same email address. The flow will start here if this keyword is found in the email body.',
+        },
+    },
+
+    [StepType.EMAIL]: {
+        general: 'Sends an email using AWS Simple Email Service (SES). All fields support Handlebars templating to insert dynamic data from the flow context.',
+        fields: {
+            from: 'The sender\'s email address. This address must be a verified identity in your AWS SES account.',
+            to: 'The recipient\'s email address. This should be a single email address string (in quotes), or an array of email strings.',
+            replyTo: 'An optional email address to be used for replies. This should be a single email address string (in quotes), or an array of email strings.',
+            subject: 'The subject line of the email.',
+            body: 'The body of the email. Both plain text and HTML are supported.',
+        },
+    },
+
+    [StepType.SQS_SEND]: {
+        general: 'Sends an asynchronous message to an AWS Simple Queue Service (SQS) queue.',
+        fields: {
+            queueUrl: 'The URL of the target SQS queue. Supports Handlebars templating.',
+            payload: 'The message body to send. This should be a valid JSON object. It is often constructed using Input Mappings from the flow context.',
+            messageGroupId: '(For FIFO queues only) A string that specifies that a message belongs to a specific message group.',
+            messageDeduplicationId: '(For FIFO queues only) A token used for deduplication of sent messages.',
+        },
+    },
+    [StepType.SNS_PUBLISH]: {
+        general: 'Publishes a message to an AWS Simple Notification Service (SNS) topic.',
+        fields: {
+            topicArn: 'The ARN of the target SNS topic. Supports Handlebars templating.',
+            payload: 'The message body to send. This should be a valid JSON object. It is often constructed using Input Mappings from the flow context.',
+            messageAttributes: 'A JSON object of key-value pairs for SNS message attributes. Used for filtering and routing messages.',
+        },
+    },
+
     [StepType.LLM_INVOCATION]: {
         general: 'Invokes a Large Language Model (LLM) to generate text, classify content, or produce structured JSON based on a dynamic prompt.',
         fields: {
@@ -270,16 +307,6 @@ This step type generally receives its configuration directly from **Input Mappin
         fields: {
             moduleIdentifier: 'The unique identifier for the custom logic module to execute (e.g., `my-module/calculate-premium`).',
             customConfig: 'A JSON object containing static configuration for the module. Dynamic data should be passed via Input Mappings.',
-        },
-    },
-    [StepType.MESSAGING]: {
-        general: 'Sends an asynchronous message to a messaging system like SQS or SNS.',
-        fields: {
-            moduleIdentifier: 'Specifies which messaging module to use.',
-            customConfig: `
-#### Module Configuration
-The core configuration for these modules (\`queueUrl\`, \`topicArn\`) is typically provided here as static values or Handlebars templates. The dynamic message body must be passed by mapping a value to the \`payload\` field in **Input Mappings**.
-`,
         },
     },
     [StepType.START_SUB_FLOW]: {

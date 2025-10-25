@@ -11,6 +11,7 @@ export const SystemModuleIdentifiers = {
     S3_DATA_SAVER: 'system/s3-data-saver',
     SNS_PUBLISH: 'system/sns-publish',
     SQS_SEND: 'system/sqs-send',
+    EMAIL_SEND: 'system/email-send',
     START_FLOW_EXECUTION: 'system/start-flow-execution',
     ARRAY_AGGREGATOR: 'system/array-aggregator',
     COMPOSE_OBJECT_FROM_INPUT: 'system/compose-object-from-input',
@@ -23,4 +24,5 @@ export const SystemModuleIdentifiers = {
     POLL_EXTERNAL_API: 'system/poll-external-api',
     START_SUB_FLOW: 'system/start-sub-flow',
     WAIT_FOR_EXTERNAL_EVENT: 'system/wait-for-external-event',
+    EMAIL_START_POINT: 'system/email-start-point',
 } as const;
