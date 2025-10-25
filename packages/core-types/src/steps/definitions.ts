@@ -35,6 +35,7 @@ export type DelayOptions = z.infer<typeof DelayOptionsSchema>;
 // --- Full Step Definition Schemas (Base + Specific Payload) ---
 export const SqsSendStepSchema = SystemSteps.SqsSendStepPayloadSchema;
 export const SnsPublishStepSchema = SystemSteps.SnsPublishStepPayloadSchema;
+export const EmailStartPointStepSchema = z.object({}).merge(SystemSteps.EmailStartPointStepPayloadSchema);
 
 export const LlmInvocationStepSchema = z.object({}).merge(SystemSteps.LlmInvocationStepPayloadSchema);
 export const DataLoadStepSchema = z.object({}).merge(SystemSteps.DataLoadStepPayloadSchema);
@@ -66,7 +67,7 @@ export const BaseStepDefinitionSchema = z.discriminatedUnion("stepType", [
   StartFlowExecutionStepSchema,
   SqsSendStepSchema,
   SnsPublishStepSchema,
-  
+  EmailStartPointStepSchema,
   EmailSendStepSchema,
 ]).and(z.object({
     // Common configuration applicable to most step types.
@@ -154,4 +155,5 @@ export const SYSTEM_STEP_DEFINITIONS: Pick<StepDefinition, 'id' | 'name' | 'step
     { id: 'system-poll-external-api', name: 'Poll External API', stepType: StepTypeSchema.enum.POLL_EXTERNAL_API, moduleIdentifier: SystemModuleIdentifiers.POLL_EXTERNAL_API },
     { id: 'system-start-sub-flow', name: 'Start Sub-Flow', stepType: StepTypeSchema.enum.START_SUB_FLOW, moduleIdentifier: SystemModuleIdentifiers.START_SUB_FLOW },
     { id: 'system-wait-for-external-event', name: 'Wait for External Event', stepType: StepTypeSchema.enum.WAIT_FOR_EXTERNAL_EVENT, moduleIdentifier: SystemModuleIdentifiers.WAIT_FOR_EXTERNAL_EVENT },
+    { id: 'system-email-start-point', name: 'Email Start Point', stepType: StepTypeSchema.enum.EMAIL_START_POINT, moduleIdentifier: SystemModuleIdentifiers.EMAIL_START_POINT },
 ];

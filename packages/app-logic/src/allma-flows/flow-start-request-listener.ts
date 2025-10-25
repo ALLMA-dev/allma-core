@@ -27,7 +27,7 @@ export const handler: SQSHandler = async (event: SQSEvent) => {
       const parsedInput = StartFlowExecutionInputSchema.safeParse(body);
 
       if (!parsedInput.success) {
-        log_error('Invalid StartFlowExecutionInput received from SQS.', { errors: parsedInput.error.flatten(), messageId: record.messageId }, correlationId);
+        log_error('Invalid StartFlowExecutionInput received from SQS.', { errors: parsedInput.error.format(), messageId: record.messageId }, correlationId);
         // This message will go to DLQ if configured and Lambda errors out.
         // Or, explicitly delete from queue and send to custom error handling.
         // For now, let the error propagate for DLQ handling.

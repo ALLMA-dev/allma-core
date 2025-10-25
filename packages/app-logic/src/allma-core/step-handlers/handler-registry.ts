@@ -36,6 +36,10 @@ const handlerRegistry: Partial<Record<StepType, StepHandler>> = {
   [StepType.SQS_SEND]: executeSqsSender,
   [StepType.SNS_PUBLISH]: executeSnsPublisher,
 
+  // Start point steps are entry points and perform no action during execution.
+  // They are treated as NO_OPs to simply pass control to the next step.
+  [StepType.EMAIL_START_POINT]: handleNoOp,
+
   // Future handlers would be registered here
 };
 

@@ -6,9 +6,9 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { VersionedEntityManager } from './versioned-entity.service.js';
 import { StepDefinitionService } from './step-definition.service.js';
+import { EmailMappingService } from './email-mapping.service.js';
 import { log_info, log_error } from '@allma/core-sdk';
 
-const EMAIL_MAPPING_TABLE_NAME = process.env.EMAIL_TO_FLOW_MAPPING_TABLE_NAME!;
 const ddbDocClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
 const initialVersionFactory = (id: string, now: string, input: CreateFlowInput): FlowDefinition => {
@@ -44,63 +44,15 @@ const entityManager = new VersionedEntityManager<FlowMetadataStorageItem, FlowDe
     initialVersionFactory,
 });
 
-/**
- * Manages the EmailToFlowMappingTable to ensure data consistency.
- */
-async function manageEmailMapping(oldEmail: string | null | undefined, newEmail: string | null | undefined, flowId: string, flowName: string): Promise<void> {
-    if (oldEmail === newEmail) {
-        return; // No change needed
-    }
-
-    const transactItems = [];
-
-    // If an old email existed, we need to remove its mapping.
-    if (oldEmail) {
-        log_info(`Removing old email mapping for flow`, { flowId, oldEmail });
-        transactItems.push({
-            Delete: {
-                TableName: EMAIL_MAPPING_TABLE_NAME,
-                Key: { emailAddress: oldEmail },
-            },
-        });
-    }
-
-    // If a new email is provided, we need to create the new mapping.
-    if (newEmail) {
-        log_info(`Creating new email mapping for flow`, { flowId, newEmail });
-        transactItems.push({
-            Put: {
-                TableName: EMAIL_MAPPING_TABLE_NAME,
-                Item: {
-                    emailAddress: newEmail,
-                    flowDefinitionId: flowId,
-                    flowName: flowName,
-                },
-                // This condition ensures the email address is not already mapped to another flow, enforcing uniqueness.
-                ConditionExpression: 'attribute_not_exists(emailAddress)',
-            },
-        });
-    }
-
-    if (transactItems.length > 0) {
-        try {
-            await ddbDocClient.send(new TransactWriteCommand({ TransactItems: transactItems }));
-        } catch (error: any) {
-            if (error.name === 'TransactionCanceledException' && error.message.includes('ConditionalCheckFailed')) {
-                log_error('Failed to create email mapping because the address is already in use.', { newEmail, flowId });
-                throw new Error(`Email address '${newEmail}' is already assigned to another flow.`);
-            }
-            log_error('Failed to update email mapping table transactionally.', { error: error.message });
-            throw error; // Re-throw other errors
-        }
-    }
-}
 
 
 /**
  * Custom update logic for Flow Definitions to handle validation and hydration of step properties.
  */
 const customUpdateVersion = async (id: string, version: number, data: FlowDefinition): Promise<FlowDefinition> => {
+    const oldVersionResult = await entityManager.getVersion(id, version);
+    const oldVersion = oldVersionResult === null ? undefined : oldVersionResult;
+    
     // 1. Create a deep copy for validation to avoid mutating the original data.
     const flowForValidation: FlowDefinition = JSON.parse(JSON.stringify(data));
 
@@ -136,7 +88,11 @@ const customUpdateVersion = async (id: string, version: number, data: FlowDefini
     FlowDefinitionSchema.parse(flowForValidation);
 
     // 4. If validation passes, persist the HYDRATED AND VALIDATED flow object.
-    return entityManager.updateVersion(id, version, data, { skipValidation: true });
+    const newVersion = await entityManager.updateVersion(id, version, data, { skipValidation: true });
+
+    await EmailMappingService.syncMappingsForFlowVersion(id, oldVersion, newVersion);
+
+    return newVersion;
 };
 
 /**
@@ -153,7 +109,12 @@ export const FlowDefinitionService = {
     createVersion: entityManager.createVersion.bind(entityManager),
     publishVersion: entityManager.publishVersion.bind(entityManager),
     unpublishVersion: entityManager.unpublishVersion.bind(entityManager),
-    deleteVersion: entityManager.deleteVersion.bind(entityManager),
+    async deleteVersion(id: string, version: number): Promise<void> {
+        const versionToDeleteResult = await entityManager.getVersion(id, version);
+        const versionToDelete = versionToDeleteResult === null ? undefined : versionToDeleteResult;
+        await EmailMappingService.syncMappingsForFlowVersion(id, versionToDelete, undefined);
+        return entityManager.deleteVersion(id, version);
+    },
     
     // Use the custom update logic for versions
     updateVersion: customUpdateVersion,
@@ -162,20 +123,6 @@ export const FlowDefinitionService = {
      * Updates the master (metadata) record of a flow, including managing the email trigger mapping.
      */
     async updateMaster(id: string, data: Partial<Omit<FlowMetadataStorageItem, 'PK' | 'SK' | 'itemType' | 'id' | 'createdAt' | 'updatedAt' | 'latestVersion' | 'publishedVersion'>>): Promise<FlowMetadataStorageItem> {
-        
-        const existingMaster = await entityManager.getMaster(id);
-        if (!existingMaster) {
-            throw new Error(`Flow with id ${id} not found.`);
-        }
-
-        console.log("EMAIL_MAPPING_TABLE_NAME: " + EMAIL_MAPPING_TABLE_NAME);
-        console.log(data);
-        
-        // Handle email mapping logic
-        if (EMAIL_MAPPING_TABLE_NAME && 'emailTriggerAddress' in data) {
-            await manageEmailMapping(existingMaster.emailTriggerAddress, data.emailTriggerAddress, id, data.name || existingMaster.name);
-        }
-
         return entityManager.updateMaster(id, data);
     },
 
@@ -185,11 +132,9 @@ export const FlowDefinitionService = {
      * @returns An object containing the new metadata and the initial version.
      */
     async createFlow(input: CreateFlowInput & { emailTriggerAddress?: string }): Promise<{ metadata: FlowMetadataStorageItem, version: FlowDefinition }> {
-        const id = uuidv4();
-        if (EMAIL_MAPPING_TABLE_NAME && input.emailTriggerAddress) {
-            await manageEmailMapping(null, input.emailTriggerAddress, id, input.name);
-        }
-        return entityManager.createMasterWithInitialVersion(id, input);
+        const { metadata, version } = await entityManager.createMasterWithInitialVersion(uuidv4(), input);
+        await EmailMappingService.syncMappingsForFlowVersion(metadata.id, undefined, version);
+        return { metadata, version };
     },
 
     /**
@@ -199,14 +144,9 @@ export const FlowDefinitionService = {
      */
     async createFlowFromImport(flow: FlowDefinition): Promise<{ metadata: FlowMetadataStorageItem, version: FlowDefinition }> {
         const createInput: CreateFlowInput = { name: String(flow.name), description: flow.description };
-        
-        // The FlowDefinition schema uses passthrough, so custom properties like emailTriggerAddress can exist.
-        const emailTriggerAddress = (flow as any).emailTriggerAddress;
-        if (EMAIL_MAPPING_TABLE_NAME && emailTriggerAddress) {
-            await manageEmailMapping(null, emailTriggerAddress, flow.id, String(flow.name));
-        }
-        
-        return entityManager.createMasterWithInitialVersion(flow.id, createInput, flow);
+        const { metadata, version } = await entityManager.createMasterWithInitialVersion(flow.id, createInput, flow);
+        await EmailMappingService.syncMappingsForFlowVersion(metadata.id, undefined, version);
+        return { metadata, version };
     },
 
     /**

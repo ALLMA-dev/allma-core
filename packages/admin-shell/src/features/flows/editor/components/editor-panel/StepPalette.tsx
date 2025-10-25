@@ -50,11 +50,27 @@ export function StepPalette() {
         );
     };
     
-    const renderStepList = (steps: UnifiedStepDefinition[]) => (
-        <Stack>
-            {steps.map((step) => <DraggableStepCard key={step.id} step={step} />)}
-        </Stack>
-    );
+    const renderStepList = (steps: UnifiedStepDefinition[]) => {
+        const groupedSteps = steps.reduce((acc, step) => {
+            const category = STEP_TYPE_CONFIGS[step.stepType]?.category || 'General';
+            if (!acc[category]) {
+                acc[category] = [];
+            }
+            acc[category].push(step);
+            return acc;
+        }, {} as Record<string, UnifiedStepDefinition[]>);
+
+        return (
+            <Stack>
+                {Object.entries(groupedSteps).map(([category, stepsInCategory]) => (
+                    <React.Fragment key={category}>
+                        <Text size="xs" fw={700} c="dimmed" tt="uppercase">{category}</Text>
+                        {stepsInCategory.map((step) => <DraggableStepCard key={step.id} step={step} />)}
+                    </React.Fragment>
+                ))}
+            </Stack>
+        );
+    };
 
     return (
         // The root Stack now fills the height of its new Paper container.

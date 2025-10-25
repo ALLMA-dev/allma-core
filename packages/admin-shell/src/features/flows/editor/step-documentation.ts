@@ -138,6 +138,14 @@ If set to \`true\`, this prevents the step's output from being automatically sav
         },
     },
 
+    [StepType.EMAIL_START_POINT]: {
+        general: 'Creates a dedicated email address that acts as a starting point for this flow. When an email is sent to this address, a new flow execution will begin.',
+        fields: {
+            emailAddress: 'The unique email address that will trigger this start point. This must be a valid email address and unique across all flows.',
+            keyword: 'An optional, unique code to distinguish between multiple start points for the same email address. The flow will start here if this keyword is found in the email body.',
+        },
+    },
+
     [StepType.EMAIL]: {
         general: 'Sends an email using AWS Simple Email Service (SES). All fields support Handlebars templating to insert dynamic data from the flow context.',
         fields: {

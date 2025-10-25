@@ -24,4 +24,5 @@ export const SystemModuleIdentifiers = {
     POLL_EXTERNAL_API: 'system/poll-external-api',
     START_SUB_FLOW: 'system/start-sub-flow',
     WAIT_FOR_EXTERNAL_EVENT: 'system/wait-for-external-event',
+    EMAIL_START_POINT: 'system/email-start-point',
 } as const;

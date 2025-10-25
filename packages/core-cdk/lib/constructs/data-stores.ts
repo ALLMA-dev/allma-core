@@ -145,13 +145,20 @@ export class AllmaDataStores extends Construct {
       timeToLiveAttribute: 'ttl',
     });
 
-    // --- NEW: Email Trigger to Flow Mapping Table ---
+    // --- Email Trigger to Flow Mapping Table ---
     this.emailToFlowMappingTable = new dynamodb.Table(this, 'EmailToFlowMappingTable', {
         tableName: `AllmaEmailToFlowMapping-${stageConfig.stage}`,
         partitionKey: { name: 'emailAddress', type: dynamodb.AttributeType.STRING },
+        sortKey: { name: 'keyword', type: dynamodb.AttributeType.STRING },
         billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
         removalPolicy,
         pointInTimeRecovery: isProd,
+    });
+
+    this.emailToFlowMappingTable.addGlobalSecondaryIndex({
+        indexName: 'GSI_ByFlow',
+        partitionKey: { name: 'flowDefinitionId', type: dynamodb.AttributeType.STRING },
+        projectionType: dynamodb.ProjectionType.ALL,
     });
 
 

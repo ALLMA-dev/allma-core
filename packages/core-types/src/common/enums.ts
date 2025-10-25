@@ -70,7 +70,9 @@ export enum StepType {
   
   SQS_SEND = 'SQS_SEND',
   SNS_PUBLISH = 'SNS_PUBLISH',
-  EMAIL = 'EMAIL'
+  EMAIL = 'EMAIL',
 
+  // --- Start Points ---
+  EMAIL_START_POINT = 'EMAIL_START_POINT',
 }
 export const StepTypeSchema = z.nativeEnum(StepType);
