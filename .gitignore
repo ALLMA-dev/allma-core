@@ -57,4 +57,4 @@ cdk.out/
 .nx/
 .turbo/
 
-**/examples/asic-deployment*
+**/examples/basic-deployment*
