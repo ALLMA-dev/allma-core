@@ -320,12 +320,20 @@ export class AllmaOrchestration extends Construct {
                     }
                 }
             }),
+
+            // The `Output` from the sub-execution is already a JSON object.
+            // We just need to select it directly, not parse it as a string.
+            resultSelector: {
+                'Output.$': '$.Output'
+            },
+
             resultPath: '$.sfnSubExecutionResult',
         });
 
         const parseOutput = new sfn.Pass(this, `${idPrefix}ParseOutput`, {
             parameters: {
                 'branchId.$': '$.branchItem.branchId',
+                // After the ResultSelector, the data is in sfnSubExecutionResult.Output
                 'output.$': '$.sfnSubExecutionResult.Output'
             },
         });

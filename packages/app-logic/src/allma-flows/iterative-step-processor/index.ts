@@ -107,10 +107,6 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
             // This aligns behavior with other async steps (wait, poll) and simplifies flow logic.
             const nextActionDetails = await determineNextSfnAction(runtimeState, flowDef, correlationId);
 
-            // Clean up internal state before returning
-            // For direct Request/Response invocations (like the sandbox), we preserve the _internal state 
-            // for the caller to inspect. For async invocations (like from SFN), we clean it up.
-            // The absence of a function name in the context is a reliable indicator of a direct sync invoke.
             const isDirectInvocation = !context.functionName;
             if (runtimeState._internal && !isDirectInvocation) {
                 delete runtimeState._internal.currentStepStartTime;
@@ -129,144 +125,145 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
         }
 
         const currentStepInstanceId = runtimeState.currentStepInstanceId;
-        if (!currentStepInstanceId) {
+        if (currentStepInstanceId) {
+            log_info(`Processing step: '${currentStepInstanceId}'`, { inMapContext: isMapContext }, correlationId);
+            if (!flowDef) {
+                flowDef = await loadFlowDefinition(runtimeState.flowDefinitionId, runtimeState.flowDefinitionVersion, correlationId);
+            }
+
+            const originalStepInstance = flowDef.steps[currentStepInstanceId];
+
+            if (!originalStepInstance) {
+                throw new Error(`Configuration for step '${currentStepInstanceId}' not found in flow definition.`);
+            }
+
+            if (isMapContext) {
+                log_debug(`Rewriting JSONPaths for map context execution of step '${currentStepInstanceId}'`, {}, correlationId);
+                stepInstance = rewriteJsonPathsInConfig(originalStepInstance, '$.mapContext.runtimeState.currentContextData');
+            } else {
+                stepInstance = originalStepInstance;
+            }
+
+            const parsedStepInstance = StepInstanceSchema.safeParse(stepInstance);
+            if (!parsedStepInstance.success) throw new Error(`Config for step '${currentStepInstanceId}' is invalid: ${parsedStepInstance.error.message}`);
+            stepInstance = parsedStepInstance.data;
+
+            const overrides = runtimeState.executionOverrides?.stepOverrides?.[currentStepInstanceId];
+            if (overrides) {
+                log_info(`Applying step overrides for '${currentStepInstanceId}'`, { overrides }, correlationId);
+                stepInstance = deepMerge(stepInstance, overrides) as StepInstance;
+            }
+
+            const stepStartTime = new Date().toISOString();
+            if (!runtimeState._internal) {
+                runtimeState._internal = {};
+            }
+            runtimeState._internal.currentStepStartTime = stepStartTime;
+
+            const { stepType } = stepInstance;
+
+            if (stepType === StepType.END_FLOW) {
+                log_info(`Step '${currentStepInstanceId}' is an END_FLOW step. Terminating this flow path.`, {}, correlationId);
+
+                if (runtimeState.enableExecutionLogs) {
+                    const stepEndTime = new Date().toISOString();
+                    await executionLoggerClient.logStepExecution({
+                        flowExecutionId: correlationId,
+                        branchId: runtimeState.branchId,
+                        branchExecutionId: runtimeState.branchExecutionId,
+                        stepInstanceId: currentStepInstanceId,
+                        stepDefinitionId: stepInstance.stepDefinitionId || 'system-end-flow',
+                        stepType: stepType,
+                        status: 'COMPLETED',
+                        eventTimestamp: stepEndTime,
+                        startTime: runtimeState._internal?.currentStepStartTime || stepEndTime,
+                        endTime: stepEndTime,
+                        durationMs: runtimeState._internal?.currentStepStartTime ? (new Date(stepEndTime).getTime() - new Date(runtimeState._internal.currentStepStartTime).getTime()) : 0,
+                        attemptNumber: 1,
+                        inputMappingContext: runtimeState.currentContextData,
+                    });
+                }
+
+                runtimeState.currentStepInstanceId = undefined;
+            } else if (stepType === StepType.PARALLEL_FORK_MANAGER) {
+                const currentAttempt = (runtimeState.stepRetryAttempts[currentStepInstanceId] || 0) + 1;
+                runtimeState.stepRetryAttempts[currentStepInstanceId] = currentAttempt;
+
+                if (runtimeState.enableExecutionLogs) {
+                    await executionLoggerClient.logStepExecution({
+                        flowExecutionId: correlationId,
+                        branchId: runtimeState.branchId,
+                        branchExecutionId: runtimeState.branchExecutionId,
+                        stepInstanceId: currentStepInstanceId,
+                        stepDefinitionId: stepInstance.stepDefinitionId || 'parallel_fork_manager',
+                        stepType: stepType,
+                        status: 'STARTED',
+                        eventTimestamp: stepStartTime,
+                        startTime: stepStartTime,
+                        attemptNumber: currentAttempt,
+                        inputMappingContext: runtimeState.currentContextData,
+                        stepInstanceConfig: stepInstance,
+                    });
+                }
+
+                const forkOutput = await handleParallelFork(stepInstance, runtimeState, correlationId);
+                if (forkOutput) {
+                    return forkOutput;
+                }
+                const { nextStepId } = await resolveNextStep(stepInstance, runtimeState);
+                runtimeState.currentStepInstanceId = nextStepId;
+
+            } else {
+                const stepDef = stepInstance as unknown as StepDefinition; 
+                if (stepDef.stepType !== stepType) {
+                    log_warn(`Step type mismatch for '${currentStepInstanceId}'. FlowDef says '${stepType}', but resolved StepDef is '${stepDef.stepType}'. Using resolved StepDef type.`, {}, correlationId);
+                }
+
+                if (taskToken && stepType === StepType.WAIT_FOR_EXTERNAL_EVENT) {
+                    await handleWaitForEvent(taskToken, stepDef, runtimeState, correlationId);
+                    return;
+                }
+
+                const contextForMappings = isMapContext ? (originalEvent as any) : { ...runtimeState, ...runtimeState.currentContextData };
+
+                const { preparedInput, events: inputMappingEvents } = await prepareStepInput(
+                    stepInstance.inputMappings || {},
+                    contextForMappings,
+                    correlationId
+                );
+
+                const { updatedRuntimeState, nextStepId } = await executeStandardStep(
+                    stepInstance,
+                    stepDef,
+                    runtimeState,
+                    preparedInput,
+                    inputMappingEvents,
+                    stepStartTime,
+                    correlationId
+                );
+
+                runtimeState = updatedRuntimeState;
+                runtimeState.currentStepInstanceId = nextStepId;
+
+                // If this step was part of a branch, `currentItem` has been used for input mappings
+                // and is no longer needed. Remove it immediately to prevent it from bloating
+                // the state payload for the next step transition within the branch.
+                if (runtimeState.branchId && runtimeState.currentContextData?.currentItem) {
+                    log_debug("Step within a branch finished. Removing 'currentItem' from context to reduce state size.", { branchId: runtimeState.branchId }, correlationId);
+                    delete runtimeState.currentContextData.currentItem;
+                }
+            }
+
+            if (currentStepInstanceId) {
+                if (runtimeState.stepRetryAttempts) {
+                    delete runtimeState.stepRetryAttempts[currentStepInstanceId];
+                }
+            }
+        } else {
             log_info("Flow path complete. No next step.", {}, correlationId);
             if (runtimeState.status === 'RUNNING') runtimeState.status = 'COMPLETED';
-            return { runtimeState, sfnAction: SfnActionType.PROCESS_STEP };
         }
-
-        log_info(`Processing step: '${currentStepInstanceId}'`, { inMapContext: isMapContext }, correlationId);
-        if (!flowDef) {
-            flowDef = await loadFlowDefinition(runtimeState.flowDefinitionId, runtimeState.flowDefinitionVersion, correlationId);
-        }
-
-        const originalStepInstance = flowDef.steps[currentStepInstanceId];
-
-        if (!originalStepInstance) {
-            throw new Error(`Configuration for step '${currentStepInstanceId}' not found in flow definition.`);
-        }
-
-        if (isMapContext) {
-            log_debug(`Rewriting JSONPaths for map context execution of step '${currentStepInstanceId}'`, {}, correlationId);
-            stepInstance = rewriteJsonPathsInConfig(originalStepInstance, '$.mapContext.runtimeState.currentContextData');
-        } else {
-            stepInstance = originalStepInstance;
-        }
-
-        const parsedStepInstance = StepInstanceSchema.safeParse(stepInstance);
-        if (!parsedStepInstance.success) throw new Error(`Config for step '${currentStepInstanceId}' is invalid: ${parsedStepInstance.error.message}`);
-        stepInstance = parsedStepInstance.data;
-
-        const overrides = runtimeState.executionOverrides?.stepOverrides?.[currentStepInstanceId];
-        if (overrides) {
-            log_info(`Applying step overrides for '${currentStepInstanceId}'`, { overrides }, correlationId);
-            stepInstance = deepMerge(stepInstance, overrides) as StepInstance;
-        }
-
-        const stepStartTime = new Date().toISOString();
-        if (!runtimeState._internal) {
-            runtimeState._internal = {};
-        }
-        runtimeState._internal.currentStepStartTime = stepStartTime;
-
-        const { stepType } = stepInstance;
-
-        if (stepType === StepType.END_FLOW) {
-            log_info(`Step '${currentStepInstanceId}' is an END_FLOW step. Terminating this flow path.`, {}, correlationId);
-
-            if (runtimeState.enableExecutionLogs) {
-                const stepEndTime = new Date().toISOString();
-                await executionLoggerClient.logStepExecution({
-                    flowExecutionId: correlationId,
-                    branchId: runtimeState.branchId,
-                    branchExecutionId: runtimeState.branchExecutionId,
-                    stepInstanceId: currentStepInstanceId,
-                    stepDefinitionId: stepInstance.stepDefinitionId || 'system-end-flow',
-                    stepType: stepType,
-                    status: 'COMPLETED',
-                    eventTimestamp: stepEndTime,
-                    startTime: runtimeState._internal?.currentStepStartTime || stepEndTime,
-                    endTime: stepEndTime,
-                    durationMs: runtimeState._internal?.currentStepStartTime ? (new Date(stepEndTime).getTime() - new Date(runtimeState._internal.currentStepStartTime).getTime()) : 0,
-                    attemptNumber: 1,
-                    inputMappingContext: runtimeState.currentContextData,
-                });
-            }
-
-            runtimeState.currentStepInstanceId = undefined;
-        } else if (stepType === StepType.PARALLEL_FORK_MANAGER) {
-            const currentAttempt = (runtimeState.stepRetryAttempts[currentStepInstanceId] || 0) + 1;
-            runtimeState.stepRetryAttempts[currentStepInstanceId] = currentAttempt;
-
-            if (runtimeState.enableExecutionLogs) {
-                await executionLoggerClient.logStepExecution({
-                    flowExecutionId: correlationId,
-                    branchId: runtimeState.branchId,
-                    branchExecutionId: runtimeState.branchExecutionId,
-                    stepInstanceId: currentStepInstanceId,
-                    stepDefinitionId: stepInstance.stepDefinitionId || 'parallel_fork_manager',
-                    stepType: stepType,
-                    status: 'STARTED',
-                    eventTimestamp: stepStartTime,
-                    startTime: stepStartTime,
-                    attemptNumber: currentAttempt,
-                    inputMappingContext: runtimeState.currentContextData,
-                    stepInstanceConfig: stepInstance,
-                });
-            }
-
-            const forkOutput = await handleParallelFork(stepInstance, runtimeState, correlationId);
-            if (forkOutput) {
-                return forkOutput;
-            }
-            // If no branches were produced, determine the next step and update the state.
-            const { nextStepId } = await resolveNextStep(stepInstance, runtimeState);
-            runtimeState.currentStepInstanceId = nextStepId;
-
-        } else {
-            // The stepInstance is already fully hydrated by the new loadFlowDefinition logic.
-            // The old logic for loading and merging the StepDefinition is no longer needed.
-            const stepDef = stepInstance as unknown as StepDefinition; // Cast to unknown first to satisfy TS
-
-            if (stepDef.stepType !== stepType) {
-                log_warn(`Step type mismatch for '${currentStepInstanceId}'. FlowDef says '${stepType}', but resolved StepDef is '${stepDef.stepType}'. Using resolved StepDef type.`, {}, correlationId);
-            }
-
-            if (taskToken && stepType === StepType.WAIT_FOR_EXTERNAL_EVENT) {
-                await handleWaitForEvent(taskToken, stepDef, runtimeState, correlationId);
-                return;
-            }
-
-            const contextForMappings = isMapContext ? (originalEvent as any) : { ...runtimeState, ...runtimeState.currentContextData };
-
-            const { preparedInput, events: inputMappingEvents } = await prepareStepInput(
-                stepInstance.inputMappings || {},
-                contextForMappings,
-                correlationId
-            );
-
-            const { updatedRuntimeState, nextStepId } = await executeStandardStep(
-                stepInstance,
-                stepDef,
-                runtimeState,
-                preparedInput,
-                inputMappingEvents,
-                stepStartTime,
-                correlationId
-            );
-
-            runtimeState = updatedRuntimeState;
-            runtimeState.currentStepInstanceId = nextStepId;
-        }
-
-        if (currentStepInstanceId) {
-            if (runtimeState.stepRetryAttempts) {
-                delete runtimeState.stepRetryAttempts[currentStepInstanceId];
-            }
-        }
-
     } catch (error: any) {
-        // Terminal error logging, including bootstrapping for unlogged flows, is handled by the FinalizeFlow lambda.
         if (error instanceof RetryableStepError) {
             throw error;
         }
@@ -330,8 +327,15 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
         runtimeState.status = 'COMPLETED';
     }
 
-    // For direct Request/Response invocations (like the sandbox), we preserve the _internal state 
-    // for the caller to inspect. For async invocations (like from SFN), we clean it up.
+    // This block handles the final cleanup at the very end of a branch's lifecycle.
+    // It's a safeguard but the primary fix is the earlier, intra-step cleanup.
+    if ((isMapContext || runtimeState.branchId) && !runtimeState.currentStepInstanceId) {
+        if (runtimeState.currentContextData?.currentItem) {
+            log_warn("End of branch detected, but 'currentItem' was still in context. Cleaning up now.", { branchId: runtimeState.branchId }, correlationId);
+            delete runtimeState.currentContextData.currentItem;
+        }
+    }
+
     const isDirectInvocation = !context.functionName;
     if (runtimeState._internal && !isDirectInvocation) {
         delete runtimeState._internal.currentStepStartTime;
