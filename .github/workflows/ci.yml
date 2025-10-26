@@ -14,8 +14,6 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    env:
-      AWS_REGION: ${{ secrets.TEST_AWS_REGION }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -34,18 +32,12 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Debug AWS Region
-        run: 'echo "AWS Region is: ${{ env.AWS_REGION }}"'
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.TEST_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.TEST_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Test
+      - name: Run integration tests with CI AWS creds
         run: npm run test
+        env:
+          AWS_ACCESS_KEY_ID_CI: ${{ secrets.TEST_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY_CI: ${{ secrets.TEST_AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION_CI: ${{ secrets.TEST_AWS_REGION }}
 
   release:
     needs: build-and-test

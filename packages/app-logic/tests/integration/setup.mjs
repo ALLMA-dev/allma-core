@@ -11,6 +11,12 @@ export default async () => {
   process.env[ENV_VAR_NAMES.AI_API_KEY_SECRET_ARN] = defaultConfig.aiApiKeySecretArn;
   
   // Add any other required environment variables here
+  if (process.env.AWS_ACCESS_KEY_ID_CI && process.env.AWS_SECRET_ACCESS_KEY_CI && process.env.AWS_REGION_CI) {
+    console.log('CI environment detected, setting AWS credentials from environment variables.');
+    process.env.AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID_CI;
+    process.env.AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY_CI;
+    process.env.AWS_REGION = process.env.AWS_REGION_CI;
+  }
   
   console.log(`Using DynamoDB Config Table: ${process.env[ENV_VAR_NAMES.ALLMA_CONFIG_TABLE_NAME]}`);
   console.log('Setup complete.\n');

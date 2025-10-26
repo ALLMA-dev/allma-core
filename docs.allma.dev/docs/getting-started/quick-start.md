@@ -24,7 +24,7 @@ Before you begin, ensure you have the following:
 First, clone the main Allma repository and install all dependencies from the root. This links all the local Allma packages together.
 
 ```bash
-git clone https://github.com/your-org/allma.git
+git clone https://github.com/ALLMA-dev/allma-core.git
 cd allma
 npm install
 ```
