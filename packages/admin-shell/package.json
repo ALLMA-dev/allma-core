@@ -1,7 +1,7 @@
 {
   "name": "@allma/admin-shell",
-  "private": false,
   "version": "1.0.0",
+  "description": "The web-based administration panel for the Allma platform.",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
@@ -18,6 +18,26 @@
     "build": "npm run clean && tsc -b && npx vite build",
     "lint": "eslint .",
     "preview": "vite preview"
+  },
+  "author": "@webjema",
+  "license": "Apache-2.0",
+  "homepage": "https://docs.allma.dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ALLMA-dev/allma-core.git",
+    "directory": "packages/admin-shell"
+  },
+  "keywords": [
+    "allma",
+    "ui",
+    "aws",
+    "react",
+    "serverless",
+    "ai",
+    "orchestration"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "@allma/core-sdk": "^1.0.0",

@@ -1,7 +1,7 @@
 {
   "name": "@allma/core-sdk",
   "version": "1.0.0",
-  "description": "Core SDK for ALLMA platform interactions.",
+  "description": "Core SDK with shared utilities (logging, auth, S3 utils) for building on the Allma serverless AI orchestration platform.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
@@ -11,6 +11,27 @@
   "scripts": {
     "build": "tsc",
     "lint": "eslint ."
+  },
+  "author": "@webjema",
+  "license": "Apache-2.0",
+  "homepage": "https://docs.allma.dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ALLMA-dev/allma-core.git",
+    "directory": "packages/core-sdk"
+  },
+  "keywords": [
+    "allma",
+    "sdk",
+    "aws",
+    "lambda",
+    "utilities",
+    "serverless",
+    "ai",
+    "orchestration"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "@allma/core-types": "^1.0.0",

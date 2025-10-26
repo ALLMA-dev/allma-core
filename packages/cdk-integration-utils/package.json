@@ -1,7 +1,7 @@
 {
   "name": "@allma/cdk-integration-utils",
   "version": "1.0.0",
-  "description": "Shared CDK constructs and utilities for integrating with the ALLMA platform.",
+  "description": "Shared CDK constructs and utilities for integrating external modules with the Allma serverless AI orchestration platform.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -17,10 +17,24 @@
   "keywords": [
     "allma",
     "cdk",
-    "constructs"
+    "constructs",
+    "aws",
+    "serverless",
+    "integration",
+    "ai",
+    "orchestration"
   ],
   "author": "@webjema",
   "license": "Apache-2.0",
+  "homepage": "https://docs.allma.dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ALLMA-dev/allma-core.git",
+    "directory": "packages/cdk-integration-utils"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "@allma/core-types": "1.0.0",
     "aws-cdk-lib": "^2.200.1",

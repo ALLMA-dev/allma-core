@@ -1,7 +1,7 @@
 {
   "name": "@allma/core-cdk",
   "version": "1.0.0",
-  "description": "Core AWS CDK constructs for deploying the Allma platform.",
+  "description": "Core AWS CDK constructs for deploying the Allma serverless AI orchestration platform.",
   "main": "dist/lib/allma-stack.js",
   "types": "dist/lib/allma-stack.d.ts",
   "type": "module",
@@ -15,6 +15,27 @@
     "build": "tsc",
     "cdk": "cdk",
     "lint": "eslint ."
+  },
+  "author": "@webjema",
+  "license": "Apache-2.0",
+  "homepage": "https://docs.allma.dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ALLMA-dev/allma-core.git",
+    "directory": "packages/core-cdk"
+  },
+  "keywords": [
+    "allma",
+    "cdk",
+    "aws",
+    "iac",
+    "serverless",
+    "orchestration",
+    "ai",
+    "step-functions"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "@allma/core-types": "^1.0.0",

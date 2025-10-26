@@ -1,7 +1,7 @@
 {
   "name": "@allma/core-types",
   "version": "1.0.0",
-  "description": "Core TypeScript types for the ALLMA platform.",
+  "description": "Shared TypeScript types, interfaces, and Zod schemas for the Allma serverless AI orchestration platform.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
@@ -11,6 +11,28 @@
   "scripts": {
     "build": "tsc",
     "lint": "eslint ."
+  },
+  "author": "@webjema",
+  "license": "Apache-2.0",
+  "homepage": "https://docs.allma.dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ALLMA-dev/allma-core.git",
+    "directory": "packages/core-types"
+  },
+  "keywords": [
+    "allma",
+    "types",
+    "typescript",
+    "interfaces",
+    "zod",
+    "schemas",
+    "serverless",
+    "ai",
+    "orchestration"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "devDependencies": {
     "typescript": "^5.9.3",
