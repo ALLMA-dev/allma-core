@@ -62,7 +62,7 @@ const config: Config = {
           label: 'Documentation',
         },
         {
-          href: 'https://github.com/your-org/allma', // Update with correct repo URL
+          href: 'https://github.com/ALLMA-dev/allma-core/',
           label: 'GitHub',
           position: 'right',
         },
@@ -86,11 +86,7 @@ const config: Config = {
             {
               label: 'Stack Overflow',
               href: 'https://stackoverflow.com/questions/tagged/allma',
-            },
-            {
-              label: 'Discord',
-              href: 'https://discordapp.com/invite/your-invite',
-            },
+            }
           ],
         },
         {

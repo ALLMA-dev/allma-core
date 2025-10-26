@@ -9,10 +9,9 @@
 
 <p align="center">
   <a href="https://github.com/ALLMA-dev/allma-core/stargazers"><img src="https://img.shields.io/github/stars/ALLMA-dev/allma-core?style=social" alt="GitHub Stars"></a>
-  <a href="URL_TO_DISCORD_INVITE"><img src="https://img.shields.io/discord/YOUR_DISCORD_SERVER_ID?label=Join%20Community&logo=discord&style=flat-square" alt="Discord"></a>
   <a href="https://docs.allma.dev"><img src="https://img.shields.io/badge/docs-stable-blue.svg?style=flat-square" alt="Documentation"></a>
   <a href="https://github.com/ALLMA-dev/allma-core/blob/main/LICENSE"><img src="https://img.shields.io/github/license/ALLMA-dev/allma-core?style=flat-square" alt="License"></a>
-  <a href="URL_TO_CI_CD_PIPELINE"><img src="https://img.shields.io/github/actions/workflow/status/ALLMA-dev/allma-core/main.yml?branch=main&style=flat-square" alt="Build Status"></a>
+  <a href="https://github.com/ALLMA-dev/allma-core/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/ALLMA-dev/allma-core/main.yml?branch=main&style=flat-square" alt="Build Status"></a>
 </p>
 
 ---
@@ -123,7 +122,6 @@ graph TD
 
 Join the community to ask questions, share your projects, and shape the future of Allma.
 
-*   💬 **Discord:** [Join our Discord Server](URL_TO_DISCORD_INVITE) for live discussions with the community and team.
 *   🐞 **Bug Reports:** [Submit a GitHub Issue](https://github.com/ALLMA-dev/allma-core/issues/new/choose) to report bugs or problems.
 *   💡 **Feature Requests:** [Start a Discussion](https://github.com/ALLMA-dev/allma-core/discussions/new?category=ideas) to propose new features and ideas.
 
