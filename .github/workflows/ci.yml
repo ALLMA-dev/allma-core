@@ -11,6 +11,8 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ${{ secrets.TEST_AWS_REGION }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -28,6 +30,13 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.TEST_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.TEST_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Test
         run: npm run test

@@ -1,8 +1,9 @@
 # Allma: The Serverless AI Orchestration Platform
 
 <p align="center">
-  <img src="URL_TO_ALLMA_LOGO.png" alt="Allma Logo" width="150"/>
+  <img src="assets/img/ALLMA-banner-white-800.png" alt="Allma Logo" width="800"/>
 </p>
+
 
 <h3 align="center">Build, execute, and manage complex, AI-powered workflows on a 100% serverless AWS stack.</h3>
 
