@@ -32,12 +32,20 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Debug NPM env behavior
+        run: |
+          echo "Before npm run test:"
+          echo $AWS_REGION
+          npm run echo-env
+        env:
+          AWS_REGION: "us-east-1"
+
       - name: Run integration tests with CI AWS creds
         run: npm run test
         env:
-          AWS_ACCESS_KEY_ID_CI: ${{ secrets.TEST_AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY_CI: ${{ secrets.TEST_AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION_CI: ${{ secrets.TEST_AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.TEST_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TEST_AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.TEST_AWS_REGION }}
 
   release:
     needs: build-and-test
