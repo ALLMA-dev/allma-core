@@ -32,15 +32,6 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Debug NPM env behavior
-        run: |
-          echo "Before npm run test:"
-          echo $AWS_REGION
-          npm run echo:env
-        working-directory: ./packages/app-logic
-        env:
-          AWS_REGION: "us-east-1"
-
       - name: Run integration tests with CI AWS creds
         run: npm run test
         env:

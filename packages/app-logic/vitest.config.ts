@@ -6,6 +6,11 @@ export default defineConfig({
     include: ['tests/integration/**/*.test.ts'],
     testTimeout: 30000,
     clearMocks: true,
+    env: Object.fromEntries(
+      Object.entries(process.env)
+        .filter(([_, v]) => v !== undefined)
+        .map(([k, v]) => [k, v as string])
+    ),
     alias: {
     },
   },
