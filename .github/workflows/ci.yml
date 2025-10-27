@@ -1,19 +1,21 @@
-name: CI/CD
+name: CI
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
+    
+    env:
+      ALL_TEST_SECRETS_PRESENT: ${{ secrets.TEST_AWS_REGION != '' && secrets.TEST_AWS_ACCESS_KEY_ID != '' && secrets.TEST_AWS_SECRET_ACCESS_KEY != '' }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,6 +24,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
 
       - name: Install dependencies
         run: npm install
@@ -32,38 +35,16 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Run integration tests with CI AWS creds
+      - name: Run integration tests
+        # This condition now checks the environment variable we defined above.
+        # This syntax is universally understood by linters and the GitHub Actions runtime.
+        if: env.ALL_TEST_SECRETS_PRESENT == 'true'
         run: |
-          export AWS_REGION=${{ secrets.TEST_AWS_REGION }}
-          export AWS_ACCESS_KEY_ID=${{ secrets.TEST_AWS_ACCESS_KEY_ID }}
-          export AWS_SECRET_ACCESS_KEY=${{ secrets.TEST_AWS_SECRET_ACCESS_KEY }}
           npm run test
-        working-directory: ./packages/app-logic
-
-  release:
-    needs: build-and-test
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Create Release Pull Request or Publish to npm
-        id: changesets
-        uses: changesets/action@v1
-        with:
-          publish: npm run release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # These secrets are still passed securely to the step's environment.
+          # The job-level env var was only for the conditional check.
+          AWS_REGION: ${{ secrets.TEST_AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.TEST_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TEST_AWS_SECRET_ACCESS_KEY }}
+        working-directory: ./packages/app-logic

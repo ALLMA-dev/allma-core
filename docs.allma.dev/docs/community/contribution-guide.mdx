@@ -1,3 +1,4 @@
+```markdown
 ---
 title: Contribution Workflow Guide
 sidebar_position: 1
@@ -22,7 +23,7 @@ The harness is a minimal Vite application that boots up the Admin Shell and load
 1.  **Navigate to the monorepo root.**
 2.  Run the following command:
     ```bash
-    npm run dev:harness --workspace=@allma/admin-shell
+    npm run dev --workspace=@allma/admin-shell
     ```
     This will start a local development server, typically on `http://localhost:5173`.
 
@@ -64,7 +65,7 @@ The development server will hot-reload, and you should see your plugin's routes 
 
 -   **Transparency:** All work is tracked in public GitHub Issues.
 -   **Clean History:** We use a rebase workflow to maintain a clean, linear project history.
--   **Automation:** We rely on Conventional Commits and CI checks to automate versioning and ensure code quality.
+-   **Automated Versioning:** We rely on **Changesets** to automate package versioning and changelog generation.
 
 ## The Full Contribution Workflow: From Issue to Merge
 
@@ -72,18 +73,18 @@ The development server will hot-reload, and you should see your plugin's routes 
 
 All work should be tracked in a GitHub issue.
 
-1.  **Find an Issue:** Browse our [GitHub Issues](https://github.com/your-org/allma/issues). Look for labels like `good first issue` or `help wanted`.
+1.  **Find an Issue:** Browse our [GitHub Issues](https://github.com/ALLMA-dev/allma-core/issues). Look for labels like `good first issue` or `help wanted`.
 2.  **Claim it:** Leave a comment on the issue to let everyone know you're working on it (e.g., "I'd like to take this one!").
 
 ### Step 1: Fork and Clone the Repository
 
 You will work on your own copy (a "fork") of the Allma repository.
 
-1.  **Fork:** Go to the [Allma repository](https://github.com/your-org/allma) on GitHub and click the "Fork" button.
+1.  **Fork:** Go to the [Allma repository](https://github.com/ALLMA-dev/allma-core) on GitHub and click the "Fork" button.
 2.  **Clone:** Clone your forked repository to your local machine.
     ```bash
-    git clone https://github.com/YOUR_USERNAME/allma.git
-    cd allma
+    git clone https://github.com/YOUR_USERNAME/allma-core.git
+    cd allma-core
     ```
 
 ### Step 2: Create a Feature Branch
@@ -99,33 +100,41 @@ Create and switch to your new branch:
 git checkout -b feature/add-new-module
 ```
 
-### Step 3: Commit Your Work with Meaning
+### Step 3: Commit Your Work
 
-We use **[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)**. This is a strict requirement.
-
--   **`feat`**: A new feature for the user.
--   **`fix`**: A bug fix for the user.
--   **`docs`**: Documentation changes.
--   **`style`**: Code style changes (formatting, etc.).
--   **`refactor`**: Code changes that neither fix a bug nor add a feature.
--   **`test`**: Adding or correcting tests.
--   **`chore`**: Build process or tooling changes.
+Commit your work as you go with clear, descriptive messages. While we no longer require Conventional Commits for versioning, a good commit message is still vital for code reviews.
 
 ```bash
 # Stage your changes
 git add .
 
-# Commit with a conventional message
-git commit -m "feat(logic): add string case converter module"
+# Commit with a clear message
+git commit -m "feat: add string case converter module"
 ```
 
-### Step 4: Keep Your Branch in Sync (Important!)
+### Step 4: Add a Changeset (Required for Features & Fixes)
+
+This is the most important step for our automated release process. If your changes should be included in the next release (i.e., you've added a feature or fixed a bug), you **must** create a "changeset".
+
+1.  **Run the command:** From the root of the project, run:
+    ```bash
+    npm run changeset
+    ```
+
+2.  **Follow the Prompts:** The tool will guide you through a series of questions:
+    -   **Select packages:** Use the arrow keys and spacebar to select all the packages your PR has modified.
+    -   **Select version bump:** Choose `major`, `minor`, or `patch` for each package. A new feature is typically a `minor` bump, and a bug fix is a `patch`.
+    -   **Write a summary:** Write a clear, concise summary of your changes. This summary will be used to generate the official `CHANGELOG.md` for the packages.
+
+3.  **Commit the Changeset File:** The command will generate a new markdown file in the `.changeset/` directory. **You must commit this file to your branch.** This file is how our release bot knows what to do.
+
+### Step 5: Keep Your Branch in Sync (Important!)
 
 To avoid merge conflicts, regularly update your branch with the latest changes from the main Allma repository using `rebase`.
 
 1.  **Add the "Upstream" Remote (One-time setup):**
     ```bash
-    git remote add upstream https://github.com/your-org/allma.git
+    git remote add upstream https://github.com/ALLMA-dev/allma-core.git
     ```
 2.  **Fetch and Rebase:** Before you push, and periodically as you work, run these commands:
     ```bash
@@ -134,30 +143,30 @@ To avoid merge conflicts, regularly update your branch with the latest changes f
     ```
     If you encounter conflicts, Git will guide you through resolving them. A clean rebase makes your PR much easier to merge.
 
-### Step 5: Push Your Branch
+### Step 6: Push Your Branch
 
-Push your committed changes to your forked repository on GitHub.
+Push your committed changes—including the new changeset file—to your forked repository on GitHub.
 
 ```bash
-# The -f flag is needed if you rebased an already-pushed branch
+# The -f flag may be needed if you rebased an already-pushed branch
 git push -f origin feature/add-new-module
 ```
 
-### Step 6: Open a Pull Request
+### Step 7: Open a Pull Request
 
 You're ready to propose your changes to the main project!
 
 1.  Go to your fork on GitHub. You should see a banner to create a Pull Request.
-2.  **Set the Base:** Ensure the PR is targeting the `your-org/allma` `main` branch.
+2.  **Set the Base:** Ensure the PR is targeting the `ALLMA-dev/allma-core` `main` branch.
 3.  **Write a Great PR Description:**
-    -   Use a clear, conventional title.
+    -   Use a clear title.
     -   Fill out the PR template. Explain the *what* and the *why*.
     -   **Link the Issue:** Use a keyword to link your PR to the issue it resolves. This is critical for our workflow!
         ```
         Closes #123
         ```
 
-### Step 7: The Review Process
+### Step 8: The Review Process
 
 -   **Automated Checks:** Our CI pipeline will run automatically. Ensure all checks pass.
 -   **Maintainer Review:** A maintainer will review your code. They may request changes—this is a normal and healthy part of collaboration!

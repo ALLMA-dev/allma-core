@@ -198,6 +198,7 @@ Your module is now fully integrated into the Allma platform!
 
 2.  **Deploy to AWS:** This command will deploy all the updated Lambda functions and infrastructure.
     ```bash
+    cd packages/core-cdk
     npx cdk deploy --all -c stage=dev
     ```
 
@@ -206,6 +207,34 @@ Your module is now fully integrated into the Allma platform!
     -   Add a new step and select the `DATA_TRANSFORMATION` type.
     -   In the "Module" dropdown, you should now see **"String Case Converter"**!
 
-You have successfully added a new feature to Allma. The next steps would be to follow our **[Contribution Workflow Guide](./contribution-guide)** to commit your changes, push your branch, and open a Pull Request.
+### Step 6: Create a Changeset
+
+Now that the feature is working, we need to tell our release system how to version the packages you changed.
+
+1.  **Run the command** from the monorepo root:
+    ```bash
+    npm run changeset
+    ```
+
+2.  **Select the packages** you modified. For this tutorial, you touched `@allma/core-types` (for the schema) and `allma-app-logic` (for the handler). Use the arrow keys and spacebar to select them, then press Enter.
+
+3.  **Choose the version bump.** Since we added a new feature, this is a `minor` change for both packages. Select `minor` for each.
+
+4.  **Write the summary.** This text will appear in the changelog.
+    ```
+    feat(logic): add string-case-converter module
+
+    This adds a new DATA_TRANSFORMATION module that can
+    convert a given string to either UPPERCASE or lowercase.
+    ```
+    Press Enter to confirm.
+
+5.  **Commit the new file.** A new file like `.changeset/pretty-dolphins-laugh.md` has been created. Commit it to your branch.
+    ```bash
+    git add .
+    git commit -m "chore: add changeset for case-converter module"
+    ```
+
+You have successfully added a new feature to Allma. The final step is to follow our **[Contribution Workflow Guide](./contribution-guide)** to push your branch and open a Pull Request.
 
 Thank you for contributing!
