@@ -1,6 +1,6 @@
 {
   "name": "@allma/core-sdk",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Core SDK with shared utilities (logging, auth, S3 utils) for building on the Allma serverless AI orchestration platform.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -34,7 +34,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@allma/core-types": "^1.0.0",
+    "@allma/core-types": "^1.0.1",
     "@aws-sdk/client-s3": "^3.500.0",
     "@aws-sdk/client-secrets-manager": "^3.500.0",
     "@aws-sdk/client-sns": "^3.500.0",
