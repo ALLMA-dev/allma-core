@@ -12,8 +12,8 @@
     "echo:env": "node -e \"console.log('Inside npm script:', process.env.AWS_REGION || 'not set')\""
   },
   "dependencies": {
-    "@allma/core-sdk": "^1.0.0",
-    "@allma/core-types": "^1.0.0",
+    "@allma/core-sdk": "^1.0.1",
+    "@allma/core-types": "^1.0.1",
     "@aws-sdk/client-bedrock-runtime": "^3.614.0",
     "@aws-sdk/client-dynamodb": "^3.500.0",
     "@aws-sdk/client-sesv2": "^3.626.0",

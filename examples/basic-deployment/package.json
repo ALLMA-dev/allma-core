@@ -1,6 +1,6 @@
 {
   "name": "basic-deployment",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "bin": {
     "basic-deployment": "bin/basic-allma-app.js"
   },
@@ -24,8 +24,8 @@
     "@typescript-eslint/parser": "^7.13.1"
   },
   "dependencies": {
-    "@allma/core-cdk": "1.0.0",
-    "@allma/admin-shell": "1.0.0",
+    "@allma/core-cdk": "1.0.1",
+    "@allma/admin-shell": "1.0.1",
     "aws-cdk-lib": "^2.130.0",
     "constructs": "^10.0.0",
     "source-map-support": "^0.5.21"
