@@ -25,4 +25,5 @@ export const SystemModuleIdentifiers = {
     START_SUB_FLOW: 'system/start-sub-flow',
     WAIT_FOR_EXTERNAL_EVENT: 'system/wait-for-external-event',
     EMAIL_START_POINT: 'system/email-start-point',
+    SCHEDULE_START_POINT: 'system/schedule-start-point',
 } as const;

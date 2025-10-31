@@ -7,6 +7,7 @@ import { DynamoDBDocumentClient, TransactWriteCommand } from '@aws-sdk/lib-dynam
 import { VersionedEntityManager } from './versioned-entity.service.js';
 import { StepDefinitionService } from './step-definition.service.js';
 import { EmailMappingService } from './email-mapping.service.js';
+import { ScheduleService } from './schedule.service.js';
 import { log_info, log_error } from '@allma/core-sdk';
 
 const ddbDocClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -91,6 +92,7 @@ const customUpdateVersion = async (id: string, version: number, data: FlowDefini
     const newVersion = await entityManager.updateVersion(id, version, data, { skipValidation: true });
 
     await EmailMappingService.syncMappingsForFlowVersion(id, oldVersion, newVersion);
+    await ScheduleService.syncSchedulesForFlowVersion(id, oldVersion, newVersion);
 
     return newVersion;
 };
@@ -107,12 +109,43 @@ export const FlowDefinitionService = {
     listVersions: entityManager.listVersions.bind(entityManager),
     getVersion: entityManager.getVersion.bind(entityManager),
     createVersion: entityManager.createVersion.bind(entityManager),
-    publishVersion: entityManager.publishVersion.bind(entityManager),
-    unpublishVersion: entityManager.unpublishVersion.bind(entityManager),
+    
+    async publishVersion(id: string, version: number): Promise<FlowDefinition> {
+        const master = await entityManager.getMaster(id);
+        const oldPublishedVersionResult = master?.publishedVersion ? await entityManager.getVersion(id, master.publishedVersion) : null;
+        const oldPublishedVersion = oldPublishedVersionResult === null ? undefined : oldPublishedVersionResult;
+
+        const newPublishedVersion = await entityManager.publishVersion(id, version);
+
+        await EmailMappingService.syncMappingsForFlowVersion(id, oldPublishedVersion, newPublishedVersion);
+        await ScheduleService.syncSchedulesForFlowVersion(id, oldPublishedVersion, newPublishedVersion);
+
+        return newPublishedVersion;
+    },
+
+    async unpublishVersion(id: string): Promise<FlowDefinition> {
+        const master = await entityManager.getMaster(id);
+        if (!master || !master.publishedVersion) {
+            throw new Error(`Flow ${id} is not published or does not exist.`);
+        }
+        const oldPublishedVersionResult = await entityManager.getVersion(id, master.publishedVersion);
+        const oldPublishedVersion = oldPublishedVersionResult === null ? undefined : oldPublishedVersionResult;
+
+        const unpublishedVersion = await entityManager.unpublishVersion(id, master.publishedVersion);
+
+        if (oldPublishedVersion) {
+            await EmailMappingService.syncMappingsForFlowVersion(id, oldPublishedVersion, undefined);
+            await ScheduleService.syncSchedulesForFlowVersion(id, oldPublishedVersion, undefined);
+        }
+
+        return unpublishedVersion;
+    },
+
     async deleteVersion(id: string, version: number): Promise<void> {
         const versionToDeleteResult = await entityManager.getVersion(id, version);
         const versionToDelete = versionToDeleteResult === null ? undefined : versionToDeleteResult;
         await EmailMappingService.syncMappingsForFlowVersion(id, versionToDelete, undefined);
+        await ScheduleService.syncSchedulesForFlowVersion(id, versionToDelete, undefined);
         return entityManager.deleteVersion(id, version);
     },
     
@@ -134,6 +167,7 @@ export const FlowDefinitionService = {
     async createFlow(input: CreateFlowInput & { emailTriggerAddress?: string }): Promise<{ metadata: FlowMetadataStorageItem, version: FlowDefinition }> {
         const { metadata, version } = await entityManager.createMasterWithInitialVersion(uuidv4(), input);
         await EmailMappingService.syncMappingsForFlowVersion(metadata.id, undefined, version);
+        await ScheduleService.syncSchedulesForFlowVersion(metadata.id, undefined, version);
         return { metadata, version };
     },
 
@@ -146,6 +180,7 @@ export const FlowDefinitionService = {
         const createInput: CreateFlowInput = { name: String(flow.name), description: flow.description };
         const { metadata, version } = await entityManager.createMasterWithInitialVersion(flow.id, createInput, flow);
         await EmailMappingService.syncMappingsForFlowVersion(metadata.id, undefined, version);
+        await ScheduleService.syncSchedulesForFlowVersion(metadata.id, undefined, version);
         return { metadata, version };
     },
 

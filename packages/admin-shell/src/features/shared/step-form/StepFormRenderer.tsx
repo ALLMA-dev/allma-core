@@ -1,4 +1,4 @@
-import { Select, Stack, TextInput, Textarea, Group, ActionIcon, Tooltip, Text, useMantineTheme } from '@mantine/core';
+import { Select, Stack, TextInput, Textarea, Group, ActionIcon, Tooltip, Text, useMantineTheme, Switch } from '@mantine/core';
 import { UseFormReturnType } from '@mantine/form';
 import { z } from 'zod';
 import { parseDescription } from '../../flows/editor/zod-schema-mappers';
@@ -106,7 +106,19 @@ export function StepFormRenderer({ schema, form, readOnly, onPreviewPrompt, isFi
         const displayValue = instanceValue !== undefined ? instanceValue : definitionValue;
         const handleChange = createChangeHandler(key);
 
+        const handleSwitchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+            const { checked } = event.currentTarget;
+            const baseValue = appliedDefinition ? (appliedDefinition as any)[key] : undefined;
+            if (isEqual(checked, baseValue)) {
+                form.setFieldValue(key as any, undefined);
+            } else {
+                form.setFieldValue(key as any, checked);
+            }
+        };
+
         switch (componentType) {
+            case 'switcher':
+                return <Switch key={key} label={fieldLabel} checked={displayValue} onChange={handleSwitchChange} readOnly={readOnly} styles={{ body: inheritedStyle }} />;
             case 'prompt-select':
                 return (
                     <Group key={key} align="flex-end" gap="xs" wrap="nowrap">

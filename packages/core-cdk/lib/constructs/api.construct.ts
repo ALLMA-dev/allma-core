@@ -19,6 +19,8 @@ const __filename_api = fileURLToPath(import.meta.url);
 const __dirname_api = dirname(__filename_api);
 
 export interface ApiConstructProps {
+  eventBridgeSchedulerRoleArn: string;
+  flowStartRequestQueueArn: string;
   stageConfig: StageConfig;
   configTable: dynamodb.Table;
   flowExecutionLogTable: dynamodb.Table;
@@ -63,6 +65,16 @@ export class ApiConstruct extends Construct {
         emailToFlowMappingTable.grantReadWriteData(adminApiLambdaRole); // NEW
         executionTracesBucket.grantRead(adminApiLambdaRole);
 
+        // Grant permissions for EventBridge Scheduler
+        adminApiLambdaRole.addToPolicy(new iam.PolicyStatement({
+            actions: ['scheduler:CreateSchedule', 'scheduler:UpdateSchedule', 'scheduler:DeleteSchedule', 'scheduler:GetSchedule'],
+            resources: [`arn:aws:scheduler:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:schedule/default/*`],
+        }));
+        adminApiLambdaRole.addToPolicy(new iam.PolicyStatement({
+            actions: ['iam:PassRole'],
+            resources: [props.eventBridgeSchedulerRoleArn],
+        }));
+
         const adminFlowControlLambdaRole = new iam.Role(this, 'AllmaAdminFlowControlRole', {
             assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
             description: `IAM Role for Admin Flow Control Lambda (${stageConfig.stage})`,
@@ -90,6 +102,8 @@ export class ApiConstruct extends Construct {
             [ENV_VAR_NAMES.ALLMA_FLOW_EXECUTION_LOG_TABLE_NAME]: flowExecutionLogTable.tableName,
             'EMAIL_TO_FLOW_MAPPING_TABLE_NAME': emailToFlowMappingTable.tableName, // NEW
             [ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME]: executionTracesBucket.bucketName,
+            [ENV_VAR_NAMES.EVENTBRIDGE_SCHEDULER_ROLE_ARN]: props.eventBridgeSchedulerRoleArn,
+            [ENV_VAR_NAMES.ALLMA_FLOW_START_REQUEST_QUEUE_ARN]: props.flowStartRequestQueueArn,
             AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
         };
 

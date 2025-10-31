@@ -74,5 +74,6 @@ export enum StepType {
 
   // --- Start Points ---
   EMAIL_START_POINT = 'EMAIL_START_POINT',
+  SCHEDULE_START_POINT = 'SCHEDULE_START_POINT',
 }
 export const StepTypeSchema = z.nativeEnum(StepType);

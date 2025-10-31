@@ -37,6 +37,7 @@ function BaseStepNode({ data, selected, id: nodeId }: NodeProps<StepNodeData>) {
   const stepConfig = getStepConfig(stepType);
   const Icon = stepConfig.icon;
   const isEndNode = stepType === StepType.END_FLOW;
+  const isStartPoint = stepType === StepType.EMAIL_START_POINT || stepType === StepType.SCHEDULE_START_POINT;
   const isParallelFork = stepType === StepType.PARALLEL_FORK_MANAGER;
 
   let borderColor = selected ? theme.colors.cyan[5] : theme.colors.dark[4];
@@ -69,7 +70,7 @@ function BaseStepNode({ data, selected, id: nodeId }: NodeProps<StepNodeData>) {
               type="target" 
               position={handle.position} 
               id={handle.id} 
-              isConnectable={isConnectable && !isStartNode}
+              isConnectable={isConnectable && !isStartNode && !isStartPoint}
               style={{ width: '100%', height: '100%', background: 'transparent', border: 'none' }}
             />
             
@@ -125,6 +126,7 @@ function BaseStepNode({ data, selected, id: nodeId }: NodeProps<StepNodeData>) {
             <Group gap="xs" wrap="nowrap">
               {isDirty && <Badge color="yellow" variant="light" leftSection={<IconPencil size={12} />}>Edited</Badge>}
               {isStartNode && <Badge color="green" leftSection={<IconPlayerPlay size={12}/>}>Start</Badge>}
+              {isStartPoint && <Badge color="blue">Trigger</Badge>}
             </Group>
         </Group>
 

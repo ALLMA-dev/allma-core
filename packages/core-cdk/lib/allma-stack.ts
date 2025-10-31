@@ -13,6 +13,7 @@ import { BranchOrchestrator } from './constructs/branch-orchestrator.js';
 import { EmailIntegration } from './constructs/email-integration.js';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as sns from 'aws-cdk-lib/aws-sns';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import { DeepPartial, StageConfig, WebAppConfig } from './config/stack-config.js';
 import * as s3_assets from 'aws-cdk-lib/aws-s3-assets';
@@ -199,8 +200,18 @@ export class AllmaStack extends cdk.Stack {
       }));
     }
 
+    // --- IAM Role for EventBridge Scheduler ---
+    const schedulerRole = new iam.Role(this, 'EventBridgeSchedulerSqsRole', {
+      assumedBy: new iam.ServicePrincipal('scheduler.amazonaws.com'),
+      description: 'Role for EventBridge Scheduler to send messages to SQS',
+    });
+    flowStartRequestQueue.grantSendMessages(schedulerRole);
+
+
     // --- Admin API Feature (API Gateway, Cognito, Lambdas) ---
     const api = new ApiConstruct(this, 'AllmaApiFeature', {
+      eventBridgeSchedulerRoleArn: schedulerRole.roleArn,
+      flowStartRequestQueueArn: flowStartRequestQueue.queueArn,
       stageConfig,
       configTable: dataStores.allmaConfigTable,
       flowExecutionLogTable: dataStores.allmaFlowExecutionLogTable,

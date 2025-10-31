@@ -39,6 +39,7 @@ const handlerRegistry: Partial<Record<StepType, StepHandler>> = {
   // Start point steps are entry points and perform no action during execution.
   // They are treated as NO_OPs to simply pass control to the next step.
   [StepType.EMAIL_START_POINT]: handleNoOp,
+  [StepType.SCHEDULE_START_POINT]: handleNoOp,
 
   // Future handlers would be registered here
 };

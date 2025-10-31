@@ -16,6 +16,7 @@ import {
     IconPlayerPlay,
     IconMessage,
     IconMail,
+    IconClock,
 } from '@tabler/icons-react';
 import React from 'react';
 
@@ -49,6 +50,7 @@ export const STEP_TYPE_CONFIGS: Record<StepType, StepTypeConfig> = {
   [StepType.SNS_PUBLISH]: { type: StepType.SNS_PUBLISH, label: 'SNS Publish Message', icon: IconMessage, isAvailableInPalette: true },
   [StepType.EMAIL]: { type: StepType.EMAIL, label: 'Send Email', icon: IconMail, isAvailableInPalette: true },
   [StepType.EMAIL_START_POINT]: { type: StepType.EMAIL_START_POINT, label: 'Email Start Point', icon: IconMail, isAvailableInPalette: true, category: 'Start Points' },
+  [StepType.SCHEDULE_START_POINT]: { type: StepType.SCHEDULE_START_POINT, label: 'Schedule', icon: IconClock, isAvailableInPalette: true, category: 'Start Points' },
 };
 
 /**

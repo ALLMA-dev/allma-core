@@ -146,6 +146,26 @@ If set to \`true\`, this prevents the step's output from being automatically sav
         },
     },
 
+    [StepType.SCHEDULE_START_POINT]: {
+        general: 'Creates a schedule that automatically triggers this flow. A flow can have multiple independent schedules.',
+        fields: {
+            scheduleExpression: `
+Accepts AWS EventBridge Scheduler expressions.
+See [AWS documentation for more details.](https://docs.aws.amazon.com/scheduler/latest/UserGuide/schedule-types.html)
+
+**Examples:**
+- \`rate(1 hour)\` - Triggers every hour.
+- \`rate(15 minutes)\` - Triggers every 15 minutes.
+- \`cron(0 10 * * ? *)\` - Triggers at 10:00 AM (UTC) every day.
+- \`cron(0 8 1 * ? *)\` - Triggers at 8:00 AM (UTC) on the first day of every month.
+- \`cron(0/15 * * * ? *)\` - Triggers every 15 minutes.
+`,
+            timezone: 'The IANA time zone for the schedule (e.g., `America/New_York`). Defaults to UTC if left blank.',
+            enabled: 'A toggle to temporarily activate or deactivate the schedule without removing the step from the flow.',
+            payloadTemplate: 'An optional JSON object that will be merged into the flow\'s `initialContextData` when the schedule triggers. This allows for passing static configuration to scheduled runs.',
+        },
+    },
+
     [StepType.EMAIL]: {
         general: 'Sends an email using AWS Simple Email Service (SES). All fields support Handlebars templating to insert dynamic data from the flow context.',
         fields: {
