@@ -15,7 +15,9 @@ const createWithId = async (data: CreateStepDefinitionInput): Promise<StepDefini
     // Prefix with 'usr-' to distinguish from system definitions.
     const id = `usr-${uuidv4()}`;
     // The `create` method of the manager expects the full entity minus timestamps.
-    return stepDefinitionManager.create({ ...data, id });
+    const now = new Date().toISOString();
+    const fullData = { ...data, id, version: 1, createdAt: now, updatedAt: now };
+    return stepDefinitionManager.create(fullData as any);
 };
 
 

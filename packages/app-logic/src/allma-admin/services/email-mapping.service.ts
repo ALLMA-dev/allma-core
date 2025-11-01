@@ -1,17 +1,23 @@
 import { TransactWriteCommand, DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { ENV_VAR_NAMES, FlowDefinition, StepInstance } from '@allma/core-types';
+import { ENV_VAR_NAMES, FlowDefinition, StepInstance, EmailStartPointStepPayloadSchema, StepType } from '@allma/core-types';
+import { z } from 'zod';
+
+type EmailStartPointStepPayload = z.infer<typeof EmailStartPointStepPayloadSchema>;
 
 const ddbDocClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const EMAIL_MAPPING_TABLE_NAME = process.env[ENV_VAR_NAMES.EMAIL_TO_FLOW_MAPPING_TABLE_NAME]!;
 
 export const EmailMappingService = {
   async syncMappingsForFlowVersion(flowId: string, oldVersion?: FlowDefinition, newVersion?: FlowDefinition) {
-    const getEmailStartPointSteps = (flow?: FlowDefinition): StepInstance[] => {
+    const getEmailStartPointSteps = (flow?: FlowDefinition): (StepInstance & EmailStartPointStepPayload)[] => {
         if (!flow?.steps) {
             return [];
         }
-        return Object.values(flow.steps).filter(step => step.stepType === 'EMAIL_START_POINT');
+        return Object.values(flow.steps).filter(
+            (step): step is StepInstance & EmailStartPointStepPayload =>
+                step.stepType === StepType.EMAIL_START_POINT
+        );
     };
 
     const oldMappings = getEmailStartPointSteps(oldVersion);

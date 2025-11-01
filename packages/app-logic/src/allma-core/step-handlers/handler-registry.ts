@@ -11,6 +11,7 @@ import { handleDataLoad } from './data-load-handler.js';
 import { handleDataTransformation } from './data-transformation-handler.js';
 import { handleDataSave } from './data-save-handler.js';
 import { handleCustomLambdaInvoke } from './custom-lambda-invoke-handler.js';
+import { handleMcpCall } from './mcp-call-handler.js';
 
 // Import module executors for the new dispatcher handlers
 import { executeSqsSender } from '../data-savers/sqs-sender.js';
@@ -30,6 +31,7 @@ const handlerRegistry: Partial<Record<StepType, StepHandler>> = {
   [StepType.DATA_SAVE]: handleDataSave,
   [StepType.CUSTOM_LAMBDA_INVOKE]: handleCustomLambdaInvoke,
   [StepType.START_FLOW_EXECUTION]: executeStartFlowExecution,
+  [StepType.MCP_CALL]: handleMcpCall,
 
   
   [StepType.EMAIL]: executeSendEmail,

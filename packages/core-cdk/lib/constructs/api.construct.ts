@@ -71,6 +71,14 @@ export class ApiConstruct extends Construct {
             resources: [`arn:aws:scheduler:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:schedule/default/*`],
         }));
         adminApiLambdaRole.addToPolicy(new iam.PolicyStatement({
+            effect: iam.Effect.ALLOW,
+            actions: ['secretsmanager:GetSecretValue'],
+            resources: [`arn:aws:secretsmanager:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:secret:*`],
+            conditions: {
+                StringEquals: { 'secretsmanager:ResourceTag/allma-mcp-secret': 'true' },
+            },
+        }));
+        adminApiLambdaRole.addToPolicy(new iam.PolicyStatement({
             actions: ['iam:PassRole'],
             resources: [props.eventBridgeSchedulerRoleArn],
         }));
@@ -118,6 +126,7 @@ export class ApiConstruct extends Construct {
             [ENV_VAR_NAMES.ALLMA_STATE_MACHINE_ARN]: flowOrchestratorStateMachine.stateMachineArn,
         });
         const adminImportExportLambda = this.createNodejsLambda('AdminImportExportLambda', `AllmaAdminImportExport-${stageConfig.stage}`, 'allma-admin/import-export.ts', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars);
+        const adminMcpConnectionManagementLambda = this.createNodejsLambda('AdminMcpConnectionManagementLambda', `AllmaAdminMcpConnectionMgmt-${stageConfig.stage}`, 'allma-admin/mcp-connection-management.ts', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars);
 
         // --- API Gateway ---
         const adminApi = new AllmaAdminApi(this, 'AllmaAdminApi', {
@@ -135,6 +144,7 @@ export class ApiConstruct extends Construct {
             adminFlowControlLambda,
             adminDashboardStatsLambda,
             adminImportExportLambda,
+            adminMcpConnectionManagementLambda,
         });
         this.httpApi = adminApi.httpApi;
         this.apiDomainName = adminApi.apiDomainName;

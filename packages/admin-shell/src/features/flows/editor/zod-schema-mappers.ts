@@ -16,7 +16,8 @@ import {
     SqsSendStepSchema,
     SnsPublishStepSchema,
     EmailStartPointStepSchema,
-    ScheduleStartPointStepPayloadSchema
+    ScheduleStartPointStepPayloadSchema,
+    McpCallStepSchema
 } from '@allma/core-types';
 import { z } from 'zod';
 
@@ -82,6 +83,7 @@ const stepSchemaMap: Partial<Record<StepType, z.ZodObject<any, any>>> = {
     [StepType.SNS_PUBLISH]: SnsPublishStepSchema,
     [StepType.EMAIL_START_POINT]: EmailStartPointStepSchema,
     [StepType.SCHEDULE_START_POINT]: ScheduleStartPointStepPayloadSchema,
+    [StepType.MCP_CALL]: McpCallStepSchema,
     // Add other step types here as they are created
 };
 
@@ -141,6 +143,8 @@ export const STEP_SCHEMA_EXCLUDED_FIELDS = new Set([
     // These are handled in dedicated UI components within the editor panel
     'inputMappings', 'outputMappings', 'defaultNextStepInstanceId', 'transitions', 'onError', 'literals',
     'llmProvider', // Special-cased in the renderer
+    'mcpConnectionId', 
+    'toolName',
     'moduleIdentifier',
     'fill', // This is a UI-only property managed by the color picker
     'customConfig', // Handled by a dedicated Accordion item

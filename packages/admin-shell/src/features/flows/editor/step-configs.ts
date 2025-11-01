@@ -17,6 +17,7 @@ import {
     IconMessage,
     IconMail,
     IconClock,
+    IconPlugConnected,
 } from '@tabler/icons-react';
 import React from 'react';
 
@@ -36,7 +37,8 @@ export const STEP_TYPE_CONFIGS: Record<StepType, StepTypeConfig> = {
   [StepType.DATA_SAVE]: { type: StepType.DATA_SAVE, label: 'Data Save', icon: IconDeviceFloppy, isAvailableInPalette: true },
   [StepType.DATA_TRANSFORMATION]: { type: StepType.DATA_TRANSFORMATION, label: 'Data Transform', icon: IconLogicAnd, isAvailableInPalette: true },
   [StepType.CUSTOM_LOGIC]: { type: StepType.CUSTOM_LOGIC, label: 'Custom Logic', icon: IconBox, isAvailableInPalette: false },
-  [StepType.API_CALL]: { type: StepType.API_CALL, label: 'API Call', icon: IconApi, isAvailableInPalette: true },
+  [StepType.API_CALL]: { type: StepType.API_CALL, label: 'API Call', icon: IconApi, isAvailableInPalette: true, category: 'Integrations' },
+  [StepType.MCP_CALL]: { type: StepType.MCP_CALL, label: 'MCP Call', icon: IconPlugConnected, isAvailableInPalette: true, category: 'Integrations' },
   
   [StepType.START_SUB_FLOW]: { type: StepType.START_SUB_FLOW, label: 'Start Sub-Flow', icon: IconSitemap, isAvailableInPalette: true },
   [StepType.NO_OP]: { type: StepType.NO_OP, label: 'No-Op', icon: IconPlayerTrackNext, isAvailableInPalette: true },

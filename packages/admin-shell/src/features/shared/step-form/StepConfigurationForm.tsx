@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useCallback, forwardRef, useImperativeHandle, useRef } from 'react';
 import { UseFormReturnType } from '@mantine/form';
-import { Button, Stack, TextInput, Select, Textarea, Group, Paper, Title, Text, Accordion, Divider, ScrollArea } from '@mantine/core';
+import { Button, Stack, TextInput, Select, Textarea, Group, Paper, Title, Text, Accordion, Divider } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { StepDefinition, StepInstance, StepType, StepInstanceSchema } from '@allma/core-types';
 import { getStepSchema, STEP_SCHEMA_EXCLUDED_FIELDS } from '../../flows/editor/zod-schema-mappers';
@@ -17,6 +17,7 @@ import { STEP_DOCUMENTATION } from '../../flows/editor/step-documentation';
 import React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { StepFormRenderer } from './StepFormRenderer';
+import { StepFormLayout } from './StepFormLayout';
 
 type StepConfigFormValues = StepInstance | Partial<StepDefinition>;
 
@@ -82,14 +83,14 @@ export const StepConfigurationForm = forwardRef(function StepConfigurationForm<T
 
     const { data: allStepDefinitions, isLoading: isLoadingStepDefs } = useGetStepDefinitions();
 
-    const currentStepType = form.values.stepType;
+    const currentStepType = (form.values as StepInstance).stepType;
     
     // Get the documentation content for the customConfig field.
     const customConfigDoc = STEP_DOCUMENTATION[currentStepType as StepType]?.fields.customConfig;
 
     useEffect(() => {
         if (variant !== 'create-definition') return;
-        const { name, description } = form.values;
+        const { name, description } = form.values as Partial<StepDefinition>;
         form.setValues({
             name, description, stepType: currentStepType, customConfig: {}, inputMappings: {}, outputMappings: {}, literals: {}, onError: {},
         } as any);
@@ -153,7 +154,7 @@ export const StepConfigurationForm = forwardRef(function StepConfigurationForm<T
         if (!selectedDefSummary) return;
 
         modals.openConfirmModal({
-            title: `Apply '${selectedDefSummary.name}'?`,
+            title: `Apply ‘${selectedDefSummary.name}’?`,
             centered: true,
             children: <Text size="sm">This will replace this step&apos;s configuration with the values from the selected definition. Any local overrides will be lost. Do you want to continue?</Text>,
             labels: { confirm: 'Apply Definition', cancel: 'Cancel' },
@@ -233,123 +234,86 @@ export const StepConfigurationForm = forwardRef(function StepConfigurationForm<T
             } 
             style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}
         >
-            <ScrollArea style={{ flex: 1 }}>
-                <Stack p="md" gap="lg">
-                    {variant === 'instance' ? (
-                        <>
-                            <Group wrap="nowrap" align="flex-end" gap="xs">
-                                <TextInput label="Step Instance ID" {...form.getInputProps('stepInstanceId')} disabled style={{ flex: 1 }} />
-                                <CopyableText text={form.values.stepInstanceId as string} showText={false} />
-                            </Group>
-                            <TextInput label="Step Type" {...form.getInputProps('stepType')} disabled />
+            <StepFormLayout
+                form={form}
+                readOnly={isReadOnly}
+                isFieldInherited={isFieldInherited}
+                appliedDefinition={appliedDefinition}
+                variant={variant}
+                onDelete={onDelete}
+                customConfigDoc={customConfigDoc}
+                createChangeHandler={createChangeHandler}
+                customConfigError={customConfigError}
+                commonMappingsErrors={commonMappingsErrors}
+                onErrorError={onErrorError}
+            >
+                {variant === 'instance' ? (
+                    <>
+                        <Group wrap="nowrap" align="flex-end" gap="xs">
+                            <TextInput label="Step Instance ID" {...form.getInputProps('stepInstanceId')} disabled style={{ flex: 1 }} />
+                            <CopyableText text={(form.values as StepInstance).stepInstanceId} showText={false} />
+                        </Group>
+                        <TextInput label="Step Type" {...form.getInputProps('stepType')} disabled />
+                        <Select
+                            ref={stepDefSelectRef}
+                            label="Step Definition"
+                            description="Select a pre-configured template to apply its values."
+                            placeholder="Custom Configuration (No Definition)"
+                            data={stepDefinitionOptions}
+                            onChange={handleStepDefChange}
+                            value={(form.values as StepInstance).stepDefinitionId || null}
+                            readOnly={isReadOnly}
+                            disabled={isLoadingStepDefs}
+                            searchable
+                            clearable
+                        />
+                        <TextInput
+                            label="Display Name"
+                            placeholder="A user-friendly name for this step instance"
+                            {...form.getInputProps('displayName')}
+                            readOnly={isReadOnly}
+                            styles={{ input: isFieldInherited('displayName') ? { fontStyle: 'italic', color: 'var(--mantine-color-dimmed)' } : {} }}
+                        />
+                    </>
+                ) : (
+                    <Paper withBorder p="xl" shadow="xs">
+                        <Title order={4} mb="md">General Information</Title>
+                        <Stack>
+                            <TextInput withAsterisk label="Name" placeholder="e.g., Send Welcome Email" {...form.getInputProps('name')} />
+                            <Textarea label="Description" placeholder="What this step does" {...form.getInputProps('description')} />
                             <Select
-                                ref={stepDefSelectRef}
-                                label="Step Definition"
-                                description="Select a pre-configured template to apply its values."
-                                placeholder="Custom Configuration (No Definition)"
-                                data={stepDefinitionOptions}
-                                onChange={handleStepDefChange}
-                                value={(form.values as StepInstance).stepDefinitionId || null}
-                                readOnly={isReadOnly}
-                                disabled={isLoadingStepDefs}
-                                searchable
-                                clearable
+                                withAsterisk
+                                label="Step Type"
+                                description="Determines the core function and available parameters."
+                                data={Object.values(StepType)}
+                                {...form.getInputProps('stepType')}
+                                disabled={variant === 'edit-definition'}
                             />
-                            <TextInput
-                                label="Display Name"
-                                placeholder="A user-friendly name for this step instance"
-                                {...form.getInputProps('displayName')}
-                                readOnly={isReadOnly}
-                                styles={{ input: isFieldInherited('displayName') ? { fontStyle: 'italic', color: 'var(--mantine-color-dimmed)' } : {} }}
-                            />
-                        </>
-                    ) : (
-                        <Paper withBorder p="xl" shadow="xs">
-                            <Title order={4} mb="md">General Information</Title>
-                            <Stack>
-                                <TextInput withAsterisk label="Name" placeholder="e.g., Send Welcome Email" {...form.getInputProps('name')} />
-                                <Textarea label="Description" placeholder="What this step does" {...form.getInputProps('description')} />
+                        </Stack>
+                    </Paper>
+                )}
+
+                {variant !== 'instance' && (
+                    <Paper withBorder p="xl" shadow="xs">
+                        <Title order={4} mb="md">Default Configuration</Title>
+                        <Text size="sm" c="dimmed" mb="lg">Set default values. These can be overridden in each flow where it&apos;s used.</Text>
+                        <Stack gap="lg">
+                            {moduleIdentifierOptions.length > 0 && (
                                 <Select
+                                    label="Module Identifier"
+                                    description="The specific system module to execute."
                                     withAsterisk
-                                    label="Step Type"
-                                    description="Determines the core function and available parameters."
-                                    data={Object.values(StepType)}
-                                    {...form.getInputProps('stepType')}
-                                    disabled={variant === 'edit-definition'}
+                                    placeholder="Select a module..."
+                                    data={moduleIdentifierOptions}
+                                    {...form.getInputProps('moduleIdentifier')}
+                                    searchable
+                                    disabled={variant === 'edit-definition' && (form.values as StepDefinition).moduleIdentifier?.startsWith('system/')}
                                 />
-                            </Stack>
-                        </Paper>
-                    )}
-
-                    {variant !== 'instance' && (
-                        <Paper withBorder p="xl" shadow="xs">
-                            <Title order={4} mb="md">Default Configuration</Title>
-                            <Text size="sm" c="dimmed" mb="lg">Set default values. These can be overridden in each flow where it&apos;s used.</Text>
-                            <Stack gap="lg">
-                                {moduleIdentifierOptions.length > 0 && (
-                                    <Select
-                                        label="Module Identifier"
-                                        description="The specific system module to execute."
-                                        withAsterisk
-                                        placeholder="Select a module..."
-                                        data={moduleIdentifierOptions}
-                                        {...form.getInputProps('moduleIdentifier')}
-                                        searchable
-                                        disabled={variant === 'edit-definition' && (form.values as any).moduleIdentifier?.startsWith('system/')}
-                                    />
-                                )}
-                                
-                                <Divider label="Parameters" labelPosition="center" />
-                                
-                                {stepSpecificSchema && <StepFormRenderer schema={stepSpecificSchema} form={form as any} readOnly={isReadOnly} onPreviewPrompt={onPreviewPrompt} excludeFields={STEP_SCHEMA_EXCLUDED_FIELDS} isFieldInherited={isFieldInherited} appliedDefinition={appliedDefinition} />}
-                                
-                                {form.values.stepType === StepType.LLM_INVOCATION && (
-                                    <Stack gap="xs">
-                                        <Text component="div" size="sm" fw={500}>
-                                            <Group gap="xs">
-                                                Inference Parameters
-                                                <DocPopup content={STEP_DOCUMENTATION.LLM_INVOCATION?.fields.inferenceParameters} />
-                                            </Group>
-                                        </Text>
-                                        <EditableJsonView
-                                            value={(form.values as StepDefinition).inferenceParameters as object}
-                                            onChange={createChangeHandler('inferenceParameters' as any)}
-                                            readOnly={isReadOnly}
-                                            displayVariant={isFieldInherited('inferenceParameters') ? 'inherited' : 'default'}
-                                            error={inferenceParametersError}
-                                        />
-                                    </Stack>
-                                )}
-                                
-                                <Accordion variant="separated" multiple>
-                                    <CommonMappings form={form as any} readOnly={isReadOnly} nodes={[]} edges={[]} hideTransitions={true} errors={commonMappingsErrors} appliedDefinition={appliedDefinition} />
-                                    <Accordion.Item value="custom-config">
-                                        {/* *** FIX START *** */}
-                                        <Accordion.Control>
-                                            <Group gap="xs">
-                                                Custom Config
-                                                <DocPopup content={customConfigDoc} />
-                                            </Group>
-                                        </Accordion.Control>
-                                        {/* *** FIX END *** */}
-                                        <Accordion.Panel>
-                                            <Stack gap={2}>
-                                                <Text size="sm" c="dimmed" mb="xs">Module-specific or advanced provider settings.</Text>
-                                                <EditableJsonView value={(form.values as StepDefinition).customConfig} onChange={createChangeHandler('customConfig' as any)} readOnly={isReadOnly} displayVariant={isFieldInherited('customConfig') ? 'inherited' : 'default'} error={customConfigError} />
-                                            </Stack>
-                                        </Accordion.Panel>
-                                    </Accordion.Item>
-                                    <ErrorHandling form={form as any} readOnly={isReadOnly} error={onErrorError} appliedDefinition={appliedDefinition} />
-                                    <AdditionalParameters form={form as any} readOnly={isReadOnly} />
-                                </Accordion>
-                            </Stack>
-                        </Paper>
-                    )}
-
-                    {variant === 'instance' && (
-                        <>
+                            )}
+                            
                             <Divider label="Parameters" labelPosition="center" />
-                            {stepSpecificSchema && <StepFormRenderer schema={stepSpecificSchema} form={form as any} readOnly={isReadOnly} onPreviewPrompt={onPreviewPrompt} excludeFields={STEP_SCHEMA_EXCLUDED_FIELDS} isFieldInherited={isFieldInherited} appliedDefinition={appliedDefinition} />}
+                            
+                            {stepSpecificSchema && <StepFormRenderer schema={stepSpecificSchema} form={form as any} readOnly={isReadOnly} onPreviewPrompt={onPreviewPrompt} excludeFields={STEP_SCHEMA_EXCLUDED_FIELDS} isFieldInherited={isFieldInherited} appliedDefinition={appliedDefinition} variant={variant} onDelete={onDelete} createChangeHandler={createChangeHandler} customConfigDoc={customConfigDoc} commonMappingsErrors={commonMappingsErrors} onErrorError={onErrorError} />}
                             
                             {form.values.stepType === StepType.LLM_INVOCATION && (
                                 <Stack gap="xs">
@@ -360,7 +324,7 @@ export const StepConfigurationForm = forwardRef(function StepConfigurationForm<T
                                         </Group>
                                     </Text>
                                     <EditableJsonView
-                                        value={(form.values as StepInstance).inferenceParameters as object}
+                                        value={(form.values as StepDefinition).inferenceParameters as object}
                                         onChange={createChangeHandler('inferenceParameters' as any)}
                                         readOnly={isReadOnly}
                                         displayVariant={isFieldInherited('inferenceParameters') ? 'inherited' : 'default'}
@@ -368,32 +332,35 @@ export const StepConfigurationForm = forwardRef(function StepConfigurationForm<T
                                     />
                                 </Stack>
                             )}
-                            
-                            <Accordion variant="separated" multiple>
-                                <CommonMappings form={form as any} readOnly={isReadOnly} nodes={allNodes} edges={allEdges} errors={commonMappingsErrors} appliedDefinition={appliedDefinition} />
-                                 <Accordion.Item value="custom-config">
-                                    {/* *** FIX START *** */}
-                                    <Accordion.Control>
-                                        <Group gap="xs">
-                                            Instance Overrides (Custom Config)
-                                            <DocPopup content={customConfigDoc} />
-                                        </Group>
-                                    </Accordion.Control>
-                                    {/* *** FIX END *** */}
-                                    <Accordion.Panel>
-                                        <Stack gap={2}>
-                                            <Text size="sm" c="dimmed" mb="xs">Override module-specific or advanced provider settings for this step instance.</Text>
-                                            <EditableJsonView value={(form.values as StepInstance).customConfig} onChange={createChangeHandler('customConfig' as any)} readOnly={isReadOnly} displayVariant={isFieldInherited('customConfig') ? 'inherited' : 'default'} error={customConfigError} />
-                                        </Stack>
-                                    </Accordion.Panel>
-                                </Accordion.Item>
-                                <ErrorHandling form={form as any} readOnly={isReadOnly} error={onErrorError} appliedDefinition={appliedDefinition} />
-                                <AdditionalParameters form={form as any} readOnly={isReadOnly} />
-                            </Accordion>
-                        </>
-                    )}
-                </Stack>
-            </ScrollArea>
+                        </Stack>
+                    </Paper>
+                )}
+
+                {variant === 'instance' && (
+                    <>
+                        <Divider label="Parameters" labelPosition="center" />
+                        {stepSpecificSchema && <StepFormRenderer schema={stepSpecificSchema} form={form as any} readOnly={isReadOnly} onPreviewPrompt={onPreviewPrompt} excludeFields={STEP_SCHEMA_EXCLUDED_FIELDS} isFieldInherited={isFieldInherited} appliedDefinition={appliedDefinition} variant={variant} onDelete={onDelete} createChangeHandler={createChangeHandler} customConfigDoc={customConfigDoc} commonMappingsErrors={commonMappingsErrors} onErrorError={onErrorError} />}
+                        
+                        {form.values.stepType === StepType.LLM_INVOCATION && (
+                            <Stack gap="xs">
+                                <Text component="div" size="sm" fw={500}>
+                                    <Group gap="xs">
+                                        Inference Parameters
+                                        <DocPopup content={STEP_DOCUMENTATION.LLM_INVOCATION?.fields.inferenceParameters} />
+                                    </Group>
+                                </Text>
+                                <EditableJsonView
+                                    value={(form.values as StepInstance).inferenceParameters as object}
+                                    onChange={createChangeHandler('inferenceParameters' as any)}
+                                    readOnly={isReadOnly}
+                                    displayVariant={isFieldInherited('inferenceParameters') ? 'inherited' : 'default'}
+                                    error={inferenceParametersError}
+                                />
+                            </Stack>
+                        )}
+                    </>
+                )}
+            </StepFormLayout>
 
             {variant === 'instance' ? (
                  <PanelFooter

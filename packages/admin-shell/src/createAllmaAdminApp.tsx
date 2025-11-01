@@ -45,6 +45,9 @@ export function createAllmaAdminApp({ plugins }: CreateAllmaAdminAppProps) {
       queries: {
         staleTime: 1000 * 60 * 5, // 5 minutes
         retry: 1,
+        // This prevents disruptive UI "reloads" when switching browser tabs.
+        // Queries that need to be live can opt-in to this or use `refetchInterval`.
+        refetchOnWindowFocus: false,
       },
     },
   });

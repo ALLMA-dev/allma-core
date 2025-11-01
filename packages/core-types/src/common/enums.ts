@@ -65,6 +65,7 @@ export enum StepType {
 
   // --- External System Integrations ---
   API_CALL = 'API_CALL',
+  MCP_CALL = 'MCP_CALL',
   WAIT_FOR_EXTERNAL_EVENT = 'WAIT_FOR_EXTERNAL_EVENT',
   POLL_EXTERNAL_API = 'POLL_EXTERNAL_API',
   

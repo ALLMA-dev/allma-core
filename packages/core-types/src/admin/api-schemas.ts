@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { PromptTemplateSchema } from '../prompt/index.js';
 import { BaseStepDefinitionSchema } from '../steps/definitions.js';
+import { McpConnectionSchema } from '../mcp/connections.js';
 
 // Schemas for API bodies and responses, organized by domain.
 
@@ -130,3 +131,23 @@ export type CreateStepDefinitionInput = z.infer<typeof CreateStepDefinitionInput
  */
 export const UpdateStepDefinitionInputSchema = CreateStepDefinitionInputSchema;
 export type UpdateStepDefinitionInput = z.infer<typeof UpdateStepDefinitionInputSchema>;
+
+// --- MCP Connection Management ---
+
+export const CreateMcpConnectionInputSchema = McpConnectionSchema.omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type CreateMcpConnectionInput = z.infer<typeof CreateMcpConnectionInputSchema>;
+
+export const UpdateMcpConnectionInputSchema = CreateMcpConnectionInputSchema.partial();
+export type UpdateMcpConnectionInput = z.infer<typeof UpdateMcpConnectionInputSchema>;
+
+export const DiscoverToolResponseSchema = z.array(z.object({
+  name: z.string(),
+  description: z.string().optional(),
+  input_schema: z.record(z.any()),
+  output_schema: z.record(z.any()),
+}));
+export type DiscoverToolResponse = z.infer<typeof DiscoverToolResponseSchema>;

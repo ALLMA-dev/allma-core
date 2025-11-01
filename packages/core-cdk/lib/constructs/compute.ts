@@ -90,6 +90,32 @@ export class AllmaCompute extends Construct {
       }));
     }
 
+    /**
+     * Grants the orchestration engine permission to read secrets from AWS Secrets Manager
+     * that are used for authenticating with external MCP (Modular Capability Provider) servers.
+     *
+     * SECURITY NOTE: This policy is intentionally broad in its resource scope (`secret:*`) but is
+     * strictly limited by a condition on a resource tag. For this policy to grant access,
+     * a secret *must* be tagged with the key `allma-mcp-secret` and the value `'true'`.
+     *
+     * OPERATIONAL REQUIREMENT: To enable an MCP connection that requires authentication,
+     * users must:
+     * 1. Create a secret in AWS Secrets Manager containing the necessary credentials (e.g., API key, bearer token).
+     * 2. Apply a tag to that secret with the key `allma-mcp-secret` and the value `'true'`.
+     *
+     * This tag-based approach ensures that the orchestration engine can only access secrets
+     * that have been explicitly designated for its use, preventing accidental access to
+     * other secrets within the AWS account.
+     */
+    this.orchestrationLambdaRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['secretsmanager:GetSecretValue'],
+      resources: [`arn:aws:secretsmanager:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:secret:*`],
+      conditions: {
+        StringEquals: { 'secretsmanager:ResourceTag/allma-mcp-secret': 'true' },
+      },
+    }));
+
     // Grant SES SendEmail permission
     if (stageConfig.ses?.fromEmailAddress) {
         this.orchestrationLambdaRole.addToPolicy(new iam.PolicyStatement({

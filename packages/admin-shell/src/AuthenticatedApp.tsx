@@ -1,7 +1,7 @@
 import React from 'react';
 import { useRoutes, Navigate } from 'react-router-dom';
 import { Container, Paper, Title, Button, Loader, Group, Text } from '@mantine/core';
-import { IconAlertCircle, IconGauge, IconListDetails, IconActivity, IconPrompt, IconTemplate } from '@tabler/icons-react';
+import { IconAlertCircle, IconGauge, IconListDetails, IconActivity, IconPrompt, IconTemplate, IconPlugConnected } from '@tabler/icons-react';
 import { useAuthenticator, Authenticator } from '@aws-amplify/ui-react';
 import { ADMIN_COGNITO_GROUP_NAME } from '@allma/core-sdk';
 import { useAdminAuth } from './hooks/useAdminAuth';
@@ -22,6 +22,9 @@ import { PromptVersionListPage } from './features/prompts/PromptVersionListPage.
 import { PromptComparePage } from './features/prompts/PromptComparePage.tsx';
 import { StepDefinitionCreatePage } from './features/step-definitions/StepDefinitionCreatePage.tsx';
 import { StepDefinitionEditPage } from './features/step-definitions/StepDefinitionEditPage.tsx';
+import { McpConnectionListPage } from './features/mcp-connections/McpConnectionListPage.tsx';
+import { McpConnectionCreatePage } from './features/mcp-connections/McpConnectionCreatePage.tsx';
+import { McpConnectionEditPage } from './features/mcp-connections/McpConnectionEditPage.tsx';
 
 interface AuthenticatedAppProps {
   plugins: AllmaPlugin[];
@@ -70,6 +73,7 @@ function ProtectedApp({ plugins }: AuthenticatedAppProps) {
   const coreNavLinks: (PluginNavItem & { permission: AdminPermission, icon: React.ComponentType<{ size: string }> })[] = [
     { label: 'Dashboard', path: '/dashboard', icon: IconGauge, permission: AdminPermission.DASHBOARD_VIEW },
     { label: 'Step Definitions', path: '/step-definitions', icon: IconTemplate, permission: AdminPermission.DEFINITIONS_READ },
+    { label: 'MCP Connections', path: '/mcp-connections', icon: IconPlugConnected, permission: AdminPermission.DEFINITIONS_READ },
     { label: 'Flows', path: '/flows', icon: IconListDetails, permission: AdminPermission.DEFINITIONS_READ },
     { label: 'Executions', path: '/executions', icon: IconActivity, permission: AdminPermission.EXECUTIONS_READ },
     { label: 'Prompts', path: '/prompts', icon: IconPrompt, permission: AdminPermission.DEFINITIONS_READ },
@@ -92,6 +96,9 @@ function ProtectedApp({ plugins }: AuthenticatedAppProps) {
       { path: '/step-definitions', element: <StepDefinitionListPage /> },
       { path: '/step-definitions/create', element: <StepDefinitionCreatePage /> },
       { path: '/step-definitions/edit/:stepDefinitionId', element: <StepDefinitionEditPage /> },
+      { path: '/mcp-connections', element: <McpConnectionListPage /> },
+      { path: '/mcp-connections/create', element: <McpConnectionCreatePage /> },
+      { path: '/mcp-connections/edit/:connectionId', element: <McpConnectionEditPage /> },
       { path: '/flows', element: <FlowListPage /> },
       { path: 'flows/versions/:flowId', element: <FlowVersionListPage /> },
       { path: 'flows/edit/:flowId/:version', element: <FlowEditorPage /> },

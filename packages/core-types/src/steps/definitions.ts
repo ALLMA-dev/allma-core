@@ -54,6 +54,7 @@ export const WaitForExternalEventStepSchema = z.object({}).merge(SystemSteps.Wai
 export const PollExternalApiStepSchema = z.object({}).merge(SystemSteps.PollExternalApiStepPayloadSchema);
 export const CustomLambdaInvokeStepSchema = z.object({}).merge(SystemSteps.CustomLambdaInvokeStepPayloadSchema);
 export const ParallelForkManagerStepSchema = z.object({}).merge(SystemSteps.ParallelForkManagerStepPayloadSchema);
+export const McpCallStepSchema = z.object({}).merge(SystemSteps.McpCallStepPayloadSchema);
 
 /**
  * The most abstract schema containing all possible fields for any step type.
@@ -66,6 +67,7 @@ export const BaseStepDefinitionSchema = z.discriminatedUnion("stepType", [
   EndFlowStepSchema, WaitForExternalEventStepSchema, PollExternalApiStepSchema,
   CustomLambdaInvokeStepSchema, ParallelForkManagerStepSchema,
   StartFlowExecutionStepSchema,
+  McpCallStepSchema,
   SqsSendStepSchema,
   SnsPublishStepSchema,
   EmailStartPointStepSchema,
@@ -91,6 +93,7 @@ export const StepDefinitionSchema = BaseStepDefinitionSchema.and(z.object({
   version: z.number().int().positive().optional().default(1),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
+  moduleIdentifier: z.string().optional(),
 })).superRefine((data: any, ctx: z.RefinementCtx) => {
   if (data.stepType === StepTypeSchema.enum.DATA_TRANSFORMATION && !data.customConfig?.script && !data.moduleIdentifier) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Either a script or a moduleIdentifier is required for DATA_TRANSFORMATION steps.", path: ["moduleIdentifier"] });
@@ -132,6 +135,7 @@ export type StepInstance = z.infer<typeof StepInstanceSchema>;
  * A list of system-provided step definitions for UI and backend reference.
  */
 export const SYSTEM_STEP_DEFINITIONS: Pick<StepDefinition, 'id' | 'name' | 'stepType' | 'moduleIdentifier'>[] = [
+    { id: 'system-mcp-call', name: 'MCP Call', stepType: StepTypeSchema.enum.MCP_CALL, moduleIdentifier: SystemModuleIdentifiers.MCP_CALL },
     { id: 'system-api-call', name: 'API Call', stepType: StepTypeSchema.enum.API_CALL, moduleIdentifier: SystemModuleIdentifiers.API_CALL },
     { id: 'system-custom-lambda-invoke', name: 'Custom Lambda Invocation', stepType: StepTypeSchema.enum.CUSTOM_LAMBDA_INVOKE, moduleIdentifier: SystemModuleIdentifiers.CUSTOM_LAMBDA_INVOKE },
     { id: 'system-ddb-query-to-s3-manifest', name: 'DDB Query to S3 Manifest', stepType: StepTypeSchema.enum.DATA_LOAD, moduleIdentifier: SystemModuleIdentifiers.DDB_QUERY_TO_S3_MANIFEST },

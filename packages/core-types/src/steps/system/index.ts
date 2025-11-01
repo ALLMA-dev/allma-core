@@ -11,3 +11,4 @@ export * from './wait-for-event.js';
 export * from './polling.js';
 export * from './misc.js';
 export * from './start-points.js';
+export * from './mcp-call.js';

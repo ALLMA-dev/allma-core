@@ -7,6 +7,7 @@ import {
     StepHandler,
     TransientStepError,
     StepDefinition,
+    StepInstance,
     FlowRuntimeState,
     ENV_VAR_NAMES,
     PermanentStepError,
@@ -34,7 +35,8 @@ const DdbQueryToS3ManifestConfigSchema = z.object({
     enableItemOffloading: z.boolean().optional().default(false),
 });
 
-export const handleDdbQueryToS3Manifest: StepHandler = async (stepDef: StepDefinition, stepInput: Record<string, any>, runtimeState: FlowRuntimeState) => {
+export const handleDdbQueryToS3Manifest: StepHandler = async (stepDef: any, stepInput: Record<string, any>, runtimeState: FlowRuntimeState) => {
+    const stepInstance = stepDef as StepInstance;
     const correlationId = runtimeState.flowExecutionId;
 
     log_debug('Received stepInput for DDB to S3 manifest', stepInput, correlationId);
@@ -86,7 +88,7 @@ export const handleDdbQueryToS3Manifest: StepHandler = async (stepDef: StepDefin
                 for (const item of result.Items) {
                     let itemToWrite = item;
                     if (enableItemOffloading) {
-                        const offloadKeyPrefix = `manifest_items/${correlationId}/${stepDef.stepInstanceId}`;
+                        const offloadKeyPrefix = `manifest_items/${correlationId}/${stepInstance.stepInstanceId}`;
                         const offloadedItemOrPointer = await offloadIfLarge(
                             item,
                             EXECUTION_TRACES_BUCKET_NAME!, // We've already checked this is defined.

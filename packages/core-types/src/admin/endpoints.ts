@@ -59,6 +59,11 @@ export const ALLMA_ADMIN_API_ROUTES = {
   // Import / Export
   IMPORT: '/allma/import',
   EXPORT: '/allma/export',
+
+  // MCP Connections
+  MCP_CONNECTIONS: '/allma/mcp-connections',
+  MCP_CONNECTION_DETAIL: (connectionId: string) => `/allma/mcp-connections/${connectionId}`,
+  MCP_CONNECTION_DISCOVER: (connectionId: string) => `/allma/mcp-connections/${connectionId}/discover`,
 };
 
 export function getStageFromEnv(env?: string, fallback: Stage = Stage.PROD): Stage {

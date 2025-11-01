@@ -1,4 +1,5 @@
 export const SystemModuleIdentifiers = {
+    MCP_CALL: 'system/mcp-call',
     API_CALL: 'system/api-call',
     CUSTOM_LAMBDA_INVOKE: 'system/custom-lambda-invoke',
     DDB_QUERY_TO_S3_MANIFEST: 'system/ddb-query-to-s3-manifest',
