@@ -1,5 +1,4 @@
-import { LogLevel } from '@allma/core-types/src/common/core';
-import { Stage as AppStage } from '@allma/core-types/src/common/shared';
+import { LogLevel, Stage as AppStage } from '@allma/core-types';
 
 /**
  * Recursively makes all properties of an object optional.

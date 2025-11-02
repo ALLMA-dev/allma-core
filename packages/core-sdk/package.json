@@ -41,12 +41,14 @@
     "@aws-sdk/client-sqs": "^3.500.0",
     "@aws-sdk/client-ssm": "^3.500.0",
     "@aws-sdk/client-sfn": "^3.500.0",
-    "@aws-sdk/lib-dynamodb": "^3.500.0",
-    "zod": "^3.22.4"
+    "@aws-sdk/lib-dynamodb": "^3.500.0"
   },
   "devDependencies": {
     "typescript": "^5.9.3",
     "eslint": "^9.8.0",
     "typescript-eslint": "^8.0.0"
+  },
+  "peerDependencies": {
+    "zod": "^3.22.4"
   }
 }

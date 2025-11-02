@@ -4,8 +4,8 @@
       "module": "es2020",
       "outDir": "./dist",
       "rootDir": "src",
-      "declaration": false,
-      "declarationMap": false,
+      "declaration": true,
+      "declarationMap": true,
       "sourceMap": true,
       "noUnusedLocals": false,
       "noUnusedParameters": false

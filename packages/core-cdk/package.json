@@ -7,6 +7,7 @@
   "type": "module",
   "files": [
     "dist/",
+    "dist-logic/",
     "bin/",
     "lib/",
     "config/"
