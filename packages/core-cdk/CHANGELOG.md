@@ -1,5 +1,13 @@
 # @allma/core-cdk
 
+## 1.0.5
+
+### Patch Changes
+
+- 33b6f11: Dependencies and paths updated to fix deployment issues
+- Updated dependencies [33b6f11]
+  - @allma/core-types@1.0.4
+
 ## 1.0.4
 
 ### Patch Changes
