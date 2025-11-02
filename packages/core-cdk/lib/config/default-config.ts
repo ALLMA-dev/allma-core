@@ -1,5 +1,5 @@
 import { Stage, LogLevel } from '@allma/core-types';
-import { StageConfig } from './stack-config';
+import { LambdaArchitectureType, StageConfig } from './stack-config';
 
 /**
  * Default configuration for the Allma platform.
@@ -36,6 +36,7 @@ export const defaultConfig: StageConfig = {
   },
 
   // --- Lambda Resource Settings ---
+  lambdaArchitecture: LambdaArchitectureType.ARM_64,
   lambdaMemorySizes: {
     default: 256,
     iterativeStepProcessor: 1024,

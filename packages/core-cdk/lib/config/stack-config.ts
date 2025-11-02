@@ -1,6 +1,14 @@
 import { LogLevel, Stage as AppStage } from '@allma/core-types';
 
 /**
+ * Defines the CPU architecture for Lambda functions.
+ */
+export enum LambdaArchitectureType {
+  ARM_64 = 'ARM_64',
+  X86_64 = 'X86_64',
+}
+
+/**
  * Recursively makes all properties of an object optional.
  */
 export type DeepPartial<T> = T extends object ? {
@@ -146,6 +154,12 @@ export interface StageConfig {
     flowStartRequestListener: number;
     crawlerWorker: number;
   };
+
+  /**
+   * The CPU architecture for Lambda functions.
+   * @default LambdaArchitectureType.ARM_64
+   */
+  lambdaArchitecture: LambdaArchitectureType;
 
   /**
    * Timeout settings for Lambda functions.

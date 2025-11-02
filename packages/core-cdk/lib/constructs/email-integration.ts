@@ -13,7 +13,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
 import { ENV_VAR_NAMES, ALLMA_ADMIN_API_ROUTES } from '@allma/core-types';
-import { StageConfig } from '../config/stack-config.js';
+import { LambdaArchitectureType, StageConfig } from '../config/stack-config.js';
 
 const __filename_email = fileURLToPath(import.meta.url);
 const __dirname_email = dirname(__filename_email);
@@ -68,6 +68,11 @@ export class EmailIntegration extends Construct {
           }));
 
         // 3. Lambda function to process emails
+        const architecture =
+            stageConfig.lambdaArchitecture === LambdaArchitectureType.ARM_64
+                ? lambda.Architecture.ARM_64
+                : lambda.Architecture.X86_64;
+
         const emailIngressLambda = new lambdaNodejs.NodejsFunction(this, 'EmailIngressLambda', {
             functionName: `AllmaEmailIngress-${stageConfig.stage}`,
             runtime: lambda.Runtime.NODEJS_22_X,
@@ -90,7 +95,7 @@ export class EmailIntegration extends Construct {
                 sourceMap: true,
                 externalModules: ['aws-sdk', '@aws-sdk/client-s3', '@aws-sdk/client-dynamodb', '@aws-sdk/client-sqs'],
             },
-            architecture: lambda.Architecture.ARM_64,
+            architecture: architecture,
         });
 
         // 4. SES Receipt Rule

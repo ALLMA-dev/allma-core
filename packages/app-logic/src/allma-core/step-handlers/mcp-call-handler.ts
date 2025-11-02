@@ -1,5 +1,4 @@
-import { StepHandler, StepDefinition, FlowRuntimeState, PermanentStepError } from '@allma/core-types';
-import { McpCallStepPayloadSchema } from '../../../../core-types/src/steps/system/mcp-call.js';
+import { StepHandler, StepDefinition, FlowRuntimeState, PermanentStepError, McpCallStepPayloadSchema } from '@allma/core-types';
 import { McpConnectionService } from '../../allma-admin/services/mcp-connection.service.js';
 import { callTool } from '../utils/mcp-client.js';
 

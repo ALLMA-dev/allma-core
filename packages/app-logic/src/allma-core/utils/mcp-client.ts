@@ -1,7 +1,6 @@
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
-import { McpConnection, McpAuthentication } from '../../../../core-types/src/mcp/connections.js';
+import { McpConnection, McpAuthentication, PermanentStepError, TransientStepError } from '@allma/core-types';
 import axios from 'axios';
-import { PermanentStepError, TransientStepError } from '../../../../core-types/src/errors.js';
 
 const secretsManager = new SecretsManagerClient({});
 

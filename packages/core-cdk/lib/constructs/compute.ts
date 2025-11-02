@@ -11,7 +11,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
 import { ENV_VAR_NAMES } from '@allma/core-types';
-import { StageConfig } from 'lib/config/stack-config';
+import { LambdaArchitectureType, StageConfig } from 'lib/config/stack-config';
 
 const __filename_compute = fileURLToPath(import.meta.url);
 const __dirname_compute = dirname(__filename_compute);
@@ -43,10 +43,12 @@ export class AllmaCompute extends Construct {
   public readonly executionLoggerLambda: lambdaNodejs.NodejsFunction;
   public readonly orchestrationLambdaRole: iam.Role;
   public readonly configImporterLambda: lambdaNodejs.NodejsFunction;
+  private readonly stageConfig: StageConfig;
 
 
   constructor(scope: Construct, id: string, props: AllmaComputeProps) {
     super(scope, id);
+    this.stageConfig = props.stageConfig;
 
     const {
       stageConfig,
@@ -294,6 +296,11 @@ export class AllmaCompute extends Construct {
     timeout: cdk.Duration, memorySize: number, environment: { [key: string]: string },
     bundlingOptions?: lambdaNodejs.BundlingOptions, layers?: lambda.ILayerVersion[],
   ): lambdaNodejs.NodejsFunction {
+    const architecture =
+      this.stageConfig.lambdaArchitecture === LambdaArchitectureType.ARM_64
+        ? lambda.Architecture.ARM_64
+        : lambda.Architecture.X86_64;
+
     return new lambdaNodejs.NodejsFunction(this, id, {
       functionName,
       runtime: lambda.Runtime.NODEJS_22_X,
@@ -311,7 +318,7 @@ export class AllmaCompute extends Construct {
         forceDockerBundling: false,
         ...bundlingOptions,
       },
-      architecture: lambda.Architecture.ARM_64,
+      architecture: architecture,
     });
   }
 }

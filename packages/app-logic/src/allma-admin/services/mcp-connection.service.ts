@@ -1,6 +1,5 @@
 import { GenericEntityManager } from './generic-entity.service.js';
-import { McpConnection, McpConnectionSchema } from '../../../../core-types/src/mcp/connections.js';
-import { ITEM_TYPE_ALLMA_MCP_CONNECTION } from '../../../../core-types/src/common/core.js';
+import { McpConnection, McpConnectionSchema, ITEM_TYPE_ALLMA_MCP_CONNECTION } from '@allma/core-types';
 import { v4 as uuidv4 } from 'uuid';
 
 const entityManager = new GenericEntityManager<McpConnection>({

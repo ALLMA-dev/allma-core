@@ -19,7 +19,9 @@
     "@aws-sdk/client-sesv2": "^3.626.0",
     "@aws-sdk/client-scheduler": "^3.614.0",
     "@langchain/google-vertexai": "^1.0.0",
+    "axios": "^1.7.2",
     "mailparser": "^3.7.0",
+    "handlebars": "^4.7.8",
     "zod": "^3.22.4"
   },
   "devDependencies": {

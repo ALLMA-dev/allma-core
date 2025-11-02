@@ -13,7 +13,7 @@ import { dirname } from 'node:path';
 import { ENV_VAR_NAMES, ALLMA_ADMIN_API_ROUTES } from '@allma/core-types';
 import { AdminAuthentication } from './admin-authentication.js';
 import { AllmaAdminApi } from './admin-api.js';
-import { StageConfig } from 'lib/config/stack-config.js';
+import { LambdaArchitectureType, StageConfig } from 'lib/config/stack-config.js';
 
 const __filename_api = fileURLToPath(import.meta.url);
 const __dirname_api = dirname(__filename_api);
@@ -44,9 +44,11 @@ export class ApiConstruct extends Construct {
     public readonly httpApi: apigwv2.HttpApi;
     public readonly apiDomainName: apigwv2.DomainName | undefined;
     public readonly apiStage: apigwv2.HttpStage; // Expose the stage for URL construction
+    private readonly stageConfig: StageConfig;
   
     constructor(scope: Construct, id: string, props: ApiConstructProps) {
         super(scope, id);
+        this.stageConfig = props.stageConfig;
         const { stageConfig, configTable, flowExecutionLogTable, emailToFlowMappingTable, executionTracesBucket, iterativeStepProcessorLambda, orchestrationLambdaRole, resumeFlowLambda, flowTriggerApiLambda, flowOrchestratorStateMachine } = props;
 
         // --- Authentication ---
@@ -185,6 +187,11 @@ export class ApiConstruct extends Construct {
         id: string, functionName: string, entry: string, role: iam.IRole,
         timeout: cdk.Duration, memorySize: number, environment: { [key: string]: string },
     ): lambdaNodejs.NodejsFunction {
+        const architecture =
+          this.stageConfig.lambdaArchitecture === LambdaArchitectureType.ARM_64
+            ? lambda.Architecture.ARM_64
+            : lambda.Architecture.X86_64;
+
         return new lambdaNodejs.NodejsFunction(this, id, {
             functionName,
             runtime: lambda.Runtime.NODEJS_22_X,
@@ -200,7 +207,7 @@ export class ApiConstruct extends Construct {
                 externalModules: ['aws-sdk', '@aws-sdk/client-dynamodb', '@aws-sdk/lib-dynamodb', '@aws-sdk/client-s3', '@aws-sdk/client-sqs', '@aws-sdk/client-sns', '@aws-sdk/client-lambda', '@aws-sdk/client-sfn', '@aws-sdk/client-bedrock-runtime', '@aws-sdk/client-sesv2'],
                 forceDockerBundling: false,
             },
-            architecture: lambda.Architecture.ARM_64,
+            architecture: architecture,
         });
     }
 }
