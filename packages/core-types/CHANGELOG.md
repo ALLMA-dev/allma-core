@@ -1,5 +1,11 @@
 # @allma/core-types
 
+## 1.0.4
+
+### Patch Changes
+
+- 33b6f11: Dependencies and paths updated to fix deployment issues
+
 ## 1.0.3
 
 ### Patch Changes
