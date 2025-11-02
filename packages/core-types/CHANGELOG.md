@@ -1,5 +1,11 @@
 # @allma/core-types
 
+## 1.0.3
+
+### Patch Changes
+
+- 921cdc7: packages configuration fixed for public use
+
 ## 1.0.2
 
 ### Patch Changes

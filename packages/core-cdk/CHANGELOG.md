@@ -1,5 +1,13 @@
 # @allma/core-cdk
 
+## 1.0.3
+
+### Patch Changes
+
+- 921cdc7: packages configuration fixed for public use
+- Updated dependencies [921cdc7]
+  - @allma/core-types@1.0.3
+
 ## 1.0.2
 
 ### Patch Changes
