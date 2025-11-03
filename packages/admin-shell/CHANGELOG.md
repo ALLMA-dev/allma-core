@@ -1,5 +1,11 @@
 # @allma/admin-shell
 
+## 1.0.3
+
+### Patch Changes
+
+- 389235b: Core error reporting improve. Admin UI MCP paths fix
+
 ## 1.0.2
 
 ### Patch Changes
