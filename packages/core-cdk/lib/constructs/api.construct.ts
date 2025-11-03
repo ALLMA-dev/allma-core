@@ -13,7 +13,7 @@ import { dirname } from 'node:path';
 import { ENV_VAR_NAMES, ALLMA_ADMIN_API_ROUTES } from '@allma/core-types';
 import { AdminAuthentication } from './admin-authentication.js';
 import { AllmaAdminApi } from './admin-api.js';
-import { LambdaArchitectureType, StageConfig } from 'lib/config/stack-config.js';
+import { LambdaArchitectureType, StageConfig } from '../config/stack-config.js';
 
 const __filename_api = fileURLToPath(import.meta.url);
 const __dirname_api = dirname(__filename_api);

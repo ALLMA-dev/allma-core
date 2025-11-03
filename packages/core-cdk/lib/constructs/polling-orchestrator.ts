@@ -3,7 +3,7 @@ import { Construct } from 'constructs';
 import * as sfn from 'aws-cdk-lib/aws-stepfunctions';
 import * as sfnTasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
-import { StageConfig } from 'lib/config/stack-config.js';
+import { StageConfig } from '../config/stack-config.js';
 
 interface PollingOrchestratorProps {
   stageConfig: StageConfig;

@@ -2,7 +2,7 @@ import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import { RemovalPolicy, CfnOutput, Duration } from 'aws-cdk-lib';
-import { StageConfig } from 'lib/config/stack-config.js';
+import { StageConfig } from '../config/stack-config.js';
 
 interface AdminAuthenticationProps {
   stageConfig: StageConfig;

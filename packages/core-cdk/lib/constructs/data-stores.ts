@@ -2,7 +2,7 @@ import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as s3 from 'aws-cdk-lib/aws-s3';
-import { StageConfig } from 'lib/config/stack-config.js';
+import { StageConfig } from '../config/stack-config.js';
 
 interface AllmaDataStoresProps {
   stageConfig: StageConfig;

@@ -7,7 +7,7 @@ import *as iam from 'aws-cdk-lib/aws-iam';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import { RETRYABLE_STEP_ERROR_NAME, CONTENT_BASED_RETRYABLE_ERROR_NAME, SfnActionType } from '@allma/core-types';
-import { StageConfig } from 'lib/config/stack-config.js';
+import { StageConfig } from '../config/stack-config.js';
 
 interface AllmaOrchestrationProps {
   stageConfig: StageConfig;
