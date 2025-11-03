@@ -10,7 +10,7 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import { ALLMA_ADMIN_API_ROUTES } from '@allma/core-types';
-import { StageConfig } from 'lib/config/stack-config';
+import { StageConfig } from 'lib/config/stack-config.js';
 
 interface AllmaAdminApiProps {
   stageConfig: StageConfig;

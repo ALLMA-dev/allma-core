@@ -1,5 +1,5 @@
 import { Stage, LogLevel } from '@allma/core-types';
-import { LambdaArchitectureType, StageConfig } from './stack-config';
+import { LambdaArchitectureType, StageConfig } from './stack-config.js';
 
 /**
  * Default configuration for the Allma platform.

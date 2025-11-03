@@ -11,7 +11,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
 import { ENV_VAR_NAMES } from '@allma/core-types';
-import { LambdaArchitectureType, StageConfig } from 'lib/config/stack-config';
+import { LambdaArchitectureType, StageConfig } from 'lib/config/stack-config.js';
 
 const __filename_compute = fileURLToPath(import.meta.url);
 const __dirname_compute = dirname(__filename_compute);

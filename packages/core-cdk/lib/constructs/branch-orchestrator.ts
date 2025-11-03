@@ -5,7 +5,7 @@ import * as sfnTasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { CONTENT_BASED_RETRYABLE_ERROR_NAME, RETRYABLE_STEP_ERROR_NAME } from '@allma/core-types';
-import { StageConfig } from 'lib/config/stack-config';
+import { StageConfig } from 'lib/config/stack-config.js';
 
 interface BranchOrchestratorProps {
   stageConfig: StageConfig;
