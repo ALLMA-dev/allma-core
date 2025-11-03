@@ -1,5 +1,11 @@
 # @allma/core-cdk
 
+## 1.0.7
+
+### Patch Changes
+
+- 63fc2b8: paths fix in CDK
+
 ## 1.0.6
 
 ### Patch Changes
