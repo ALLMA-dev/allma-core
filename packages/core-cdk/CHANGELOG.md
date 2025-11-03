@@ -1,5 +1,11 @@
 # @allma/core-cdk
 
+## 1.0.8
+
+### Patch Changes
+
+- e753c0e: Lambdas deploy fix. Flows import with CDK update
+
 ## 1.0.7
 
 ### Patch Changes
