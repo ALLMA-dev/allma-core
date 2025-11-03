@@ -26,7 +26,7 @@
   },
   "dependencies": {
     "@allma/core-cdk": "1.0.8",
-    "@allma/admin-shell": "1.0.2",
+    "@allma/admin-shell": "1.0.3",
     "aws-cdk-lib": "^2.130.0",
     "constructs": "^10.0.0",
     "source-map-support": "^0.5.21"
