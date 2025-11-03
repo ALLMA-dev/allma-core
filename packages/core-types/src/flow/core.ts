@@ -63,9 +63,32 @@ export const FlowDefinitionSchema = z.object({
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: `startStepInstanceId '${data.startStepInstanceId}' does not exist in the steps map.`, path: ["startStepInstanceId"] });
   }
   Object.entries(data.steps).forEach(([stepId, step]: [string, StepInstance]) => {
-    step.transitions?.forEach((t: { condition: string; nextStepInstanceId: string; }) => { if (!data.steps[t.nextStepInstanceId]) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Transition in step '${stepId}' points to non-existent step '${t.nextStepInstanceId}'.`, path: ["steps", stepId, "transitions"] }); });
-    if (step.defaultNextStepInstanceId && !data.steps[step.defaultNextStepInstanceId]) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `defaultNextStepInstanceId in step '${stepId}' points to non-existent step '${step.defaultNextStepInstanceId}'.`, path: ["steps", stepId, "defaultNextStepInstanceId"] });
-    if (step.onError?.fallbackStepInstanceId && !data.steps[step.onError.fallbackStepInstanceId]) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `onError.fallbackStepInstanceId in step '${stepId}' points to non-existent step '${step.onError.fallbackStepInstanceId}'.`, path: ["steps", stepId, "onError", "fallbackStepInstanceId"] });
+    step.transitions?.forEach((t, i) => {
+      // CORRECTED: Provide a full path to the specific transition target that is invalid.
+      if (!data.steps[t.nextStepInstanceId]) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Transition target '${t.nextStepInstanceId}' does not exist in this flow.`,
+          path: ["steps", stepId, "transitions", i, "nextStepInstanceId"]
+        });
+      }
+    });
+    // CORRECTED: Provide a full path to the defaultNextStepInstanceId property.
+    if (step.defaultNextStepInstanceId && !data.steps[step.defaultNextStepInstanceId]) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `defaultNextStepInstanceId '${step.defaultNextStepInstanceId}' points to a non-existent step.`,
+        path: ["steps", stepId, "defaultNextStepInstanceId"]
+      });
+    }
+    // CORRECTED: Provide a full path to the fallbackStepInstanceId property.
+    if (step.onError?.fallbackStepInstanceId && !data.steps[step.onError.fallbackStepInstanceId]) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `onError.fallbackStepInstanceId '${step.onError.fallbackStepInstanceId}' points to a non-existent step.`,
+        path: ["steps", stepId, "onError", "fallbackStepInstanceId"]
+      });
+    }
     if (step.stepType === StepTypeSchema.enum.PARALLEL_FORK_MANAGER && step.aggregationConfig?.dataPath) {
         checkJsonPath(['steps', stepId, 'aggregationConfig', 'dataPath'], step.aggregationConfig.dataPath, ctx);
     }

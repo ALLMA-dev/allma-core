@@ -1,6 +1,6 @@
 import { useForm, zodResolver } from '@mantine/form';
 import { useNavigate } from 'react-router-dom';
-import { CreateMcpConnectionInputSchema, CreateMcpConnectionInput } from '@allma/core-types/src/admin/api-schemas';
+import { CreateMcpConnectionInputSchema, CreateMcpConnectionInput } from '@allma/core-types';
 import { useCreateMcpConnection } from '../../api/mcpConnectionService';
 import { McpConnectionForm } from './components/McpConnectionForm';
 import { PageContainer } from '@allma/ui-components';

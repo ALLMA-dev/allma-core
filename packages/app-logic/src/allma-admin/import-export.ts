@@ -32,6 +32,7 @@ async function mainHandler(
 ): Promise<APIGatewayProxyResultV2> {
   const correlationId = event.requestContext.requestId;
   const { body, rawPath } = event;
+  const importer = new AllmaImporterService();
 
   try {
     // --- EXPORT LOGIC ---
@@ -109,14 +110,20 @@ async function mainHandler(
         return createApiGatewayResponse(403, buildErrorResponse('Forbidden: You do not have permission to import definitions.', 'FORBIDDEN'), correlationId);
       }
 
-      const validation = ImportApiInputSchema.safeParse(JSON.parse(body || '{}'));
-      if (!validation.success) {
-        return createApiGatewayResponse(400, buildErrorResponse('Invalid input for import.', 'VALIDATION_ERROR', validation.error.flatten()), correlationId);
+      const rawData = JSON.parse(body || '{}');
+      const validationResult = importer.validateImportData(rawData);
+
+      if (!validationResult.success) {
+        return createApiGatewayResponse(400, buildErrorResponse('Invalid input for import.', 'VALIDATION_ERROR', validationResult.error), correlationId);
       }
-      const { options, ...importData } = validation.data;
+
+      // We still need to parse options which are part of the API payload but not the core export format.
+      const optionsValidation = ImportApiInputSchema.pick({ options: true }).safeParse(rawData);
+      if (!optionsValidation.success) {
+         return createApiGatewayResponse(400, buildErrorResponse('Invalid import options.', 'VALIDATION_ERROR', optionsValidation.error.flatten()), correlationId);
+      }
       
-      const importer = new AllmaImporterService();
-      const result = await importer.import(importData, options);
+      const result = await importer.import(validationResult.data, optionsValidation.data.options);
 
       return createApiGatewayResponse(200, buildSuccessResponse(result), correlationId);
     }

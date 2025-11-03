@@ -1,6 +1,6 @@
 import { TextInput, SegmentedControl, Stack, Button, Group, Text } from '@mantine/core';
 import { UseFormReturnType } from '@mantine/form';
-import { CreateMcpConnectionInput } from '@allma/core-types/src/admin/api-schemas';
+import { CreateMcpConnectionInput } from '@allma/core-types';
 
 interface McpConnectionFormProps {
     form: UseFormReturnType<CreateMcpConnectionInput>;

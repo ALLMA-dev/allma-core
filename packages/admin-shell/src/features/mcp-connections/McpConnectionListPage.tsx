@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useGetMcpConnections, useDeleteMcpConnection } from '../../api/mcpConnectionService';
 import { PageContainer } from '@allma/ui-components';
 import { modals } from '@mantine/modals';
-import { McpConnectionMetadataStorageItem as McpConnectionSummary } from '@allma/core-types/src/mcp/connections';
+import { McpConnectionMetadataStorageItem as McpConnectionSummary } from '@allma/core-types';
 
 export function McpConnectionListPage() {
     const navigate = useNavigate();

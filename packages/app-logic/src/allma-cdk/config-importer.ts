@@ -1,6 +1,6 @@
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { AllmaImporterService } from '../services/allma-importer.service.js';
-import { AllmaExportFormatSchema, AllmaExportFormat, StepDefinition, FlowDefinition } from '@allma/core-types';
+import { AllmaExportFormat, StepDefinition, FlowDefinition } from '@allma/core-types';
 import { sendCloudFormationResponse, CloudFormationEvent } from '@allma/core-sdk';
 import fs from 'fs';
 import path from 'path';
@@ -33,17 +33,32 @@ async function downloadAsset(bucket: string, key: string): Promise<string> {
 }
 
 /**
- * Aggregates step definitions and flows from a parsed JSON object into accumulator arrays.
- * @param data The parsed JSON data, expected to conform to AllmaExportFormat.
+ * Validates and aggregates config data from a single file.
+ * This now uses the centralized validation service.
+ * @param data The parsed JSON data from a file.
  * @param allStepDefinitions Accumulator for step definitions.
  * @param allFlows Accumulator for flows.
+ * @param sourceFileName The name of the file for error reporting.
  */
-function aggregateConfigData(data: unknown, allStepDefinitions: StepDefinition[], allFlows: FlowDefinition[]): void {
-  const validationResult = AllmaExportFormatSchema.safeParse(data);
+function aggregateConfigData(
+  data: unknown,
+  allStepDefinitions: StepDefinition[],
+  allFlows: FlowDefinition[],
+  sourceFileName: string
+): void {
+  const importer = new AllmaImporterService();
+  const validationResult = importer.validateImportData(data, sourceFileName);
+
   if (!validationResult.success) {
-    // Throw a more informative error
-    const errorDetails = validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
-    throw new Error(`Configuration file is invalid: ${errorDetails}`);
+    // Format the structured error for clear logging in CloudFormation/CDK output.
+    const errorMessages: string[] = [];
+    validationResult.error.formErrors.forEach(err => errorMessages.push(err));
+    for (const [field, errors] of Object.entries(validationResult.error.fieldErrors)) {
+      if (errors) {
+        errorMessages.push(`Field '${field}': ${errors.join(', ')}`);
+      }
+    }
+    throw new Error(`Validation failed for ${sourceFileName}:\n- ${errorMessages.join('\n- ')}`);
   }
 
   const config = validationResult.data;
@@ -79,13 +94,13 @@ export async function handler(event: CloudFormationEvent): Promise<void> {
           if (!entry.isDirectory && entry.entryName.endsWith('.json')) {
             const fileContent = entry.getData().toString('utf8');
             const jsonData = JSON.parse(fileContent);
-            aggregateConfigData(jsonData, allStepDefinitions, allFlows);
+            aggregateConfigData(jsonData, allStepDefinitions, allFlows, entry.entryName);
           }
         }
       } else {
         const fileContent = fs.readFileSync(localAssetPath, 'utf8');
         const jsonData = JSON.parse(fileContent);
-        aggregateConfigData(jsonData, allStepDefinitions, allFlows);
+        aggregateConfigData(jsonData, allStepDefinitions, allFlows, path.basename(S3Key));
       }
 
       const finalConfig: AllmaExportFormat = {
@@ -101,7 +116,7 @@ export async function handler(event: CloudFormationEvent): Promise<void> {
       console.log('Import summary:', JSON.stringify(result, null, 2));
 
       if (result.errors.length > 0) {
-        const errorSummary = result.errors.map(e => e.message).join('; ');
+        const errorSummary = result.errors.map(e => `[${e.type}:${e.id}] ${e.message}`).join('; ');
         throw new Error(`Import failed with ${result.errors.length} errors: ${errorSummary}`);
       }
 

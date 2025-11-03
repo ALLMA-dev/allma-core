@@ -1,8 +1,87 @@
-import { AllmaExportFormat, ImportApiResponse, FlowDefinition } from '@allma/core-types';
+import { AllmaExportFormat, AllmaExportFormatSchema, ImportApiResponse, StepDefinitionSchema, FlowDefinitionSchema } from '@allma/core-types';
 import { FlowDefinitionService } from '../allma-admin/services/flow-definition.service.js';
 import { StepDefinitionService } from '../allma-admin/services/step-definition.service.js';
 
+type ValidationResult = 
+  | { success: true; data: AllmaExportFormat }
+  | { success: false; error: { formErrors: string[]; fieldErrors: Record<string, string[]> } };
+
 export class AllmaImporterService {
+  /**
+   * Validates the raw data for an import operation with detailed, item-by-item checks.
+   * @param rawData The raw, unparsed data from the import request.
+   * @param sourceFileName Optional name of the source file for more descriptive error messages.
+   * @returns A discriminated union indicating success with parsed data, or failure with structured errors.
+   */
+  public validateImportData(rawData: unknown, sourceFileName?: string): ValidationResult {
+    const filePrefix = sourceFileName ? `[${sourceFileName}] ` : '';
+    const topLevelSchema = AllmaExportFormatSchema.omit({ flows: true, stepDefinitions: true });
+    const topLevelValidation = topLevelSchema.safeParse(rawData);
+
+    if (!topLevelValidation.success) {
+      return { success: false, error: topLevelValidation.error.flatten() };
+    }
+
+    const data = rawData as Partial<AllmaExportFormat>;
+    const fieldErrors: Record<string, string[]> = {};
+    const formErrors: string[] = [];
+
+    // Validate each flow individually
+    if (data.flows && Array.isArray(data.flows)) {
+      data.flows.forEach((flow, index) => {
+        const flowValidation = FlowDefinitionSchema.safeParse(flow);
+        if (!flowValidation.success) {
+          const flattened = flowValidation.error.flatten();
+          const flowIdentifier = (flow as any)?.id ? `'${(flow as any).id}' (v${(flow as any).version})` : `at index ${index}`;
+          
+          flattened.formErrors.forEach(err => {
+            formErrors.push(`${filePrefix}Flow ${flowIdentifier}: ${err}`);
+          });
+          for (const [field, errors] of Object.entries(flattened.fieldErrors)) {
+            if (errors) {
+                const key = `flows[${index}].${field}`;
+                fieldErrors[key] = (fieldErrors[key] || []).concat(errors.map(e => `${filePrefix}${e}`));
+            }
+          }
+        }
+      });
+    }
+
+    // Validate each step definition individually
+    if (data.stepDefinitions && Array.isArray(data.stepDefinitions)) {
+      data.stepDefinitions.forEach((step, index) => {
+        const stepValidation = StepDefinitionSchema.safeParse(step);
+        if (!stepValidation.success) {
+          const flattened = stepValidation.error.flatten();
+          const stepIdentifier = (step as any)?.id ? `'${(step as any).id}'` : `at index ${index}`;
+
+          flattened.formErrors.forEach(err => {
+            formErrors.push(`${filePrefix}Step Definition ${stepIdentifier}: ${err}`);
+          });
+          for (const [field, errors] of Object.entries(flattened.fieldErrors)) {
+            if (errors) {
+                const key = `stepDefinitions[${index}].${field}`;
+                fieldErrors[key] = (fieldErrors[key] || []).concat(errors.map(e => `${filePrefix}${e}`));
+            }
+          }
+        }
+      });
+    }
+    
+    if (formErrors.length > 0 || Object.keys(fieldErrors).length > 0) {
+      return { success: false, error: { formErrors, fieldErrors } };
+    }
+
+    // Final parse of the whole object to get a fully typed result
+    const finalValidation = AllmaExportFormatSchema.safeParse(data);
+    if (finalValidation.success) {
+      return { success: true, data: finalValidation.data };
+    } else {
+      // This should be unreachable if the above logic is correct, but serves as a safeguard.
+      return { success: false, error: finalValidation.error.flatten() };
+    }
+  }
+
   public async import(
     data: AllmaExportFormat,
     options: { overwrite: boolean }

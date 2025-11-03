@@ -1,7 +1,7 @@
 import { Select, Stack, Text, Loader, Alert, JsonInput } from '@mantine/core';
 import { UseFormReturnType } from '@mantine/form';
 import { StepDefinition, StepInstance } from '@allma/core-types';
-import { DiscoverToolResponse } from '@allma/core-types/src/admin/api-schemas';
+import { DiscoverToolResponse } from '@allma/core-types';
 type McpToolDefinition = DiscoverToolResponse[number];
 import { useGetMcpConnections, useDiscoverTools } from '../../../../../../api/mcpConnectionService';
 import { useState, useMemo, useEffect } from 'react';
