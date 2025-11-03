@@ -25,9 +25,11 @@
     "axios": "^1.7.2",
     "mailparser": "^3.7.0",
     "handlebars": "^4.7.8",
-    "zod": "^3.22.4"
+    "zod": "^3.22.4",
+    "adm-zip": "^0.5.10"
   },
   "devDependencies": {
+    "@types/adm-zip": "^0.5.5",
     "@types/aws-lambda": "^8.10.142",
     "@types/mailparser": "^3.4.4",
     "copyfiles": "^2.4.1",

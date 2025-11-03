@@ -245,9 +245,16 @@ export interface StageConfig {
   };
 
   /**
-   * Optional path to a local JSON file containing initial Allma configuration (Flows, Steps)
-   * to be imported during CDK deployment.
-   * @example './config/initial-setup.json'
+   * Optional path to a file or directory containing an initial Allma configuration to load.
+   * The path can point to either a single JSON file or a directory.
+   *
+   * If a directory is provided, all `.json` files within it will be bundled and imported.
+   * Each JSON file must conform to the AllmaExportFormat structure, containing `stepDefinitions` and/or `flows` arrays.
+   *
+   * This is useful for initializing a new environment with a baseline configuration.
+   *
+   * @default - no initial configuration is loaded
+   * @example './allma-config' or './allma-config.json'
    */
   initialAllmaConfigPath?: string;
 }

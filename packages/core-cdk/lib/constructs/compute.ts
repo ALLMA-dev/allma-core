@@ -314,7 +314,7 @@ export class AllmaCompute extends Construct {
       bundling: {
         minify: true,
         sourceMap: true,
-        externalModules: ['aws-sdk', '@aws-sdk/client-dynamodb', '@aws-sdk/lib-dynamodb', '@aws-sdk/client-s3', '@aws-sdk/client-sqs', '@aws-sdk/client-sns', '@aws-sdk/client-lambda', '@aws-sdk/client-sfn', '@aws-sdk/client-bedrock-runtime', '@aws-sdk/client-sesv2'],
+        externalModules: ['aws-sdk', '@aws-sdk/*', '@smithy/*'],
         forceDockerBundling: false,
         ...bundlingOptions,
       },
