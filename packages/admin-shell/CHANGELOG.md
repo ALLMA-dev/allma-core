@@ -1,5 +1,13 @@
 # @allma/admin-shell
 
+## 1.0.4
+
+### Patch Changes
+
+- af014ee: Packages configurations fix for NPM
+- Updated dependencies [af014ee]
+  - @allma/core-types@1.0.6
+
 ## 1.0.3
 
 ### Patch Changes
