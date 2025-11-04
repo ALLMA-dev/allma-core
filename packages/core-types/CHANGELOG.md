@@ -1,5 +1,11 @@
 # @allma/core-types
 
+## 1.0.6
+
+### Patch Changes
+
+- af014ee: Packages configurations fix for NPM
+
 ## 1.0.5
 
 ### Patch Changes

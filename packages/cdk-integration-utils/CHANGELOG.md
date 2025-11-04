@@ -1,5 +1,13 @@
 # @allma/cdk-integration-utils
 
+## 1.0.6
+
+### Patch Changes
+
+- af014ee: Packages configurations fix for NPM
+- Updated dependencies [af014ee]
+  - @allma/core-types@1.0.6
+
 ## 1.0.5
 
 ### Patch Changes
