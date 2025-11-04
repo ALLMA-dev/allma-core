@@ -2,10 +2,10 @@ import { Stack, Accordion, Group, Text, ScrollArea } from '@mantine/core';
 import { UseFormReturnType } from '@mantine/form';
 import { StepDefinition, StepInstance } from '@allma/core-types';
 import React from 'react';
-import { CommonMappings, ErrorHandling, AdditionalParameters } from './components';
+import { CommonMappings, ErrorHandling, AdditionalParameters } from './components/index.js';
 import { EditableJsonView } from '@allma/ui-components';
-import { DocPopup } from '../../../components';
-import useFlowEditorStore from '../../flows/editor/hooks/useFlowEditorStore';
+import { DocPopup } from '../../../components/index.js';
+import useFlowEditorStore from '../../flows/editor/hooks/useFlowEditorStore.js';
 
 interface StepFormLayoutProps {
     form: UseFormReturnType<StepInstance | Partial<StepDefinition>>;
@@ -64,7 +64,7 @@ function LayoutWithHooks(props: StepFormLayoutProps) {
                                         value={(form.values as any).customConfig}
                                         onChange={createChangeHandler('customConfig')}
                                         readOnly={readOnly}
-                                        displayVariant={isFieldInherited('customConfig') ? 'inherited' : 'default'}
+                                        displayVariant={isFieldInherited?.('customConfig') ? 'inherited' : 'default'}
                                         error={customConfigError}
                                     />
                                 </Stack>
@@ -117,7 +117,7 @@ export function StepFormLayout(props: StepFormLayoutProps) {
                                         value={(form.values as any).customConfig}
                                         onChange={createChangeHandler('customConfig')}
                                         readOnly={readOnly}
-                                        displayVariant={isFieldInherited!('customConfig') ? 'inherited' : 'default'}
+                                        displayVariant={isFieldInherited?.('customConfig') ? 'inherited' : 'default'}
                                         error={customConfigError}
                                     />
                                 </Stack>

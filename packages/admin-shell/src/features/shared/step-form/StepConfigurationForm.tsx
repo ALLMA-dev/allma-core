@@ -3,21 +3,21 @@ import { UseFormReturnType } from '@mantine/form';
 import { Button, Stack, TextInput, Select, Textarea, Group, Paper, Title, Text, Accordion, Divider } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { StepDefinition, StepInstance, StepType, StepInstanceSchema } from '@allma/core-types';
-import { getStepSchema, STEP_SCHEMA_EXCLUDED_FIELDS } from '../../flows/editor/zod-schema-mappers';
-import { getModuleIdentifierOptionsForStepType } from './moduleOptions';
-import { CommonMappings, ErrorHandling, AdditionalParameters, PanelFooter } from './components';
+import { getStepSchema, STEP_SCHEMA_EXCLUDED_FIELDS } from '../../flows/editor/zod-schema-mappers.js';
+import { getModuleIdentifierOptionsForStepType } from './moduleOptions.js';
+import { PanelFooter } from './components/index.js';
 import { EditableJsonView, CopyableText } from '@allma/ui-components';
-import useFlowEditorStore from '../../flows/editor/hooks/useFlowEditorStore';
+import useFlowEditorStore from '../../flows/editor/hooks/useFlowEditorStore.js';
 import { modals } from '@mantine/modals';
 import { isEqual } from 'lodash-es';
-import { useGetStepDefinitions, fetchStepDefinitionById, STEP_DEFINITION_DETAIL_QUERY_KEY } from '../../../api/stepDefinitionService';
+import { useGetStepDefinitions, fetchStepDefinitionById, STEP_DEFINITION_DETAIL_QUERY_KEY } from '../../../api/stepDefinitionService.js';
 import { IconDeviceFloppy } from '@tabler/icons-react';
-import { DocPopup } from '../../../components';
-import { STEP_DOCUMENTATION } from '../../flows/editor/step-documentation';
+import { DocPopup } from '../../../components/index.js';
+import { STEP_DOCUMENTATION } from '../../flows/editor/step-documentation.js';
 import React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { StepFormRenderer } from './StepFormRenderer';
-import { StepFormLayout } from './StepFormLayout';
+import { StepFormRenderer } from './StepFormRenderer.js';
+import { StepFormLayout } from './StepFormLayout.js';
 
 type StepConfigFormValues = StepInstance | Partial<StepDefinition>;
 
@@ -235,7 +235,7 @@ export const StepConfigurationForm = forwardRef(function StepConfigurationForm<T
             style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}
         >
             <StepFormLayout
-                form={form}
+                form={form as any}
                 readOnly={isReadOnly}
                 isFieldInherited={isFieldInherited}
                 appliedDefinition={appliedDefinition}
@@ -324,7 +324,7 @@ export const StepConfigurationForm = forwardRef(function StepConfigurationForm<T
                                         </Group>
                                     </Text>
                                     <EditableJsonView
-                                        value={(form.values as StepDefinition).inferenceParameters as object}
+                                        value={(form.values as any).inferenceParameters as object}
                                         onChange={createChangeHandler('inferenceParameters' as any)}
                                         readOnly={isReadOnly}
                                         displayVariant={isFieldInherited('inferenceParameters') ? 'inherited' : 'default'}
@@ -350,7 +350,7 @@ export const StepConfigurationForm = forwardRef(function StepConfigurationForm<T
                                     </Group>
                                 </Text>
                                 <EditableJsonView
-                                    value={(form.values as StepInstance).inferenceParameters as object}
+                                    value={(form.values as any).inferenceParameters as object}
                                     onChange={createChangeHandler('inferenceParameters' as any)}
                                     readOnly={isReadOnly}
                                     displayVariant={isFieldInherited('inferenceParameters') ? 'inherited' : 'default'}

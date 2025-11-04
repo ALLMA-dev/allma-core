@@ -77,7 +77,7 @@ export class EmailIntegration extends Construct {
             functionName: `AllmaEmailIngress-${stageConfig.stage}`,
             runtime: lambda.Runtime.NODEJS_22_X,
             handler: 'handler',
-            entry: path.join(__dirname_email, `../../../dist-logic/allma-flows/email-ingress.ts`),
+            entry: path.join(__dirname_email, `../../../dist-logic/allma-flows/email-ingress.js`),
             role: emailIngressRole,
             timeout: cdk.Duration.seconds(30),
             memorySize: 256,

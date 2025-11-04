@@ -1,5 +1,3 @@
-// packages/allma-admin-shell/src/components/ErrorBoundary.tsx
-
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { Container, Title, Text, Button, Paper, Code } from '@mantine/core';
 

@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "composite": false
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/harness",
+    "vite.config.ts",
+    "vite.harness.config.ts"
+  ]
+}

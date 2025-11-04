@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "postbuild": "rimraf ../core-cdk/dist-logic && copyfiles -u 1 \"src/**/*\" ../core-cdk/dist-logic",
+    "postbuild": "rimraf ../core-cdk/dist-logic && copyfiles -u 1 \"dist/**/*\" ../core-cdk/dist-logic",
     "test": "vitest run",
     "lint": "eslint .",
     "echo:env": "node -e \"console.log('Inside npm script:', process.env.AWS_REGION || 'not set')\""

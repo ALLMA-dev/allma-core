@@ -172,19 +172,19 @@ export class AllmaCompute extends Construct {
     }));
 
     // --- InitializeFlowExecutionLambda ---
-    this.initializeFlowLambda = this.createNodejsLambda('InitializeFlowLambda', `AllmaInitializeFlow-${stageConfig.stage}`, 'allma-flows/initialize-flow.ts', this.orchestrationLambdaRole, defaultLambdaTimeout, defaultLambdaMemory, commonEnvVars);
+    this.initializeFlowLambda = this.createNodejsLambda('InitializeFlowLambda', `AllmaInitializeFlow-${stageConfig.stage}`, 'allma-flows/initialize-flow.js', this.orchestrationLambdaRole, defaultLambdaTimeout, defaultLambdaMemory, commonEnvVars);
 
     // --- IterativeStepProcessorLambda ---
     const iterativeStepProcessorMemory = stageConfig.lambdaMemorySizes.iterativeStepProcessor;
     const iterativeStepProcessorTimeout = cdk.Duration.minutes(stageConfig.lambdaTimeouts.iterativeStepProcessorMinutes);
-    this.iterativeStepProcessorLambda = this.createNodejsLambda('IterativeStepProcessorLambda', `AllmaIterativeStepProcessor-${stageConfig.stage}`, 'allma-flows/iterative-step-processor/index.ts', this.orchestrationLambdaRole, iterativeStepProcessorTimeout, iterativeStepProcessorMemory, {
+    this.iterativeStepProcessorLambda = this.createNodejsLambda('IterativeStepProcessorLambda', `AllmaIterativeStepProcessor-${stageConfig.stage}`, 'allma-flows/iterative-step-processor/index.js', this.orchestrationLambdaRole, iterativeStepProcessorTimeout, iterativeStepProcessorMemory, {
       ...commonEnvVars,
       [ENV_VAR_NAMES.AI_API_KEY_SECRET_ARN!]: stageConfig.aiApiKeySecretArn || '',
       [ENV_VAR_NAMES.ALLMA_FLOW_START_REQUEST_QUEUE_URL!]: props.flowStartRequestQueue?.queueUrl || '',
     });
 
     // --- FinalizeFlowExecutionLambda ---
-    this.finalizeFlowLambda = this.createNodejsLambda('FinalizeFlowLambda', `AllmaFinalizeFlow-${stageConfig.stage}`, 'allma-flows/finalize-flow.ts', this.orchestrationLambdaRole, defaultLambdaTimeout, defaultLambdaMemory, commonEnvVars);
+    this.finalizeFlowLambda = this.createNodejsLambda('FinalizeFlowLambda', `AllmaFinalizeFlow-${stageConfig.stage}`, 'allma-flows/finalize-flow.js', this.orchestrationLambdaRole, defaultLambdaTimeout, defaultLambdaMemory, commonEnvVars);
 
     // --- Role for ResumeFlowLambda (Webhook) ---
     const resumeFlowLambdaRole = new iam.Role(this, 'AllmaResumeFlowLambdaRole', {
@@ -196,7 +196,7 @@ export class AllmaCompute extends Construct {
       actions: ['states:SendTaskSuccess', 'states:SendTaskFailure'],
       resources: ['*'],
     }));
-    this.resumeFlowLambda = this.createNodejsLambda('ResumeFlowLambda', `AllmaResumeFlow-${stageConfig.stage}`, 'allma-flows/resume-flow.ts', resumeFlowLambdaRole, defaultLambdaTimeout, defaultLambdaMemory, commonEnvVars);
+    this.resumeFlowLambda = this.createNodejsLambda('ResumeFlowLambda', `AllmaResumeFlow-${stageConfig.stage}`, 'allma-flows/resume-flow.js', resumeFlowLambdaRole, defaultLambdaTimeout, defaultLambdaMemory, commonEnvVars);
 
     // --- IAM Role and Lambda for Execution Logger ---
     const executionLoggerRole = new iam.Role(this, 'ExecutionLoggerRole', {
@@ -205,7 +205,7 @@ export class AllmaCompute extends Construct {
       managedPolicies: [iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole')],
     });
     props.flowExecutionLogTable.grantReadWriteData(executionLoggerRole);
-    this.executionLoggerLambda = this.createNodejsLambda('ExecutionLoggerLambda', `AllmaExecutionLogger-${stageConfig.stage}`, 'allma-core/execution-logger.ts', executionLoggerRole, cdk.Duration.seconds(15), 128, {
+    this.executionLoggerLambda = this.createNodejsLambda('ExecutionLoggerLambda', `AllmaExecutionLogger-${stageConfig.stage}`, 'allma-core/execution-logger.js', executionLoggerRole, cdk.Duration.seconds(15), 128, {
       ...commonEnvVars,
       [ENV_VAR_NAMES.LOG_RETENTION_DAYS]: String(stageConfig.logging.retentionDays.executionLogs),
     });
@@ -216,7 +216,7 @@ export class AllmaCompute extends Construct {
       assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
       managedPolicies: [iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole')],
     });
-    this.apiPollingLambda = this.createNodejsLambda('ApiPollingLambda', `AllmaApiPolling-${stageConfig.stage}`, 'allma-flows/api-polling.ts', apiPollingLambdaRole, cdk.Duration.seconds(30), defaultLambdaMemory, commonEnvVars);
+    this.apiPollingLambda = this.createNodejsLambda('ApiPollingLambda', `AllmaApiPolling-${stageConfig.stage}`, 'allma-flows/api-polling.js', apiPollingLambdaRole, cdk.Duration.seconds(30), defaultLambdaMemory, commonEnvVars);
 
     // --- FlowStartRequestListenerLambda ---
     if (flowStartRequestQueue) {
@@ -229,7 +229,7 @@ export class AllmaCompute extends Construct {
         actions: ['states:StartExecution'],
         resources: [flowOrchestratorStateMachineArn],
       }));
-      this.flowStartRequestListenerLambda = this.createNodejsLambda('FlowStartRequestListenerLambda', `AllmaFlowStartListener-${stageConfig.stage}`, 'allma-flows/flow-start-request-listener.ts', flowStartListenerRole, cdk.Duration.seconds(30), stageConfig.lambdaMemorySizes.flowStartRequestListener, {
+      this.flowStartRequestListenerLambda = this.createNodejsLambda('FlowStartRequestListenerLambda', `AllmaFlowStartListener-${stageConfig.stage}`, 'allma-flows/flow-start-request-listener.js', flowStartListenerRole, cdk.Duration.seconds(30), stageConfig.lambdaMemorySizes.flowStartRequestListener, {
         [ENV_VAR_NAMES.STAGE_NAME]: stageConfig.stage,
         [ENV_VAR_NAMES.LOG_LEVEL]: stageConfig.logging.logLevel,
         [ENV_VAR_NAMES.ALLMA_STATE_MACHINE_ARN]: flowOrchestratorStateMachineArn,
@@ -245,7 +245,7 @@ export class AllmaCompute extends Construct {
     if (props.flowStartRequestQueue) {
         props.flowStartRequestQueue.grantSendMessages(flowTriggerApiLambdaRole);
     }
-    this.flowTriggerApiLambda = this.createNodejsLambda('FlowTriggerApiLambda', `AllmaFlowTriggerApi-${stageConfig.stage}`, 'allma-admin/flow-trigger.ts', flowTriggerApiLambdaRole, defaultLambdaTimeout, defaultLambdaMemory, {
+    this.flowTriggerApiLambda = this.createNodejsLambda('FlowTriggerApiLambda', `AllmaFlowTriggerApi-${stageConfig.stage}`, 'allma-admin/flow-trigger.js', flowTriggerApiLambdaRole, defaultLambdaTimeout, defaultLambdaMemory, {
       ...commonEnvVars,
       [ENV_VAR_NAMES.ALLMA_FLOW_START_REQUEST_QUEUE_URL!]: props.flowStartRequestQueue?.queueUrl || '',
     });
@@ -286,7 +286,7 @@ export class AllmaCompute extends Construct {
     configTable.grantReadWriteData(configImporterLambdaRole);
     executionTracesBucket.grantRead(configImporterLambdaRole); // For S3 assets
 
-    this.configImporterLambda = this.createNodejsLambda('ConfigImporterLambda', `AllmaConfigImporter-${stageConfig.stage}`, 'allma-cdk/config-importer.ts', configImporterLambdaRole, cdk.Duration.minutes(5), 256, {
+    this.configImporterLambda = this.createNodejsLambda('ConfigImporterLambda', `AllmaConfigImporter-${stageConfig.stage}`, 'allma-cdk/config-importer.js', configImporterLambdaRole, cdk.Duration.minutes(5), 256, {
       [ENV_VAR_NAMES.ALLMA_CONFIG_TABLE_NAME]: configTable.tableName,
     });
   }

@@ -117,18 +117,18 @@ export class ApiConstruct extends Construct {
             AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
         };
 
-        const adminFlowManagementLambda = this.createNodejsLambda('AdminFlowManagementLambda', `AllmaAdminFlowMgmt-${stageConfig.stage}`, 'allma-admin/flow-management.ts', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars);
-        const adminStepManagementLambda = this.createNodejsLambda('AdminStepManagementLambda', `AllmaAdminStepMgmt-${stageConfig.stage}`, 'allma-admin/step-management.ts', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars);
-        const adminExecutionMonitoringLambda = this.createNodejsLambda('AdminExecutionMonitoringLambda', `AllmaAdminExecMonitor-${stageConfig.stage}`, 'allma-admin/execution-monitoring.ts', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars);
-        const adminPromptTemplateManagementLambda = this.createNodejsLambda('AdminPromptTemplateManagementLambda', `AllmaAdminPromptTmplMgmt-${stageConfig.stage}`, 'allma-admin/prompt-template-management.ts', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars);
-        const adminDashboardStatsLambda = this.createNodejsLambda('AdminDashboardStatsLambda', `AllmaAdminDashboardStats-${stageConfig.stage}`, 'allma-admin/dashboard-stats.ts', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars);
-        const adminFlowControlLambda = this.createNodejsLambda('AdminFlowControlLambda', `AllmaAdminFlowControl-${stageConfig.stage}`, 'allma-admin/flow-control.ts', adminFlowControlLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, {
+        const adminFlowManagementLambda = this.createNodejsLambda('AdminFlowManagementLambda', `AllmaAdminFlowMgmt-${stageConfig.stage}`, 'allma-admin/flow-management.js', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars);
+        const adminStepManagementLambda = this.createNodejsLambda('AdminStepManagementLambda', `AllmaAdminStepMgmt-${stageConfig.stage}`, 'allma-admin/step-management.js', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars);
+        const adminExecutionMonitoringLambda = this.createNodejsLambda('AdminExecutionMonitoringLambda', `AllmaAdminExecMonitor-${stageConfig.stage}`, 'allma-admin/execution-monitoring.js', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars);
+        const adminPromptTemplateManagementLambda = this.createNodejsLambda('AdminPromptTemplateManagementLambda', `AllmaAdminPromptTmplMgmt-${stageConfig.stage}`, 'allma-admin/prompt-template-management.js', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars);
+        const adminDashboardStatsLambda = this.createNodejsLambda('AdminDashboardStatsLambda', `AllmaAdminDashboardStats-${stageConfig.stage}`, 'allma-admin/dashboard-stats.js', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars);
+        const adminFlowControlLambda = this.createNodejsLambda('AdminFlowControlLambda', `AllmaAdminFlowControl-${stageConfig.stage}`, 'allma-admin/flow-control.js', adminFlowControlLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, {
             ...commonEnvVars,
             [ENV_VAR_NAMES.ITERATIVE_STEP_PROCESSOR_LAMBDA_ARN]: iterativeStepProcessorLambda.functionArn,
             [ENV_VAR_NAMES.ALLMA_STATE_MACHINE_ARN]: flowOrchestratorStateMachine.stateMachineArn,
         });
-        const adminImportExportLambda = this.createNodejsLambda('AdminImportExportLambda', `AllmaAdminImportExport-${stageConfig.stage}`, 'allma-admin/import-export.ts', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars);
-        const adminMcpConnectionManagementLambda = this.createNodejsLambda('AdminMcpConnectionManagementLambda', `AllmaAdminMcpConnectionMgmt-${stageConfig.stage}`, 'allma-admin/mcp-connection-management.ts', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars);
+        const adminImportExportLambda = this.createNodejsLambda('AdminImportExportLambda', `AllmaAdminImportExport-${stageConfig.stage}`, 'allma-admin/import-export.js', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars);
+        const adminMcpConnectionManagementLambda = this.createNodejsLambda('AdminMcpConnectionManagementLambda', `AllmaAdminMcpConnectionMgmt-${stageConfig.stage}`, 'allma-admin/mcp-connection-management.js', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars);
 
         // --- API Gateway ---
         const adminApi = new AllmaAdminApi(this, 'AllmaAdminApi', {

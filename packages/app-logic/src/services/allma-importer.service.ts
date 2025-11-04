@@ -1,6 +1,7 @@
-import { AllmaExportFormat, AllmaExportFormatSchema, ImportApiResponse, StepDefinitionSchema, FlowDefinitionSchema } from '@allma/core-types';
+import { AllmaExportFormat, AllmaExportFormatSchema, ImportApiResponse, FlowDefinition, StepDefinition, StepDefinitionSchema, FlowDefinitionSchema } from '@allma/core-types';
 import { FlowDefinitionService } from '../allma-admin/services/flow-definition.service.js';
 import { StepDefinitionService } from '../allma-admin/services/step-definition.service.js';
+import { z, ZodError } from 'zod';
 
 type ValidationResult = 
   | { success: true; data: AllmaExportFormat }
@@ -26,23 +27,25 @@ export class AllmaImporterService {
     const fieldErrors: Record<string, string[]> = {};
     const formErrors: string[] = [];
 
+    // Manually iterate through Zod issues to build precise error paths.
+    const processIssues = (issues: z.ZodIssue[], arrayName: 'flows' | 'stepDefinitions', itemIndex: number, itemIdentifier: string) => {
+      for (const issue of issues) {
+        if (issue.path.length === 0) {
+          formErrors.push(`${filePrefix}${itemIdentifier}: ${issue.message}`);
+        } else {
+          const key = `${arrayName}[${itemIndex}].${issue.path.join('.')}`;
+          fieldErrors[key] = (fieldErrors[key] || []).concat(`${filePrefix}${issue.message}`);
+        }
+      }
+    };
+
     // Validate each flow individually
     if (data.flows && Array.isArray(data.flows)) {
       data.flows.forEach((flow, index) => {
         const flowValidation = FlowDefinitionSchema.safeParse(flow);
         if (!flowValidation.success) {
-          const flattened = flowValidation.error.flatten();
-          const flowIdentifier = (flow as any)?.id ? `'${(flow as any).id}' (v${(flow as any).version})` : `at index ${index}`;
-          
-          flattened.formErrors.forEach(err => {
-            formErrors.push(`${filePrefix}Flow ${flowIdentifier}: ${err}`);
-          });
-          for (const [field, errors] of Object.entries(flattened.fieldErrors)) {
-            if (errors) {
-                const key = `flows[${index}].${field}`;
-                fieldErrors[key] = (fieldErrors[key] || []).concat(errors.map(e => `${filePrefix}${e}`));
-            }
-          }
+          const flowIdentifier = (flow as any)?.id ? `Flow '${(flow as any).id}' (v${(flow as any).version})` : `Flow at index ${index}`;
+          processIssues(flowValidation.error.issues, 'flows', index, flowIdentifier);
         }
       });
     }
@@ -52,18 +55,8 @@ export class AllmaImporterService {
       data.stepDefinitions.forEach((step, index) => {
         const stepValidation = StepDefinitionSchema.safeParse(step);
         if (!stepValidation.success) {
-          const flattened = stepValidation.error.flatten();
-          const stepIdentifier = (step as any)?.id ? `'${(step as any).id}'` : `at index ${index}`;
-
-          flattened.formErrors.forEach(err => {
-            formErrors.push(`${filePrefix}Step Definition ${stepIdentifier}: ${err}`);
-          });
-          for (const [field, errors] of Object.entries(flattened.fieldErrors)) {
-            if (errors) {
-                const key = `stepDefinitions[${index}].${field}`;
-                fieldErrors[key] = (fieldErrors[key] || []).concat(errors.map(e => `${filePrefix}${e}`));
-            }
-          }
+          const stepIdentifier = (step as any)?.id ? `Step Definition '${(step as any).id}'` : `Step Definition at index ${index}`;
+          processIssues(stepValidation.error.issues, 'stepDefinitions', index, stepIdentifier);
         }
       });
     }

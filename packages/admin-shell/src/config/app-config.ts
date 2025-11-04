@@ -30,18 +30,12 @@ export function getAppConfig(): AppConfig {
   }
 
   // Fallback for local development using Vite's import.meta.env
-  // @ts-expect-error - Vite specific
   if (import.meta.env.DEV) {
     appConfig = {
-      // @ts-expect-error - Vite specific
       VITE_ADMIN_STAGE_NAME: import.meta.env.VITE_APP_ADMIN_STAGE_NAME || 'dev',
-      // @ts-expect-error - Vite specific
       VITE_AWS_REGION: import.meta.env.VITE_APP_AWS_REGION,
-      // @ts-expect-error - Vite specific
       VITE_COGNITO_USER_POOL_ID: import.meta.env.VITE_APP_COGNITO_USERPOOL_ID,
-      // @ts-expect-error - Vite specific
       VITE_COGNITO_USER_POOL_CLIENT_ID: import.meta.env.VITE_APP_COGNITO_CLIENT_ID,
-      // @ts-expect-error - Vite specific
       VITE_API_BASE_URL: import.meta.env.VITE_APP_ADMIN_API_URL,
     };
     return appConfig;

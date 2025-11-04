@@ -1,4 +1,4 @@
-import { createAllmaAdminApp } from './createAllmaAdminApp';
+import { createAllmaAdminApp } from './createAllmaAdminApp.js';
 
 // This is the main entry point for the distributable `@allma/admin-shell` package.
 // When a consumer builds their application, this file is executed.

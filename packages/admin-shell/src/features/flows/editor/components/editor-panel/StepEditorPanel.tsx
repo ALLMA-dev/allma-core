@@ -1,20 +1,20 @@
-// packages/allma-core/admin-shell/src/features/flows/editor/components/editor-panel/StepEditorPanel.tsx
 import { Paper, Title, Group, Tooltip, ActionIcon, Text, Box, LoadingOverlay, ScrollArea, Tabs, ColorPicker, SimpleGrid, SegmentedControl, Select, Alert, Button, Stack, Popover } from '@mantine/core';
 import { useForm } from '@mantine/form';
-import useFlowEditorStore from '../../hooks/useFlowEditorStore';
+import useFlowEditorStore from '../../hooks/useFlowEditorStore.js';
 import { IconX, IconSettings, IconDatabase, IconAlertCircle } from '@tabler/icons-react';
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { useDebouncedCallback } from 'use-debounce';
 import { SandboxStepInput, StepExecutionResult, StepInstance } from '@allma/core-types';
 import { useDisclosure } from '@mantine/hooks';
-import { PromptInFlowPreviewModal } from '../../../../prompts/components/PromptInFlowPreviewModal';
-import { StepConfigurationForm, StepConfigurationFormHandle } from '../../../../shared/step-form/StepConfigurationForm';
+import { PromptInFlowPreviewModal } from '../../../../prompts/components/PromptInFlowPreviewModal.js';
+import { StepConfigurationForm, StepConfigurationFormHandle } from '../../../../shared/step-form/StepConfigurationForm.js';
 import { modals } from '@mantine/modals';
-import { useGetStepDefinition } from '../../../../../api/stepDefinitionService';
-import { useGetFlowExecutions, useGetExecutionDetail } from '../../../../../api/executionService';
+import { useGetStepDefinition } from '../../../../../api/stepDefinitionService.js';
+import { useGetFlowExecutions, useGetExecutionDetail } from '../../../../../api/executionService.js';
 import { EditableJsonView } from '@allma/ui-components';
-import { useSandboxStep } from '../../../../../api/flowControlService';
-import { SandboxResultModal } from './SandboxResultModal';
+import { useSandboxStep } from '../../../../../api/flowControlService.js';
+import { SandboxResultModal } from './SandboxResultModal.js';
+
 
 interface StepEditorPanelProps {
     selectedNodeId: string | null;
@@ -69,7 +69,7 @@ export function StepEditorPanel({ selectedNodeId, onClose, isShaking, onValidati
     useEffect(() => {
         if (selectedNode) {
             const mergedConfig = {
-                ...(resolvedAppliedDef?.defaultConfig || {}),
+                ...(resolvedAppliedDef || {}),
                 ...selectedNode.data.config,
             };
             form.setValues(mergedConfig);
@@ -100,6 +100,7 @@ export function StepEditorPanel({ selectedNodeId, onClose, isShaking, onValidati
             const timer = setTimeout(() => setShakeClass(''), 500);
             return () => clearTimeout(timer);
         }
+        return undefined;
     }, [isShaking]);
 
     // --- Sandbox Logic ---
@@ -129,10 +130,13 @@ export function StepEditorPanel({ selectedNodeId, onClose, isShaking, onValidati
     }, [selectedNodeId]);
 
     const executionOptions = useMemo(() => {
-        return executionsResponse?.items.map(ex => ({
+        if (!executionsResponse?.items) {
+            return [];
+        }
+        return executionsResponse.items.map(ex => ({
             value: ex.flowExecutionId,
             label: `[${ex.status}] ${ex.startTime} (${ex.flowExecutionId.substring(0, 8)})`
-        })) || [];
+        }));
     }, [executionsResponse]);
 
     const handleRunSandbox = async () => {

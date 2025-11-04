@@ -1,6 +1,6 @@
 import axios, { type InternalAxiosRequestConfig } from 'axios';
 import { fetchAuthSession } from 'aws-amplify/auth';
-import { getAppConfig } from '../config/app-config.ts';
+import { getAppConfig } from '../config/app-config';
 const { VITE_API_BASE_URL: apiBaseUrl } = getAppConfig();
 
 if (!apiBaseUrl) {

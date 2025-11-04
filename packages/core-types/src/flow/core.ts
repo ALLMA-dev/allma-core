@@ -59,12 +59,15 @@ export const FlowDefinitionSchema = z.object({
 })
 .passthrough()
 .superRefine((data, ctx) => {
+  // This refinement block is only responsible for CROSS-FIELD validation,
+  // as the structure of each step is already validated by the main schema.
   if (data.startStepInstanceId && !data.steps[data.startStepInstanceId]) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: `startStepInstanceId '${data.startStepInstanceId}' does not exist in the steps map.`, path: ["startStepInstanceId"] });
   }
+
+  // The `data.steps` object is now guaranteed by Zod to be a record of valid StepInstances.
   Object.entries(data.steps).forEach(([stepId, step]: [string, StepInstance]) => {
     step.transitions?.forEach((t, i) => {
-      // CORRECTED: Provide a full path to the specific transition target that is invalid.
       if (!data.steps[t.nextStepInstanceId]) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -73,7 +76,6 @@ export const FlowDefinitionSchema = z.object({
         });
       }
     });
-    // CORRECTED: Provide a full path to the defaultNextStepInstanceId property.
     if (step.defaultNextStepInstanceId && !data.steps[step.defaultNextStepInstanceId]) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -81,7 +83,6 @@ export const FlowDefinitionSchema = z.object({
         path: ["steps", stepId, "defaultNextStepInstanceId"]
       });
     }
-    // CORRECTED: Provide a full path to the fallbackStepInstanceId property.
     if (step.onError?.fallbackStepInstanceId && !data.steps[step.onError.fallbackStepInstanceId]) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -96,6 +97,7 @@ export const FlowDefinitionSchema = z.object({
     if (step.outputMappings) Object.entries(step.outputMappings).forEach(([k, v]) => { checkJsonPath(['steps', stepId, 'outputMappings', k], k, ctx); checkJsonPath(['steps', stepId, 'outputMappings', k], v, ctx); });
     if (step.transitions) step.transitions.forEach((t: { condition: string }, i: number) => checkJsonPath(['steps', stepId, 'transitions', i, 'condition'], t.condition, ctx));
   });
+
   data.onCompletionActions?.forEach((action, index) => {
     if (action.condition) checkJsonPath(['onCompletionActions', index, 'condition'], action.condition, ctx);
     if (action.payloadTemplate) Object.entries(action.payloadTemplate).forEach(([k, v]) => checkJsonPath(['onCompletionActions', index, 'payloadTemplate', k], v, ctx));

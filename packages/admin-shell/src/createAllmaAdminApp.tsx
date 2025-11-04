@@ -13,11 +13,11 @@ import '@mantine/notifications/styles.css';
 import './global.css';
 
 import { Authenticator } from '@aws-amplify/ui-react';
-import { AuthenticatedApp } from './AuthenticatedApp.tsx';
-import { theme } from './theme.ts';
-import { ErrorBoundary } from './components/ErrorBoundary.tsx';
-import { getAppConfig } from './config/app-config.ts';
-import type { AllmaPlugin } from './types/plugin.ts';
+import { AuthenticatedApp } from './AuthenticatedApp';
+import { theme } from './theme';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { getAppConfig } from './config/app-config';
+import type { AllmaPlugin } from './types/plugin';
 
 interface CreateAllmaAdminAppProps {
   plugins: AllmaPlugin[];

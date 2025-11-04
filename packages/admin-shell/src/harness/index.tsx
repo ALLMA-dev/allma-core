@@ -1,6 +1,6 @@
-import { createAllmaAdminApp } from '../createAllmaAdminApp';
+import { createAllmaAdminApp } from '../createAllmaAdminApp.js';
 import { IconDashboard, IconBug } from '@tabler/icons-react';
-import type { AllmaPlugin } from '../types/plugin.ts';
+import type { AllmaPlugin } from '../types/plugin.js';
 
 // This is a mock dashboard component for testing purposes.
 const MockDashboard = () => <div style={{ padding: '1rem' }}><h2>Mock Dashboard</h2><p>This is a test component from the harness.</p></div>;
