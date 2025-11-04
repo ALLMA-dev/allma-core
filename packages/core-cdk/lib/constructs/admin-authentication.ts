@@ -23,7 +23,7 @@ export class AdminAuthentication extends Construct {
 
     this.userPool = new cognito.UserPool(this, 'AdminUserPool', {
       userPoolName: `${props.stageConfig.cognito.userPoolName}`,
-      selfSignUpEnabled: !isProd, // Disable self-signup in production
+      selfSignUpEnabled: false,
       signInAliases: {
         email: true,
         username: false, // Using email as the primary sign-in alias
