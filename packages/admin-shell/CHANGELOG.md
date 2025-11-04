@@ -1,5 +1,11 @@
 # @allma/admin-shell
 
+## 1.0.5
+
+### Patch Changes
+
+- acc7a27: Remote build fix. Minor fixes
+
 ## 1.0.4
 
 ### Patch Changes

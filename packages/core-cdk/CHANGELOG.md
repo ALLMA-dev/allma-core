@@ -1,5 +1,11 @@
 # @allma/core-cdk
 
+## 1.0.10
+
+### Patch Changes
+
+- acc7a27: Remote build fix. Minor fixes
+
 ## 1.0.9
 
 ### Patch Changes
