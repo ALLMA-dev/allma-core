@@ -8,6 +8,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { ModalsProvider } from '@mantine/modals';
 import { Amplify } from 'aws-amplify';
 
+import '@aws-amplify/ui-react/styles.css';
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 import './global.css';

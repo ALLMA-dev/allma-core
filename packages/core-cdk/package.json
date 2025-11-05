@@ -46,7 +46,7 @@
     "axios": "^1.7.2",
     "constructs": "^10.3.0",
     "handlebars": "^4.7.8",
-    "mailparser": "^3.7.1"
+    "mailparser": "^3.9.0"
   },
   "devDependencies": {
     "@types/adm-zip": "^0.5.7",

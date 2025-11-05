@@ -1,4 +1,3 @@
-
 # @allma/admin-shell
 
 [![npm version](https://img.shields.io/npm/v/%40allma%2Fadmin-shell)](https://www.npmjs.com/package/@allma/admin-shell)
@@ -92,6 +91,53 @@ createAllmaAdminApp({
   ],
 });
 ```
+
+## Integration with AWS CDK
+
+When embedding an admin application built with `@allma/admin-shell` inside an AWS CDK project for deployment, it's crucial to configure TypeScript correctly to avoid build errors. The CDK's TypeScript compiler (`tsc`) is configured for a Node.js environment and should not attempt to compile the browser-based React application code.
+
+**Symptom:**
+If your `npm run build` for the CDK project fails with errors related to JSX, DOM types (`Window`, `BodyInit`), or missing React types, it's because the CDK's `tsc` is incorrectly traversing your admin application's `node_modules`.
+
+**Solution:**
+In your CDK project's root `tsconfig.json`, you must explicitly exclude the directory containing your admin application.
+
+**Example `tsconfig.json` for a CDK Project:**
+
+Assuming your project structure is:
+```
+my-cdk-project/
+├── cdk.json
+├── tsconfig.json
+├── bin/
+├── lib/
+└── src/
+    └── admin-app/  <-- Your React app lives here
+        ├── package.json
+        ├── src/
+        └── ...
+```
+Your `tsconfig.json` at the root of `my-cdk-project` should look like this:
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "lib": ["es2022"],
+    // ... other CDK-specific options
+  },
+  "include": [
+    "bin/**/*.ts",
+    "lib/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "cdk.out",
+    "src/admin-app" // <-- Add this line
+  ]
+}
+```
+This configuration tells `tsc` to only compile the files in `bin/` and `lib/` (your infrastructure code) and to completely ignore the `admin-app` directory, preventing the type errors. The admin application should have its own separate build process (e.g., using Vite) that is orchestrated by your deployment scripts.
 
 ## Contributing
 
