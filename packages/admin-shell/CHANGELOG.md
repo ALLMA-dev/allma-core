@@ -1,5 +1,11 @@
 # @allma/admin-shell
 
+## 1.0.7
+
+### Patch Changes
+
+- 899a839: Dependency fix
+
 ## 1.0.6
 
 ### Patch Changes
