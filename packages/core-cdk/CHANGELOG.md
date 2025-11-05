@@ -1,5 +1,11 @@
 # @allma/core-cdk
 
+## 1.0.11
+
+### Patch Changes
+
+- 5ebad0f: Dependencies fixes
+
 ## 1.0.10
 
 ### Patch Changes
