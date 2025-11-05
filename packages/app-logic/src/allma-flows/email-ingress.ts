@@ -2,10 +2,10 @@ import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
-import { simpleParser } from 'mailparser';
+import PostalMime from 'postal-mime';
 import { v4 as uuidv4 } from 'uuid';
 import { log_info, log_error, log_warn } from '@allma/core-sdk';
-import { ENV_VAR_NAMES, StartFlowExecutionInput, FlowRuntimeState } from '@allma/core-types';
+import { ENV_VAR_NAMES, StartFlowExecutionInput } from '@allma/core-types';
 
 const s3Client = new S3Client({});
 const ddbDocClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -51,7 +51,11 @@ export const handler = async (event: { Records: SesEventRecord[] }): Promise<voi
                 throw new Error(`S3 object body is empty for key: ${objectKey}`);
             }
 
-            const parsedEmail = await simpleParser(s3Response.Body as any);
+            // postal-mime expects a string or buffer, so we read the stream first.
+            const emailContent = await s3Response.Body.transformToString();
+            const parser = new PostalMime();
+            const parsedEmail = await parser.parse(emailContent);
+
             const textBody = parsedEmail.text || '';
             const recipient = record.ses.mail.destination[0];
 
@@ -83,6 +87,11 @@ export const handler = async (event: { Records: SesEventRecord[] }): Promise<voi
 
             const { flowDefinitionId, stepInstanceId } = targetMapping;
             const newFlowExecutionId = uuidv4();
+
+            const fromText = parsedEmail.from
+                ? (parsedEmail.from.name ? `${parsedEmail.from.name} <${parsedEmail.from.address}>` : parsedEmail.from.address)
+                : undefined;
+
             const startFlowInput: StartFlowExecutionInput = {
                 flowDefinitionId,
                 flowVersion: 'LATEST_PUBLISHED',
@@ -91,7 +100,7 @@ export const handler = async (event: { Records: SesEventRecord[] }): Promise<voi
                 enableExecutionLogs: true,
                 initialContextData: {
                     triggeringEmail: {
-                        from: parsedEmail.from?.text,
+                        from: fromText,
                         to: recipient,
                         subject: parsedEmail.subject,
                         body: textBody,

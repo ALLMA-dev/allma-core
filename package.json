@@ -26,13 +26,8 @@
   ],
   "dependencies": {
     "@aws-sdk/client-lambda": "^3.913.0",
-    "@google/genai": "^1.25.0",
     "fs": "0.0.1-security",
-    "js-tiktoken": "^1.0.21",
-    "jsonpath-plus": "^10.3.0",
-    "jsonrepair": "^3.13.1",
-    "path": "^0.12.7",
-    "use-debounce": "^10.0.6"
+    "path": "^0.12.7"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.7",
