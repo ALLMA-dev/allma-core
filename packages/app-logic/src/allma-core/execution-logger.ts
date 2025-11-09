@@ -120,10 +120,7 @@ export const handler: Handler<ExecutionLoggerPayload, void> = async (event) => {
 
             // handles writing the minimal record.
             case 'LOG_STEP_EXECUTION': {
-                if (!payload.record) {
-                     throw new Error("LOG_STEP_EXECUTION action requires a 'record' object. S3 pointers should be resolved by the client.");
-                }
-                const { record: minimalStepData } = payload;
+                const minimalStepData = payload.record;
                 const attempt = minimalStepData.attemptNumber || 1;
                 const eventTimestamp = minimalStepData.eventTimestamp;
                 const sortKeyString = `STEP#${eventTimestamp}#${minimalStepData.stepInstanceId}#${attempt}#${minimalStepData.status}`;

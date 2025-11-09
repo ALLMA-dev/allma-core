@@ -10,11 +10,15 @@ import { useGetPrompts, useCreatePrompt, useClonePrompt } from '../../api/prompt
 import { PageContainer, CopyableText } from '@allma/ui-components';
 import { CreatePromptTemplateInput, CreatePromptTemplateInputSchema, ClonePromptInput, ClonePromptInputSchema, PromptTemplateMetadataStorageItem } from '@allma/core-types';
 import { useForm, zodResolver } from '@mantine/form';
+import { ImportModal } from '../shared/ImportModal';
+import { ExportModal } from '../shared/ExportModal';
 
 export function PromptListPage() {
   const navigate = useNavigate();
   const [createModalOpened, { open: openCreateModal, close: closeCreateModal }] = useDisclosure(false);
   const [cloneModalOpened, { open: openCloneModal, close: closeCloneModal }] = useDisclosure(false);
+  const [importModalOpened, { open: openImportModal, close: closeImportModal }] = useDisclosure(false);
+  const [exportModalOpened, { open: openExportModal, close: closeExportModal }] = useDisclosure(false);
   const [promptToClone, setPromptToClone] = useState<PromptTemplateMetadataStorageItem | null>(null);
   
   const { data: allMasterPrompts, isLoading, error } = useGetPrompts();
@@ -87,7 +91,13 @@ export function PromptListPage() {
     <>
       <PageContainer
         title="Prompt Templates"
-        rightSection={<Button onClick={openCreateModal} leftSection={<IconPlus size="1rem" />}>Create New Prompt</Button>}
+        rightSection={
+          <Group>
+            <Button onClick={openImportModal} variant="default">Import</Button>
+            <Button onClick={openExportModal} variant="default">Export</Button>
+            <Button onClick={openCreateModal} leftSection={<IconPlus size="1rem" />}>Create New Prompt</Button>
+          </Group>
+        }
       >
         <Box pos="relative">
           <LoadingOverlay visible={isLoading} />
@@ -134,6 +144,13 @@ export function PromptListPage() {
           </Stack>
         </form>
       </Modal>
+      <ImportModal opened={importModalOpened} onClose={closeImportModal} />
+      <ExportModal
+        opened={exportModalOpened}
+        onClose={closeExportModal}
+        items={displayPrompts}
+        itemType="prompt"
+      />
     </>
   );
 }

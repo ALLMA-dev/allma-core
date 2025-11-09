@@ -55,6 +55,17 @@ export const PromptTemplateService = {
     },
 
     /**
+     * Creates a new prompt and its first version from a full PromptTemplate object, typically from an import.
+     * @param prompt The complete PromptTemplate object to create.
+     * @returns The initial version of the newly created prompt.
+     */
+    async createPromptFromImport(prompt: PromptTemplate): Promise<PromptTemplate> {
+        const createInput: CreatePromptTemplateInput = { name: prompt.name, description: prompt.description };
+        const { version } = await entityManager.createMasterWithInitialVersion(prompt.id, createInput, prompt);
+        return version;
+    },
+
+    /**
      * Clones an existing prompt template, creating a new master and version 1.
      * @param idToClone The ID of the prompt template to clone.
      * @param newName The name for the new cloned prompt.

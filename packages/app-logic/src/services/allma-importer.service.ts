@@ -1,7 +1,8 @@
-import { AllmaExportFormat, AllmaExportFormatSchema, ImportApiResponse, FlowDefinition, StepDefinition, StepDefinitionSchema, FlowDefinitionSchema } from '@allma/core-types';
+import { AllmaExportFormat, AllmaExportFormatSchema, ImportApiResponse, StepDefinitionSchema, FlowDefinitionSchema, PromptTemplateSchema } from '@allma/core-types';
 import { FlowDefinitionService } from '../allma-admin/services/flow-definition.service.js';
 import { StepDefinitionService } from '../allma-admin/services/step-definition.service.js';
-import { z, ZodError } from 'zod';
+import { PromptTemplateService } from '../allma-admin/services/prompt-template.service.js';
+import { z } from 'zod';
 
 type ValidationResult = 
   | { success: true; data: AllmaExportFormat }
@@ -16,7 +17,7 @@ export class AllmaImporterService {
    */
   public validateImportData(rawData: unknown, sourceFileName?: string): ValidationResult {
     const filePrefix = sourceFileName ? `[${sourceFileName}] ` : '';
-    const topLevelSchema = AllmaExportFormatSchema.omit({ flows: true, stepDefinitions: true });
+    const topLevelSchema = AllmaExportFormatSchema.omit({ flows: true, stepDefinitions: true, promptTemplates: true });
     const topLevelValidation = topLevelSchema.safeParse(rawData);
 
     if (!topLevelValidation.success) {
@@ -28,7 +29,7 @@ export class AllmaImporterService {
     const formErrors: string[] = [];
 
     // Manually iterate through Zod issues to build precise error paths.
-    const processIssues = (issues: z.ZodIssue[], arrayName: 'flows' | 'stepDefinitions', itemIndex: number, itemIdentifier: string) => {
+    const processIssues = (issues: z.ZodIssue[], arrayName: 'flows' | 'stepDefinitions' | 'promptTemplates', itemIndex: number, itemIdentifier: string) => {
       for (const issue of issues) {
         if (issue.path.length === 0) {
           formErrors.push(`${filePrefix}${itemIdentifier}: ${issue.message}`);
@@ -60,6 +61,17 @@ export class AllmaImporterService {
         }
       });
     }
+
+    // Validate each prompt template individually
+    if (data.promptTemplates && Array.isArray(data.promptTemplates)) {
+      data.promptTemplates.forEach((prompt, index) => {
+        const promptValidation = PromptTemplateSchema.safeParse(prompt);
+        if (!promptValidation.success) {
+          const promptIdentifier = (prompt as any)?.id ? `Prompt '${(prompt as any).id}' (v${(prompt as any).version})` : `Prompt at index ${index}`;
+          processIssues(promptValidation.error.issues, 'promptTemplates', index, promptIdentifier);
+        }
+      });
+    }
     
     if (formErrors.length > 0 || Object.keys(fieldErrors).length > 0) {
       return { success: false, error: { formErrors, fieldErrors } };
@@ -80,76 +92,113 @@ export class AllmaImporterService {
     options: { overwrite: boolean }
   ): Promise<ImportApiResponse> {
     const result: ImportApiResponse = {
-      created: { flows: 0, steps: 0 },
-      updated: { flows: 0, steps: 0 },
-      skipped: { flows: 0, steps: 0 },
+      created: { flows: 0, steps: 0, prompts: 0 },
+      updated: { flows: 0, steps: 0, prompts: 0 },
+      skipped: { flows: 0, steps: 0, prompts: 0 },
       errors: [],
     };
 
     // Step 1: Import Step Definitions
-    for (const step of data.stepDefinitions) {
-      try {
-        const existing = await StepDefinitionService.get(step.id);
-        if (existing) {
-          if (options.overwrite) {
-            await StepDefinitionService.update(step.id, step);
-            result.updated.steps++;
+    if (data.stepDefinitions) {
+      for (const step of data.stepDefinitions) {
+        try {
+          const existing = await StepDefinitionService.get(step.id);
+          if (existing) {
+            if (options.overwrite) {
+              await StepDefinitionService.update(step.id, step);
+              result.updated.steps++;
+            } else {
+              result.skipped.steps++;
+            }
           } else {
-            result.skipped.steps++;
+            // The create method in the service handles the full creation logic.
+            // We assume the imported `step` object fits the `CreateStepDefinitionInput` shape.
+            await StepDefinitionService.create(step as any);
+            result.created.steps++;
           }
-        } else {
-          // The create method in the service handles the full creation logic.
-          // We assume the imported `step` object fits the `CreateStepDefinitionInput` shape.
-          await StepDefinitionService.create(step as any);
-          result.created.steps++;
+        } catch (error: any) {
+          result.errors.push({
+            id: step.id,
+            type: 'step',
+            message: error.message || 'An unknown error occurred',
+          });
         }
-      } catch (error: any) {
-        result.errors.push({
-          id: step.id,
-          type: 'step',
-          message: error.message || 'An unknown error occurred',
-        });
       }
     }
 
-    // Step 2: Import Flow Definitions
-    // TODO: For robust multi-version imports, this logic should first group flows by ID.
-    // The current loop processes each version from the file individually, which has limitations
-    // when importing multiple versions of the same new flow.
-    for (const flow of data.flows) {
-      try {
-        const existingMaster = await FlowDefinitionService.getMaster(flow.id);
-        if (existingMaster) {
-          if (options.overwrite) {
-            const existingVersion = await FlowDefinitionService.getVersion(flow.id, flow.version);
-            if (existingVersion) {
-              // This version exists, so update it.
-              if (existingVersion.isPublished) {
-                  result.errors.push({ id: flow.id, type: 'flow', message: `Version ${flow.version} is published and cannot be overwritten.` });
-                  continue;
+    // Step 2: Import Prompt Templates
+    if (data.promptTemplates) {
+        for (const prompt of data.promptTemplates) {
+          try {
+            const existingMaster = await PromptTemplateService.getMaster(prompt.id);
+            if (existingMaster) {
+              if (options.overwrite) {
+                const existingVersion = await PromptTemplateService.getVersion(prompt.id, prompt.version);
+                if (existingVersion) {
+                  if (existingVersion.isPublished) {
+                    result.errors.push({ id: prompt.id, type: 'prompt', message: `Version ${prompt.version} is published and cannot be overwritten.` });
+                    continue;
+                  }
+                  await PromptTemplateService.updateVersion(prompt.id, prompt.version, prompt);
+                  result.updated.prompts++;
+                } else {
+                  result.errors.push({ id: prompt.id, type: 'prompt', message: `Cannot overwrite prompt: version ${prompt.version} does not exist. Creating new versions for existing prompts on import is not supported.` });
+                }
+              } else {
+                result.skipped.prompts++;
               }
-              await FlowDefinitionService.updateVersion(flow.id, flow.version, flow);
-              result.updated.flows++;
             } else {
-              // This version doesn't exist for a flow that is already in the system.
-              // Creating new versions on an existing flow during import is not supported yet.
-              result.errors.push({ id: flow.id, type: 'flow', message: `Cannot overwrite flow: version ${flow.version} does not exist. Creating new versions for existing flows on import is not supported.` });
+              // This prompt does not exist. Create it from the imported definition.
+              await PromptTemplateService.createPromptFromImport(prompt);
+              result.created.prompts++;
             }
-          } else {
-            result.skipped.flows++;
+          } catch (error: any) {
+            result.errors.push({
+              id: prompt.id,
+              type: 'prompt',
+              message: error.message || 'An unknown error occurred',
+            });
           }
-        } else {
-          // This flow does not exist. Create it from the imported definition.
-          await FlowDefinitionService.createFlowFromImport(flow);
-          result.created.flows++;
         }
-      } catch (error: any) {
-        result.errors.push({
-          id: flow.id,
-          type: 'flow',
-          message: error.message || 'An unknown error occurred',
-        });
-      }
+    }
+
+    // Step 3: Import Flow Definitions
+    if (data.flows) {
+        for (const flow of data.flows) {
+          try {
+            const existingMaster = await FlowDefinitionService.getMaster(flow.id);
+            if (existingMaster) {
+              if (options.overwrite) {
+                const existingVersion = await FlowDefinitionService.getVersion(flow.id, flow.version);
+                if (existingVersion) {
+                  // This version exists, so update it.
+                  if (existingVersion.isPublished) {
+                      result.errors.push({ id: flow.id, type: 'flow', message: `Version ${flow.version} is published and cannot be overwritten.` });
+                      continue;
+                  }
+                  await FlowDefinitionService.updateVersion(flow.id, flow.version, flow);
+                  result.updated.flows++;
+                } else {
+                  // This version doesn't exist for a flow that is already in the system.
+                  // Creating new versions on an existing flow during import is not supported yet.
+                  result.errors.push({ id: flow.id, type: 'flow', message: `Cannot overwrite flow: version ${flow.version} does not exist. Creating new versions for existing flows on import is not supported.` });
+                }
+              } else {
+                result.skipped.flows++;
+              }
+            } else {
+              // This flow does not exist. Create it from the imported definition.
+              await FlowDefinitionService.createFlowFromImport(flow);
+              result.created.flows++;
+            }
+          } catch (error: any) {
+            result.errors.push({
+              id: flow.id,
+              type: 'flow',
+              message: error.message || 'An unknown error occurred',
+            });
+          }
+        }
     }
 
     return result;

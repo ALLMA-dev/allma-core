@@ -13,9 +13,11 @@ import {
   ImportApiInputSchema,
   FlowDefinition,
   StepDefinition,
+  PromptTemplate,
 } from '@allma/core-types';
 import { FlowDefinitionService } from './services/flow-definition.service.js';
 import { StepDefinitionService } from './services/step-definition.service.js';
+import { PromptTemplateService } from './services/prompt-template.service.js';
 import { AllmaImporterService } from '../services/allma-importer.service.js';
 import { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2 } from 'aws-lambda';
 
@@ -46,13 +48,15 @@ async function mainHandler(
         return createApiGatewayResponse(400, buildErrorResponse('Invalid input for export.', 'VALIDATION_ERROR', validation.error.flatten()), correlationId);
       }
       
-      const { flowIds, stepDefinitionIds } = validation.data;
+      const { flowIds, stepDefinitionIds, promptTemplateIds } = validation.data;
       const isExportingFlows = !!flowIds && flowIds.length > 0;
       const isExportingSteps = !!stepDefinitionIds && stepDefinitionIds.length > 0;
-      const isFullExport = !isExportingFlows && !isExportingSteps;
+      const isExportingPrompts = !!promptTemplateIds && promptTemplateIds.length > 0;
+      const isFullExport = !isExportingFlows && !isExportingSteps && !isExportingPrompts;
 
       const finalFlows: FlowDefinition[] = [];
       let finalSteps: StepDefinition[] = [];
+      const finalPrompts: PromptTemplate[] = [];
       const customStepIdsFromFlows = new Set<string>();
 
       // 1. Determine which flows to export and gather their step dependencies.
@@ -79,13 +83,31 @@ async function mainHandler(
         }
       }
 
-      // 2. Determine the final set of step definition IDs to fetch.
+      // 2. Determine which prompts to export.
+      if (isExportingPrompts || isFullExport) {
+        const allPromptMetadatas = await PromptTemplateService.listMasters();
+        const promptsToProcess = isExportingPrompts ? allPromptMetadatas.filter(p => promptTemplateIds.includes(p.id)) : allPromptMetadatas;
+
+        for (const meta of promptsToProcess) {
+          const versions = await PromptTemplateService.listVersions(meta.id);
+          for (const v of versions) {
+            if (v.version) {
+              const fullVersion = await PromptTemplateService.getVersion(meta.id, v.version);
+              if (fullVersion) {
+                finalPrompts.push(fullVersion);
+              }
+            }
+          }
+        }
+      }
+
+      // 3. Determine the final set of step definition IDs to fetch.
       const allStepIdsToFetch = new Set<string>(customStepIdsFromFlows);
       if (isExportingSteps) {
         stepDefinitionIds.forEach(id => allStepIdsToFetch.add(id));
       }
 
-      // 3. Fetch the required step definitions.
+      // 4. Fetch the required step definitions.
       if (allStepIdsToFetch.size > 0) {
         const stepPromises = Array.from(allStepIdsToFetch).map(id => StepDefinitionService.get(id));
         finalSteps = (await Promise.all(stepPromises)).filter((s): s is StepDefinition => s !== null);
@@ -99,6 +121,7 @@ async function mainHandler(
         exportedAt: new Date().toISOString(),
         stepDefinitions: finalSteps,
         flows: finalFlows,
+        promptTemplates: finalPrompts,
       };
 
       return createApiGatewayResponse(200, buildSuccessResponse(exportData), correlationId);

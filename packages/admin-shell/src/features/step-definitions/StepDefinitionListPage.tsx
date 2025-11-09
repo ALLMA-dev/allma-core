@@ -1,4 +1,4 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Table, Button, LoadingOverlay, ActionIcon, Group, Text, Box, Badge } from '@mantine/core';
 import { IconSettings, IconPlus, IconTrash, IconTemplate } from '@tabler/icons-react';
 import { modals } from '@mantine/modals';
@@ -10,7 +10,6 @@ import { ImportModal } from '../shared/ImportModal';
 import { ExportModal } from '../shared/ExportModal';
 
 export function StepDefinitionListPage() {
-  const navigate = useNavigate();
   const { data: stepDefs, isLoading, error } = useGetStepDefinitions();
   const deleteMutation = useDeleteStepDefinition();
   const [importModalOpened, { open: openImportModal, close: closeImportModal }] = useDisclosure(false);
@@ -52,7 +51,7 @@ export function StepDefinitionListPage() {
           <Group>
             <Button onClick={openImportModal} variant="default">Import</Button>
             <Button onClick={openExportModal} variant="default">Export</Button>
-<Button component={Link} to="/step-definitions/create" leftSection={<IconPlus size="1rem" />}>Create New</Button>
+            <Button component={Link} to="/step-definitions/create" leftSection={<IconPlus size="1rem" />}>Create New</Button>
           </Group>
         }
       >

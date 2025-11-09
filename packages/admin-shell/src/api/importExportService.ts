@@ -3,6 +3,7 @@ import { notifications } from '@mantine/notifications';
 import axiosInstance from './axiosInstance';
 import { ALLMA_ADMIN_API_ROUTES, ExportApiInput, ImportApiResponse, AllmaExportFormat, ALLMA_ADMIN_API_VERSION, AdminApiResponse } from '@allma/core-types';
 import { saveAs } from 'file-saver';
+import { PROMPT_TEMPLATES_QUERY_KEY } from '../features/prompts/constants';
 
 /**
  * Mutation to trigger an export of flows and step definitions.
@@ -53,9 +54,10 @@ export function useImportMutation() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['flows'] });
       queryClient.invalidateQueries({ queryKey: ['step-definitions'] });
+      queryClient.invalidateQueries({ queryKey: [PROMPT_TEMPLATES_QUERY_KEY] });
       notifications.show({
         title: 'Import Successful',
-        message: `Created: ${data.created.flows} flows, ${data.created.steps} steps. Updated: ${data.updated.flows} flows, ${data.updated.steps} steps.`,
+        message: `Created: ${data.created.flows} flows, ${data.created.steps} steps, ${data.created.prompts} prompts. Updated: ${data.updated.flows} flows, ${data.updated.steps} steps, ${data.updated.prompts} prompts.`,
         color: 'green',
       });
     },

@@ -58,3 +58,4 @@ cdk.out/
 .turbo/
 
 **/examples/basic-deployment*
+**/examples/amazon_hack*/**

@@ -1,6 +1,7 @@
 import { Modal, Button, Group, Checkbox, ScrollArea, TextInput } from '@mantine/core';
 import { useExportMutation } from '../../api/importExportService';
 import { useState } from 'react';
+import { ExportApiInput } from '@allma/core-types';
 
 interface ExportableItem {
   id: string;
@@ -11,7 +12,7 @@ interface ExportModalProps {
   opened: boolean;
   onClose: () => void;
   items: ExportableItem[];
-  itemType: 'flow' | 'step';
+  itemType: 'flow' | 'step' | 'prompt';
 }
 
 export function ExportModal({ opened, onClose, items, itemType }: ExportModalProps) {
@@ -20,9 +21,14 @@ export function ExportModal({ opened, onClose, items, itemType }: ExportModalPro
   const exportMutation = useExportMutation();
 
   const handleExport = () => {
-    const exportData = itemType === 'flow'
-      ? { flowIds: selectedIds }
-      : { stepDefinitionIds: selectedIds };
+    let exportData: ExportApiInput;
+    if (itemType === 'flow') {
+      exportData = { flowIds: selectedIds };
+    } else if (itemType === 'step') {
+      exportData = { stepDefinitionIds: selectedIds };
+    } else { // 'prompt'
+      exportData = { promptTemplateIds: selectedIds };
+    }
     exportMutation.mutate(exportData);
     onClose();
   };
@@ -30,9 +36,16 @@ export function ExportModal({ opened, onClose, items, itemType }: ExportModalPro
   const filteredItems = items.filter(item =>
     item.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
+  
+  const itemTypeLabels = {
+    flow: 'Flows',
+    step: 'Step Definitions',
+    prompt: 'Prompts',
+  };
+  const title = `Export ${itemTypeLabels[itemType]}`;
 
   return (
-    <Modal opened={opened} onClose={onClose} title={`Export ${itemType === 'flow' ? 'Flows' : 'Step Definitions'}`}>
+    <Modal opened={opened} onClose={onClose} title={title}>
       <TextInput
         placeholder="Search..."
         value={searchTerm}

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { StepDefinitionSchema } from '../steps/definitions.js';
 import { FlowDefinitionSchema } from '../flow/core.js';
+import { PromptTemplateSchema } from '../prompt/index.js';
 
 /**
  * Defines the structure of the JSON file used for import/export.
@@ -8,8 +9,9 @@ import { FlowDefinitionSchema } from '../flow/core.js';
 export const AllmaExportFormatSchema = z.object({
   formatVersion: z.literal('1.0'),
   exportedAt: z.string().datetime(),
-  stepDefinitions: z.array(StepDefinitionSchema),
-  flows: z.array(FlowDefinitionSchema),
+  stepDefinitions: z.array(StepDefinitionSchema).optional(),
+  flows: z.array(FlowDefinitionSchema).optional(),
+  promptTemplates: z.array(PromptTemplateSchema).optional(),
 });
 
 /**
@@ -19,6 +21,7 @@ export const AllmaExportFormatSchema = z.object({
 export const ExportApiInputSchema = z.object({
   flowIds: z.array(z.string()).optional(),
   stepDefinitionIds: z.array(z.string()).optional(),
+  promptTemplateIds: z.array(z.string()).optional(),
 });
 
 /**
@@ -37,18 +40,21 @@ export const ImportApiResponseSchema = z.object({
   created: z.object({
     flows: z.number(),
     steps: z.number(),
+    prompts: z.number(),
   }),
   updated: z.object({
     flows: z.number(),
     steps: z.number(),
+    prompts: z.number(),
   }),
   skipped: z.object({
     flows: z.number(),
     steps: z.number(),
+    prompts: z.number(), 
   }),
   errors: z.array(z.object({
     id: z.string(),
-    type: z.enum(['flow', 'step']),
+    type: z.enum(['flow', 'step', 'prompt']), 
     message: z.string(),
   })),
 });

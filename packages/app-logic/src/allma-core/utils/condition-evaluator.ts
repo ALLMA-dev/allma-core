@@ -3,14 +3,12 @@ import { getSmartValueByJsonPath } from '../data-mapper.js';
 import { MappingEvent } from '@allma/core-types';
 
 /**
- * Evaluates a condition string, supporting simple expressions and JSONPath truthiness checks.
- * This is an async function because it depends on the S3-aware getSmartValueByJsonPath.
- * @param condition The condition string (e.g., "$.path.value > 10" or "$.some.flag").
- * @param context The data context against which the condition is evaluated.
- * @param correlationId For logging.
- * @returns A promise that resolves to an object containing the boolean result and any mapping events.
+ * Evaluates a single, simple condition.
+ * This can be either a JSONPath for a truthiness check, or a simple comparison
+ * of the form `JSONPath operator literal`.
+ * @private
  */
-export const evaluateCondition = async (
+const evaluateSingleCondition = async (
     condition: string,
     context: Record<string, any>,
     correlationId?: string,
@@ -70,4 +68,46 @@ export const evaluateCondition = async (
     }
 
     return { result: conditionMet, resolvedValue, events: allEvents };
+};
+
+/**
+ * Evaluates a condition string, supporting simple expressions, JSONPath truthiness checks,
+ * and compound conditions joined by '&&'.
+ * This is an async function because it depends on the S3-aware getSmartValueByJsonPath.
+ * @param condition The condition string (e.g., "$.path.value > 10 && $.path.is_valid", or "$.some.flag").
+ * @param context The data context against which the condition is evaluated.
+ * @param correlationId For logging.
+ * @returns A promise that resolves to an object containing the boolean result and any mapping events.
+ */
+export const evaluateCondition = async (
+    condition: string,
+    context: Record<string, any>,
+    correlationId?: string,
+): Promise<{ result: boolean; resolvedValue: any; events: MappingEvent[] }> => {
+    
+    // Handle compound conditions with '&&'.
+    // Note: This does not support '||' or parentheses for grouping, but handles the common case.
+    if (condition.includes('&&')) {
+        const subConditions = condition.split('&&').map(c => c.trim());
+        const allEvents: MappingEvent[] = [];
+        const finalResolvedValues: any[] = [];
+        
+        for (const sub of subConditions) {
+            // Evaluate each part of the '&&' expression.
+            const { result: subResult, resolvedValue, events } = await evaluateSingleCondition(sub, context, correlationId);
+            allEvents.push(...events);
+            finalResolvedValues.push(resolvedValue);
+
+            if (!subResult) {
+                // Short-circuit evaluation on the first 'false' condition.
+                return { result: false, resolvedValue: finalResolvedValues, events: allEvents };
+            }
+        }
+        
+        // If the loop completes, all sub-conditions were true.
+        return { result: true, resolvedValue: finalResolvedValues, events: allEvents };
+    }
+
+    // If no '&&' is present, use the original logic for a single condition.
+    return evaluateSingleCondition(condition, context, correlationId);
 };
