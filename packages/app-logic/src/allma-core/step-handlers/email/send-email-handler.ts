@@ -36,12 +36,16 @@ export const executeSendEmail: StepHandler = async (
 ): Promise<StepHandlerOutput> => {
   const correlationId = runtimeState.flowExecutionId;
 
-  // Combine static/literal config from the step definition with dynamic input.
-  // stepInput (from mappings/literals) overrides properties on stepDefinition.
-  const combinedInput = { ...stepDefinition, ...stepInput };
+  // The stepDefinition object itself contains the templates (e.g., subject: "Re: {{subject}}").
+  // This will be the object we render.
+  const templateObject = stepDefinition;
   
+  // The context for rendering needs to include the general flow context
+  // AND the specific inputs for this step from inputMappings.
   const templateContext = { ...runtimeState.currentContextData, ...runtimeState, ...stepInput };
-  const renderedInput = renderNestedTemplates(combinedInput, templateContext, correlationId);
+  
+  // Now, render the templates within the stepDefinition using the full context.
+  const renderedInput = renderNestedTemplates(templateObject, templateContext, correlationId);
   
   // First, parse against the relaxed schema to get the structure and values.
   const structuralValidation = EmailSendStepPayloadSchema.safeParse(renderedInput);
@@ -50,7 +54,7 @@ export const executeSendEmail: StepHandler = async (
     log_error("Invalid structural input for system/email-send module after rendering.", { 
         errors: structuralValidation.error.flatten(), 
         receivedStepInput: stepInput,
-        combinedInputBeforeRender: combinedInput,
+        templateObjectBeforeRender: templateObject,
         finalInputAfterRender: renderedInput,
     }, correlationId);
     throw new Error(`Invalid input structure for email-send: ${structuralValidation.error.message}`);

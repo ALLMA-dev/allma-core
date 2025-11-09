@@ -229,8 +229,8 @@ export class VersionedEntityManager<TMaster extends MasterItem, TVersion extends
         
         const metadataInput: Omit<MasterItem, 'PK'> & { [key: string]: any } = {
             id,
-            name: (validatedInitialVersion as any).name,
-            description: (validatedInitialVersion as any).description ?? null,
+            name: createInput.name,
+            description: createInput.description ?? null,
             latestVersion: validatedInitialVersion.version,
             publishedVersion: (validatedInitialVersion as any).isPublished ? validatedInitialVersion.version : undefined,
             createdAt: now,

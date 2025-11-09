@@ -97,8 +97,9 @@ export function McpCallStepFormFields({ form, readOnly }: McpCallStepFormFieldsP
                         label="Input Schema"
                         value={JSON.stringify(selectedTool.input_schema, null, 2)}
                         readOnly
-                        minRows={5}
+                        minRows={7}
                         maxRows={20}
+                        autosize={true}
                     />
                     <Text size="xs" c="dimmed">
                         Use this schema as a guide for configuring the &lsquo;Input Mappings&rsquo; and &lsquo;Literals&rsquo; below.
