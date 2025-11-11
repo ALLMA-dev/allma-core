@@ -7,6 +7,7 @@ import { StepInputMappingSchema } from '../common.js';
  */
 export const StartSubFlowStepPayloadSchema = z.object({
   stepType: z.literal(StepTypeSchema.enum.START_SUB_FLOW),
+  moduleIdentifier: z.undefined().optional(),
   subFlowDefinitionId: z.string().min(1).describe("Sub-Flow ID|text|The ID of the flow definition to start."),
   subFlowVersion: z.union([z.string(), z.literal('LATEST_PUBLISHED')]).optional().default('LATEST_PUBLISHED').describe("Sub-Flow Version|text|e.g., 1 or LATEST_PUBLISHED"),
   subFlowExecutionMode: z.enum(['SYNC', 'ASYNC']).optional().default('SYNC').describe("Execution Mode|select|SYNC: wait for result. ASYNC: trigger and continue."),

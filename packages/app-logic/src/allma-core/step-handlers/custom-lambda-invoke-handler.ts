@@ -5,7 +5,8 @@ import {
   StepHandler,
   TransientStepError,
   isS3OutputPointerWrapper,
-  ENV_VAR_NAMES
+  ENV_VAR_NAMES,
+  TemplateContextMappingItem,
 } from '@allma/core-types';
 import { log_error, log_info, offloadIfLarge } from '@allma/core-sdk';
 import { z } from 'zod';
@@ -16,7 +17,7 @@ const lambdaClient = new LambdaClient({});
 // Get the bucket name from environment variables
 const EXECUTION_TRACES_BUCKET_NAME = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME];
 
-// MODIFIED: Zod schema now includes the optional customConfig for hydration control.
+// Zod schema for this step's configuration.
 const CustomLambdaInvokeStepSchema = z.object({
   stepType: z.literal('CUSTOM_LAMBDA_INVOKE'),
   lambdaFunctionArnTemplate: z.string(),
@@ -46,25 +47,59 @@ export const handleCustomLambdaInvoke: StepHandler = async (
     throw new Error("Execution traces bucket is not configured; cannot proceed with custom lambda invocation.");
   }
 
-  const { lambdaFunctionArnTemplate, moduleIdentifier } = parsedStepDef.data;
+  const { lambdaFunctionArnTemplate, moduleIdentifier, payloadTemplate } = parsedStepDef.data;
 
   // Render the ARN from the template
   const templateService = TemplateService.getInstance();
   const lambdaArn = templateService.render(lambdaFunctionArnTemplate, runtimeState.currentContextData);
   
   // Prepare the payload for the target Lambda
-  const payloadForTargetLambda = {
-    moduleIdentifier,
-    stepInput, // Pass the entire prepared step input
-    correlationId,
-  };
+  let payloadForInvoke: Record<string, any>;
+
+  if (payloadTemplate) {
+    log_info('Constructing payload for custom lambda from payloadTemplate.', {}, correlationId);
+    
+    // Convert the simple { key: jsonpath } to the format needed by buildContextFromMappings
+    const payloadTemplateForBuilder: Record<string, TemplateContextMappingItem> = 
+      Object.fromEntries(
+        Object.entries(payloadTemplate).map(([key, jsonPath]) => [
+          key,
+          { 
+            sourceJsonPath: jsonPath, 
+            formatAs: 'RAW',
+            joinSeparator: ""
+          }
+        ])
+      );
+      
+    // Use a context that includes both the main flow context and the result of inputMappings
+    const templateContext = { ...runtimeState.currentContextData, ...stepInput };
+      
+    const { context } = await templateService.buildContextFromMappings(
+      payloadTemplateForBuilder,
+      templateContext,
+      correlationId
+    );
+    
+    // The final payload is the custom payload constructed from the template.
+    // The user has full control. If they need correlationId, they can map it from `$.flow_variables.flowExecutionId`.
+    payloadForInvoke = context;
+  } else {
+    // Fallback to original behavior if no payloadTemplate is defined.
+    log_info('No payloadTemplate defined. Using default payload structure.', {}, correlationId);
+    payloadForInvoke = {
+      moduleIdentifier,
+      stepInput, // Pass the entire prepared step input from inputMappings
+      correlationId,
+    };
+  }
 
   log_info(`Invoking custom logic Lambda`, { lambdaArn, moduleIdentifier }, correlationId);
 
   try {
     const command = new InvokeCommand({
       FunctionName: lambdaArn,
-      Payload: JSON.stringify(payloadForTargetLambda),
+      Payload: JSON.stringify(payloadForInvoke),
       InvocationType: InvocationType.RequestResponse, // Synchronous invocation
     });
     
@@ -78,7 +113,7 @@ export const handleCustomLambdaInvoke: StepHandler = async (
 
     const responsePayload = result.Payload ? JSON.parse(new TextDecoder().decode(result.Payload)) : null;
 
-    // --- NEW: Payload Offloading Logic ---
+    // --- Payload Offloading Logic ---
     // The invoked lambda might have already offloaded a very large payload. 
     // If so, responsePayload will be an S3OutputPointerWrapper. We don't want to wrap a wrapper.
     if (isS3OutputPointerWrapper(responsePayload)) {

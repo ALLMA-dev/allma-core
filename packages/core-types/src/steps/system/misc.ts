@@ -2,12 +2,14 @@ import { z } from 'zod';
 import { StepTypeSchema } from '../../common/enums.js';
 import { JsonPathStringSchema } from '../../common/core.js';
 import { BranchDefinitionSchema, AggregationConfigSchema } from '../../flow/branching.js';
+import { SystemModuleIdentifiers } from '../system-module-identifiers.js';
 
 /**
  * Defines the payload for a simple NO_OP (No Operation) step.
  */
 export const NoOpStepPayloadSchema = z.object({
   stepType: z.literal(StepTypeSchema.enum.NO_OP),
+  moduleIdentifier: z.undefined().optional(),
 }).passthrough();
 
 /**
@@ -15,6 +17,7 @@ export const NoOpStepPayloadSchema = z.object({
  */
 export const EndFlowStepPayloadSchema = z.object({
   stepType: z.literal(StepTypeSchema.enum.END_FLOW),
+  moduleIdentifier: z.undefined().optional(),
 }).passthrough();
 
 /**
@@ -22,7 +25,7 @@ export const EndFlowStepPayloadSchema = z.object({
  */
 export const CustomLogicStepPayloadSchema = z.object({
   stepType: z.literal(StepTypeSchema.enum.CUSTOM_LOGIC),
-  moduleIdentifier: z.string().optional(),
+  moduleIdentifier: z.string({ required_error: 'moduleIdentifier is required for CUSTOM_LOGIC steps' }).min(1, 'moduleIdentifier cannot be empty for CUSTOM_LOGIC steps'),
   customConfig: z.record(z.any()).optional().describe("Custom Config|json|Module-specific configuration object."),
 }).passthrough();
 
@@ -31,7 +34,7 @@ export const CustomLogicStepPayloadSchema = z.object({
  */
 export const CustomLambdaInvokeStepPayloadSchema = z.object({
   stepType: z.literal(StepTypeSchema.enum.CUSTOM_LAMBDA_INVOKE),
-  moduleIdentifier: z.string().optional(),
+  moduleIdentifier: z.undefined().optional(),
   lambdaFunctionArnTemplate: z.string().min(1).describe("Lambda Function ARN|text|ARN of the function to invoke. Supports templates."),
   payloadTemplate: z.record(z.string()).optional().describe("Payload Template|json|Map context data to the Lambda's input payload."),
   // MODIFIED: Add customConfig to allow for the new hydration flag.
@@ -46,6 +49,7 @@ export const CustomLambdaInvokeStepPayloadSchema = z.object({
  */
 export const ParallelForkManagerStepPayloadSchema = z.object({
     stepType: z.literal(StepTypeSchema.enum.PARALLEL_FORK_MANAGER),
+    moduleIdentifier: z.undefined().optional(),
     itemsPath: JsonPathStringSchema.optional().describe("Items Path|text|For parallel steps, JSONPath to an array in the context to iterate over."),
     parallelBranches: z.array(BranchDefinitionSchema).optional().describe("Branches|json|Configuration for each parallel branch of execution."),
     aggregationConfig: AggregationConfigSchema.optional().describe("Aggregation|json|Configuration for how to combine results from branches."),
@@ -56,7 +60,7 @@ export const ParallelForkManagerStepPayloadSchema = z.object({
  */
 export const DataLoadStepPayloadSchema = z.object({
   stepType: z.literal(StepTypeSchema.enum.DATA_LOAD),
-  moduleIdentifier: z.string().optional(),
+  moduleIdentifier: z.string({ required_error: 'moduleIdentifier is required for DATA_LOAD steps' }).min(1, 'moduleIdentifier cannot be empty for DATA_LOAD steps'),
   customConfig: z.record(z.any()).optional().describe("Custom Config|json|Module-specific configuration object."),
 }).passthrough();
 
@@ -65,7 +69,7 @@ export const DataLoadStepPayloadSchema = z.object({
  */
 export const DataSaveStepPayloadSchema = z.object({
   stepType: z.literal(StepTypeSchema.enum.DATA_SAVE),
-  moduleIdentifier: z.string().optional(),
+  moduleIdentifier: z.string({ required_error: 'moduleIdentifier is required for DATA_SAVE steps' }).min(1, 'moduleIdentifier cannot be empty for DATA_SAVE steps'),
   customConfig: z.record(z.any()).optional().describe("Custom Config|json|Module-specific configuration object."),
 }).passthrough();
 
@@ -74,7 +78,7 @@ export const DataSaveStepPayloadSchema = z.object({
  */
 export const StartFlowExecutionStepPayloadSchema = z.object({
   stepType: z.literal(StepTypeSchema.enum.START_FLOW_EXECUTION),
-  moduleIdentifier: z.string().optional(),
+  moduleIdentifier: z.literal(SystemModuleIdentifiers.START_FLOW_EXECUTION),
   customConfig: z.record(z.any()).optional().describe("Custom Config|json|Module-specific configuration object."),
 }).passthrough();
 

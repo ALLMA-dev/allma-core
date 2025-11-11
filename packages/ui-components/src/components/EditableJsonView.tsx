@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useMantineColorScheme, JsonInput, Group, ActionIcon, Tooltip, Stack, Paper, Button, useMantineTheme } from '@mantine/core';
+import { useMantineColorScheme, JsonInput, Group, ActionIcon, Tooltip, Stack, Paper, Button, useMantineTheme, Code } from '@mantine/core';
 import { IconPencil, IconDeviceFloppy, IconX } from '@tabler/icons-react';
 import JsonView from '@uiw/react-json-view';
 import { lightTheme } from '@uiw/react-json-view/light';
@@ -7,7 +7,7 @@ import { darkTheme } from '@uiw/react-json-view/dark';
 import React from 'react';
 
 interface EditableJsonViewProps {
-  value: object | null | undefined;
+  value: any;
   /**
    * Callback function for when the JSON is saved.
    * Required if `readOnly` is false.
@@ -18,13 +18,15 @@ interface EditableJsonViewProps {
   displayVariant?: 'default' | 'inherited';
   /** An external error message (e.g., from form validation) to display. */
   error?: React.ReactNode;
+  /** If true, on save, if the input is not valid JSON, it will be saved as a string. */
+  allowStringFallback?: boolean;
 }
 
 /**
  * A wrapper component that provides a read-only view of a JSON object
  * with the ability to switch to a text-based editing mode using Mantine's JsonInput.
  */
-export function EditableJsonView({ value, onChange, readOnly = false, displayVariant = 'default', error: formError }: EditableJsonViewProps) {
+export function EditableJsonView({ value, onChange, readOnly = false, displayVariant = 'default', error: formError, allowStringFallback = false }: EditableJsonViewProps) {
   const theme = useMantineTheme();
   const { colorScheme } = useMantineColorScheme();
   const [isEditing, setIsEditing] = useState(false);
@@ -35,13 +37,14 @@ export function EditableJsonView({ value, onChange, readOnly = false, displayVar
   useEffect(() => {
     if (!isEditing) {
       try {
-        const prettyJson = JSON.stringify(value ?? null, null, 2);
-        setJsonString(prettyJson);
+        // If the value is already a string, just use it. Otherwise, stringify it.
+        const displayString = typeof value === 'string' ? value : JSON.stringify(value ?? null, null, 2);
+        setJsonString(displayString);
         setInternalError(null);
       } catch (e) {
-        console.error("EditableJsonView: Failed to stringify incoming value.", e);
+        console.error("EditableJsonView: Failed to process incoming value.", e);
         setJsonString('null');
-        setInternalError('Error: Incoming value is not valid JSON.');
+        setInternalError('Error: Incoming value is not a valid JSON-like structure.');
       }
     }
   }, [value, isEditing]);
@@ -63,7 +66,9 @@ export function EditableJsonView({ value, onChange, readOnly = false, displayVar
   };
 
   const handleCancelClick = () => {
-    setJsonString(JSON.stringify(value ?? null, null, 2));
+    // Revert to original value on cancel
+    const displayString = typeof value === 'string' ? value : JSON.stringify(value ?? null, null, 2);
+    setJsonString(displayString);
     setInternalError(null);
     setIsEditing(false);
   };
@@ -77,7 +82,15 @@ export function EditableJsonView({ value, onChange, readOnly = false, displayVar
       setInternalError(null);
       setIsEditing(false);
     } catch (e) {
-      setInternalError('Invalid JSON format. Please correct it before saving.');
+      if (allowStringFallback) {
+        if (onChange) {
+          onChange(jsonString);
+        }
+        setInternalError(null);
+        setIsEditing(false);
+      } else {
+        setInternalError('Invalid JSON format. Please correct it before saving.');
+      }
     }
   };
 
@@ -93,29 +106,40 @@ export function EditableJsonView({ value, onChange, readOnly = false, displayVar
     borderColor: theme.colors.cyan[7],
   } : {};
 
-  if (readOnly || !isEditing) {
-    return (
-      <Paper withBorder p="xs" radius="md" pos="relative" style={variantStyle}>
-        {!readOnly && (
-          <Tooltip label="Edit JSON">
-            <ActionIcon
-              variant="default"
-              size="sm"
-              onClick={handleEditClick}
-              style={{ position: 'absolute', top: 5, right: 5, zIndex: 1 }}
-              aria-label="Edit JSON"
-            >
-              <IconPencil size="0.9rem" />
-            </ActionIcon>
-          </Tooltip>
-        )}
+  const renderReadOnlyView = () => {
+    // Check the type of the value. Only use JsonView for objects/arrays.
+    if (typeof value === 'object' && value !== null) {
+      return (
         <JsonView
-          value={value ?? {}}
+          value={value} // No need for `?? {}` here as we've confirmed it's an object.
           style={colorScheme === 'dark' ? darkTheme : lightTheme}
           displayDataTypes={false}
           enableClipboard
           collapsed={2}
         />
+      );
+    }
+    // For strings, numbers, booleans, or null, render as simple text to prevent crashing JsonView.
+    return <Code block style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{String(value ?? 'null')}</Code>;
+  };
+
+  if (readOnly || !isEditing) {
+    return (
+      <Paper withBorder p="xs" radius="md" pos="relative" style={variantStyle}>
+        {!readOnly && (
+          <Tooltip label="Edit Value">
+            <ActionIcon
+              variant="default"
+              size="sm"
+              onClick={handleEditClick}
+              style={{ position: 'absolute', top: 5, right: 5, zIndex: 1 }}
+              aria-label="Edit Value"
+            >
+              <IconPencil size="0.9rem" />
+            </ActionIcon>
+          </Tooltip>
+        )}
+        {renderReadOnlyView()}
       </Paper>
     );
   }
@@ -127,7 +151,7 @@ export function EditableJsonView({ value, onChange, readOnly = false, displayVar
         <JsonInput
           value={jsonString}
           onChange={handleJsonStringChange}
-          placeholder="Enter valid JSON"
+          placeholder='Enter valid JSON or a plain string'
           error={formError || internalError}
           formatOnBlur
           autosize

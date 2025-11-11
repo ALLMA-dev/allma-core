@@ -3,45 +3,45 @@ import {
     CreateFlowVersionInputSchema, CloneFlowInputSchema, UpdateFlowConfigInputSchema,
     CreateFlowInput,
     StepInstanceSchema,
-    StepTypeSchema,
 } from '@allma/core-types';
 import { FlowDefinitionService } from './services/flow-definition.service.js';
 import { createCrudHandler } from './utils/create-crud-handler.js';
-import { z, AnyZodObject, ZodDiscriminatedUnion, ZodIntersection } from 'zod';
+import { z, ZodDiscriminatedUnion, AnyZodObject, ZodIntersection } from 'zod';
 
-// --- Start: Partial Schema Generation for StepInstance ---
-// StepInstanceSchema is a complex ZodIntersection of a ZodDiscriminatedUnion and other ZodObjects.
-// To create a partial schema for patch updates, we must deconstruct it and build a new schema.
+// --- Start: CORRECT Partial Schema Generation for StepInstance ---
+// This function correctly creates a partial schema for a complex discriminated union
+// by making each option in the union partial while preserving the discriminator.
 
-// 1. Deconstruct the top-level intersection of StepInstanceSchema.
-const baseStepDefSchema = StepInstanceSchema._def.left as ZodIntersection<ZodDiscriminatedUnion<any, any>, AnyZodObject>;
-const instancePropertiesSchema = StepInstanceSchema._def.right as AnyZodObject;
+// 1. Deconstruct the top-level StepInstanceSchema intersection.
+const stepInstanceIntersection = StepInstanceSchema as ZodIntersection<any, any>;
+const baseStepDefSchema = stepInstanceIntersection._def.left as ZodIntersection<ZodDiscriminatedUnion<"stepType", any>, AnyZodObject>;
+const instancePropertiesSchema = stepInstanceIntersection._def.right as AnyZodObject;
 
-// 2. Deconstruct the BaseStepDefinitionSchema intersection.
+// 2. Deconstruct the BaseStepDefinitionSchema to get the core union and common properties.
 const discriminatedUnionSchema = baseStepDefSchema._def.left;
 const commonPropertiesSchema = baseStepDefSchema._def.right;
 
-// 3. Get the shape from all possible options in the discriminated union.
-const allDuShapes = discriminatedUnionSchema.options.reduce((acc: any, schema: AnyZodObject) => {
-    // Omit the discriminator key ('stepType') to avoid conflicts during merge.
-    const { [discriminatedUnionSchema.discriminator]: _, ...rest } = schema.shape;
-    return { ...acc, ...rest };
-}, {});
+// 3. Create partial versions of each individual schema within the union.
+// It's crucial to extend the partial schema to re-include the original `stepType` literal.
+// This allows the `discriminatedUnion` to still identify which schema to use.
+const partialUnionOptions = discriminatedUnionSchema.options.map((option: AnyZodObject) => 
+    option.partial().extend({
+        stepType: option.shape.stepType,
+    })
+);
 
-// 4. Combine all shapes into a single shape definition.
-const combinedShape = {
-    ...allDuShapes,
-    ...commonPropertiesSchema.shape,
-    ...instancePropertiesSchema.shape,
-    // Add the discriminator back, but as a general enum, not a specific literal.
-    // This allows Zod to keep the `stepType` field during parsing.
-    [discriminatedUnionSchema.discriminator]: StepTypeSchema,
-};
+// 4. Reconstruct the `discriminatedUnion` with the new array of partial schemas.
+// The `as any` is a necessary evil here due to Zod's complex internal typings for this constructor.
+const partialDiscriminatedUnion = z.discriminatedUnion("stepType", partialUnionOptions as any);
 
-// 5. Create a new ZodObject from the unified shape and make it deeply partial.
-// This is the correct schema for validating a partial patch of a StepInstance.
-const PartialStepInstanceSchema = z.object(combinedShape).deepPartial();
-// --- End: Partial Schema Generation ---
+// 5. Combine the new partial union with partial versions of the common properties.
+const PartialStepInstanceSchema = z.intersection(
+    partialDiscriminatedUnion,
+    commonPropertiesSchema.partial()
+).and(instancePropertiesSchema.partial());
+
+// --- End: CORRECT Partial Schema Generation ---
+
 
 // Get the base ZodObject from the ZodEffects (created by .superRefine on FlowDefinitionSchema)
 // to allow using methods like .omit() and .partial().
@@ -58,7 +58,7 @@ const UpdateFlowVersionInputSchema = flowDefinitionObjectSchema
     updatedAt: true,
   })
   .extend({
-    // Crucially, override 'steps' to be an optional record of our new PARTIAL StepInstances schema.
+    // Crucially, override 'steps' to be an optional record of our new, correctly-built PARTIAL StepInstances schema.
     // This allows the UI to send just the changes for a single step or a subset of steps.
     steps: z.record(z.string().min(1), PartialStepInstanceSchema).optional(),
   })

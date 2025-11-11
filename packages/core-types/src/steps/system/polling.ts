@@ -8,6 +8,7 @@ import { ApiCallStepPayloadSchema } from './api-calls.js';
  */
 export const PollExternalApiStepPayloadSchema = z.object({
   stepType: z.literal(StepTypeSchema.enum.POLL_EXTERNAL_API),
+  moduleIdentifier: z.undefined().optional(),
   apiCallDefinition: ApiCallStepPayloadSchema.pick({
     apiUrlTemplate: true,
     apiHttpMethod: true,

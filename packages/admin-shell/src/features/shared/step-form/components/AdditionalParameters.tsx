@@ -17,9 +17,11 @@ export function AdditionalParameters({ form, readOnly }: AdditionalParametersPro
     const [newParamKey, setNewParamKey] = useState('');
 
     const additionalParams = useMemo(() => {
-        if (!form.values) {
+        //Add a guard to ensure form.values is a valid object before calling Object.entries.
+        if (!form.values || typeof form.values !== 'object') {
             return [];
         }
+
         // Filter out keys that are part of any known step schema, or have been "deleted" by setting their value to undefined.
         return Object.entries(form.values).filter(([key, value]) => 
             !ALL_STEP_SCHEMA_KEYS.has(key) && 
@@ -54,7 +56,8 @@ export function AdditionalParameters({ form, readOnly }: AdditionalParametersPro
         });
     };
 
-    // Function to render the correct input based on the value's type
+    // Render the correct input component based on the value's type.
+    // This prevents passing a primitive string to the JsonView component.
     const renderParameterInput = (key: string, value: any) => {
         switch (typeof value) {
             case 'string':
@@ -86,12 +89,13 @@ export function AdditionalParameters({ form, readOnly }: AdditionalParametersPro
                         offLabel="OFF"
                     />
                 );
-            case 'object': // This also handles null
+            case 'object':
                 return (
                     <EditableJsonView
                         value={value}
                         onChange={(newValue) => form.setFieldValue(key as any, newValue)}
                         readOnly={readOnly}
+                        allowStringFallback={true}
                     />
                 );
             default:

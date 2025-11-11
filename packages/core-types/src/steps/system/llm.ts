@@ -5,6 +5,7 @@ import { TemplateContextMappingItemSchema } from '../templating.js';
 
 export const LlmInvocationStepPayloadSchema = z.object({
   stepType: z.literal(StepTypeSchema.enum.LLM_INVOCATION),
+  moduleIdentifier: z.undefined().optional(),
   llmProvider: LLMProviderTypeSchema,
   modelId: z.string().min(1).describe("Model ID|text|e.g., gemini-1.5-pro-latest or anthropic.claude-3-sonnet-20240229-v1:0"),
   promptTemplateId: z.string().min(1).optional().describe("Prompt Template|prompt-select|Select a pre-defined prompt template."),

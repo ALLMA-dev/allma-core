@@ -10,6 +10,7 @@ const ApiUrlTemplateSchema = z.object({
 
 export const ApiCallStepPayloadSchema = z.object({
   stepType: z.literal(StepTypeSchema.enum.API_CALL),
+  moduleIdentifier: z.undefined().optional(),
   apiUrlTemplate: ApiUrlTemplateSchema.describe("API URL Template|json|Define the URL and any dynamic path parameters."),
   apiHttpMethod: HttpMethodEnumSchema.describe("HTTP Method|select|The HTTP method for the API call."),
   apiHeadersTemplate: z.record(JsonPathStringSchema).optional().describe("Dynamic Headers|json|Map context data to request headers."),
