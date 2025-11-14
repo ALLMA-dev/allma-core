@@ -33,7 +33,13 @@ export class BedrockAdapter implements LlmProviderAdapter {
      * @returns The provider name (e.g., 'anthropic').
      */
     private getProviderFromModelId(modelId: string): string {
-        return modelId.split('.')[0];
+        const globalPrefix = 'global.';
+        let providerId = modelId;
+        if (modelId.startsWith(globalPrefix)) {
+            // If it's a global model, strip the prefix to identify the provider family (e.g., 'anthropic').
+            providerId = modelId.substring(globalPrefix.length);
+        }
+        return providerId.split('.')[0];
     }
 
     /**

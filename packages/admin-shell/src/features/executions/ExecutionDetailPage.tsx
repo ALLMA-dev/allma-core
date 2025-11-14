@@ -47,6 +47,10 @@ export function ExecutionDetailPage() {
 
     const flowRedriveMutation = useFlowRedrive();
     
+    useEffect(() => {
+        setRedirectInfo(null); // when redirect done, clear state
+    }, [flowExecutionId]);
+    
     // Timer effect for the redirect
     useEffect(() => {
         if (!redirectInfo || redirectInfo.countdown <= 0) {

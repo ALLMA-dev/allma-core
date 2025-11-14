@@ -56,7 +56,7 @@ export const handleLlmInvocation: StepHandler = async (
   const finalParams = llmStepDef.inferenceParameters || {};
   const finalCustomConfig = llmStepDef.customConfig || {};
 
-  log_info(`Executing LLM_INVOCATION step: ${llmStepDef.name}`, {
+  log_info(`Executing LLM_INVOCATION step: ${JSON.stringify(llmStepDef)}`, {
     provider: llmProvider,
     modelId: modelId,
     parameters: finalParams,

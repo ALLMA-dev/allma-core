@@ -13,39 +13,40 @@ const nodeHeight = 115; // Increased height to accommodate more info
 /**
  * Traverses the flow definition to identify all steps that are part of a parallel branch.
  * @param steps The complete map of step configurations from the flow definition.
- * @returns A Map where the key is a step's instance ID and the value contains the parent fork and branch IDs.
+ * @returns A Map where the key is a step's unique key (from the steps object) and the value contains the parent fork and branch IDs.
  */
 const findBranchSteps = (steps: Record<string, StepInstance>): Map<string, { forkId: string, branchId: string }> => {
     const branchStepMap = new Map<string, { forkId: string, branchId: string }>();
     const allStepIds = new Set(Object.keys(steps));
 
-    const forkManagers = Object.values(steps).filter(step => step.stepType === StepType.PARALLEL_FORK_MANAGER);
+    for (const [stepKey, step] of Object.entries(steps)) {
+        if (step.stepType === StepType.PARALLEL_FORK_MANAGER) {
+            // TypeScript now correctly infers `step` has `parallelBranches`
+            if (step.parallelBranches) {
+                for (const branch of step.parallelBranches) {
+                    // Check if the branch refers to a step instance within this flow.
+                    // The branch could be an inline sub-flow, which does not have a 'stepInstanceId'.
+                    if ('stepInstanceId' in branch && branch.stepInstanceId) {
+                        const startStepId = branch.stepInstanceId;
+                        const queue: string[] = [startStepId];
+                        const visited = new Set<string>();
 
-    for (const fork of forkManagers) {
-        if (fork.parallelBranches) {
-            for (const branch of fork.parallelBranches) {
-                // FIX: Check if the branch refers to a step instance within this flow.
-                // The branch could be an inline sub-flow, which does not have a 'stepInstanceId'.
-                if ('stepInstanceId' in branch && branch.stepInstanceId) {
-                    const startStepId = branch.stepInstanceId;
-                    const queue: string[] = [startStepId];
-                    const visited = new Set<string>();
-
-                    while (queue.length > 0) {
-                        const currentStepId = queue.shift()!;
-                        if (!currentStepId || visited.has(currentStepId) || !allStepIds.has(currentStepId)) {
-                            continue;
-                        }
-
-                        visited.add(currentStepId);
-                        branchStepMap.set(currentStepId, { forkId: fork.stepInstanceId, branchId: branch.branchId });
-
-                        const currentStepConfig = steps[currentStepId];
-                        if (currentStepConfig) {
-                            if (currentStepConfig.defaultNextStepInstanceId) {
-                                queue.push(currentStepConfig.defaultNextStepInstanceId);
+                        while (queue.length > 0) {
+                            const currentStepId = queue.shift()!;
+                            if (!currentStepId || visited.has(currentStepId) || !allStepIds.has(currentStepId)) {
+                                continue;
                             }
-                            currentStepConfig.transitions?.forEach((t: { nextStepInstanceId: string }) => queue.push(t.nextStepInstanceId));
+
+                            visited.add(currentStepId);
+                            branchStepMap.set(currentStepId, { forkId: stepKey, branchId: branch.branchId });
+
+                            const currentStepConfig = steps[currentStepId];
+                            if (currentStepConfig) {
+                                if (currentStepConfig.defaultNextStepInstanceId) {
+                                    queue.push(currentStepConfig.defaultNextStepInstanceId);
+                                }
+                                currentStepConfig.transitions?.forEach((t: { nextStepInstanceId: string }) => queue.push(t.nextStepInstanceId));
+                            }
                         }
                     }
                 }
@@ -61,46 +62,46 @@ export const flowDefinitionToElements = (flow: FlowDefinition): { flow: FlowDefi
   const nodes: AllmaStepNode[] = [];
   const edges: AllmaTransitionEdge[] = [];
   
-  const allSteps = Object.values(flow.steps);
-  const allNodesHavePosition = allSteps.length > 0 && allSteps.every(step => !!step.position);
+  const allStepEntries = Object.entries(flow.steps);
+  const allNodesHavePosition = allStepEntries.length > 0 && allStepEntries.every(([, step]) => !!step.position);
 
   const branchStepsMap = findBranchSteps(flow.steps);
 
   // Create nodes
-  allSteps.forEach((step: StepInstance) => {
+  allStepEntries.forEach(([stepKey, step]) => {
     let position: XYPosition = { x: 0, y: 0 };
     if (step.position && typeof step.position.x === 'number' && typeof step.position.y === 'number') {
         position = step.position;
     }
 
-    // NEW: Logic to determine if a step is the end of a branch path
-    const isBranchStep = branchStepsMap.has(step.stepInstanceId);
+    // Logic to determine if a step is the end of a branch path
+    const isBranchStep = branchStepsMap.has(stepKey);
     const hasNoOutgoingFlow = !step.defaultNextStepInstanceId;
     const isNotGlobalEnd = step.stepType !== StepType.END_FLOW;
     const isBranchEnd = isBranchStep && hasNoOutgoingFlow && isNotGlobalEnd;
 
     nodes.push({
-      id: step.stepInstanceId,
+      id: stepKey,
       type: 'stepNode',
       position: position,
       data: {
-        label: step.displayName || step.stepInstanceId,
+        label: step.displayName || stepKey,
         stepType: step.stepType,
         config: step,
-        isStartNode: step.stepInstanceId === flow.startStepInstanceId,
-        branchInfo: branchStepsMap.get(step.stepInstanceId),
-        isBranchEnd: isBranchEnd, // Add the calculated property
+        isStartNode: stepKey === flow.startStepInstanceId,
+        branchInfo: branchStepsMap.get(stepKey),
+        isBranchEnd: isBranchEnd,
       },
     });
   });
 
   // Create edges
-  allSteps.forEach((step: StepInstance) => {
+  allStepEntries.forEach(([stepKey, step]) => {
     // Default transition
     if (step.defaultNextStepInstanceId) {
       edges.push({
-        id: `e-${step.stepInstanceId}-default-${step.defaultNextStepInstanceId}`,
-        source: step.stepInstanceId,
+        id: `e-${stepKey}-default-${step.defaultNextStepInstanceId}`,
+        source: stepKey,
         target: step.defaultNextStepInstanceId,
         type: 'conditionalEdge',
         markerEnd: LARGE_ARROW_MARKER,
@@ -111,8 +112,8 @@ export const flowDefinitionToElements = (flow: FlowDefinition): { flow: FlowDefi
     // Conditional transitions
     step.transitions?.forEach((transition: { condition: string; nextStepInstanceId: string }, index: number) => {
       edges.push({
-        id: `e-${step.stepInstanceId}-cond-${index}-${transition.nextStepInstanceId}`,
-        source: step.stepInstanceId,
+        id: `e-${stepKey}-cond-${index}-${transition.nextStepInstanceId}`,
+        source: stepKey,
         target: transition.nextStepInstanceId,
         type: 'conditionalEdge',
         markerEnd: LARGE_ARROW_MARKER,
@@ -126,8 +127,8 @@ export const flowDefinitionToElements = (flow: FlowDefinition): { flow: FlowDefi
     // Error handling transition
     if (step.onError?.fallbackStepInstanceId) {
         edges.push({
-            id: `e-${step.stepInstanceId}-error-${step.onError.fallbackStepInstanceId}`,
-            source: step.stepInstanceId,
+            id: `e-${stepKey}-error-${step.onError.fallbackStepInstanceId}`,
+            source: stepKey,
             target: step.onError.fallbackStepInstanceId,
             type: 'conditionalEdge',
             markerEnd: LARGE_ARROW_MARKER,
@@ -140,8 +141,8 @@ export const flowDefinitionToElements = (flow: FlowDefinition): { flow: FlowDefi
         step.parallelBranches.forEach((branch: BranchDefinition) => {
             if ('stepInstanceId' in branch && branch.stepInstanceId) {
                 edges.push({
-                    id: `e-${step.stepInstanceId}-branch-${branch.stepInstanceId}`,
-                    source: step.stepInstanceId,
+                    id: `e-${stepKey}-branch-${branch.stepInstanceId}`,
+                    source: stepKey,
                     target: branch.stepInstanceId,
                     type: 'conditionalEdge',
                     markerEnd: LARGE_ARROW_MARKER,

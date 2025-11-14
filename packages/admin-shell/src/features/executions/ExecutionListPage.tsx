@@ -1,15 +1,17 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Table, Select, Group, Badge, Text, ActionIcon, Tooltip, Box, LoadingOverlay, Alert, Pagination } from '@mantine/core';
 import { IconEye, IconAlertCircle, IconFilter, IconPlayerPlay, IconInfoCircle, IconRefresh } from '@tabler/icons-react';
 import { format } from 'date-fns';
 import { useQueryClient } from '@tanstack/react-query';
 import { PageContainer } from '@allma/ui-components';
-import { useGetFlows, useListFlowVersions } from '../../api/flowService';
+import { useGetFlows, useListFlowVersions, useFlowRedrive } from '../../api/flowService';
 import { useGetFlowExecutions } from '../../api/executionService';
 import { FlowExecutionSummary } from '@allma/core-types';
 import { formatFuzzyDurationWithDetail } from '../../utils/formatters';
 import { EXECUTIONS_LIST_QUERY_KEY } from './constants';
+import { modals } from '@mantine/modals';
+import { notifications } from '@mantine/notifications';
 
 const getStatusColor = (status: string) => {
     switch (status) {
@@ -26,6 +28,7 @@ const SELECTED_FLOW_ID_STORAGE_KEY = 'allma-admin-selected-flow-id';
 
 export function ExecutionListPage() {
     const queryClient = useQueryClient();
+    const navigate = useNavigate();
     const [selectedFlowId, setSelectedFlowId] = useState<string | null>(
         () => localStorage.getItem(SELECTED_FLOW_ID_STORAGE_KEY) || null
     );
@@ -53,6 +56,8 @@ export function ExecutionListPage() {
         limit: 15,
         nextToken: currentToken, // Pass the token for the current page
     });
+
+    const flowRedriveMutation = useFlowRedrive();
 
     // --- EFFECT: Update pagination tokens when new data is fetched ---
     useEffect(() => {
@@ -119,6 +124,34 @@ export function ExecutionListPage() {
         setPageTokens([undefined]);
     };
 
+    const handleFlowRedrive = (exec: FlowExecutionSummary) => {
+        modals.openConfirmModal({
+            title: 'Confirm Flow Redrive',
+            centered: true,
+            children: (
+                <Text size="sm">
+                    Are you sure you want to redrive execution {exec.flowExecutionId.substring(0,8)}...? A new execution will start using the original input.
+                </Text>
+            ),
+            labels: { confirm: 'Redrive Flow', cancel: 'Cancel' },
+            confirmProps: { color: 'green' },
+            onConfirm: () => {
+                flowRedriveMutation.mutate({ executionId: exec.flowExecutionId }, {
+                    onSuccess: (data) => {
+                        queryClient.invalidateQueries({ queryKey: [EXECUTIONS_LIST_QUERY_KEY] });
+                        notifications.show({
+                            title: 'Redrive Initiated',
+                            message: `Navigating to new execution: ${data.newFlowExecutionId.substring(0,8)}...`,
+                            color: 'green',
+                            icon: <IconPlayerPlay size="1.1rem" />,
+                        });
+                        navigate(`/executions/${data.newFlowExecutionId}`);
+                    }
+                });
+            },
+        });
+    };
+
     const executions = executionsResponse?.items || [];
     
     // Calculate total pages based on discovered tokens and current response.
@@ -156,7 +189,12 @@ export function ExecutionListPage() {
                         </ActionIcon>
                     </Tooltip>
                     <Tooltip label="Redrive Flow">
-                        <ActionIcon variant="subtle" color="gray">
+                        <ActionIcon
+                            variant="subtle"
+                            color="gray"
+                            onClick={() => handleFlowRedrive(exec)}
+                            loading={flowRedriveMutation.isPending && flowRedriveMutation.variables?.executionId === exec.flowExecutionId}
+                        >
                             <IconPlayerPlay size="1rem" />
                         </ActionIcon>
                     </Tooltip>

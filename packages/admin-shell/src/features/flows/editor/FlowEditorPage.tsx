@@ -1,4 +1,3 @@
-// packages/allma-core/admin-shell/src/features/flows/editor/FlowEditorPage.tsx
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Button, Group, Alert, ActionIcon, Tooltip, Paper, Stack, Title } from '@mantine/core';
@@ -56,12 +55,23 @@ function FlowEditorPageContent() {
     }
   }, [flowDef?.updatedAt, flowConfig?.updatedAt, setFlow]);
 
-  const handleSaveDraft = () => {
+  const handleSaveAndClose = () => {
     if (flowFromStore) {
       updateFlowMutation.mutate({ flowDef: flowFromStore }, {
         onSuccess: () => {
           clearDirtyState();
           navigate(`/flows/versions/${flowId}`);
+        },
+      });
+    }
+  };
+
+  const handleSaveOnly = () => {
+    if (flowFromStore) {
+      updateFlowMutation.mutate({ flowDef: flowFromStore }, {
+        onSuccess: () => {
+          clearDirtyState();
+          // Do not navigate, just clear the dirty state
         },
       });
     }
@@ -142,19 +152,28 @@ function FlowEditorPageContent() {
       breadcrumb={<FlowsBreadcrumbs flowId={flowId} flowName={flowFromStore?.name} isEditing />}
       rightSection={
         <Group>
-          <Button variant="default" onClick={handleClose}>
-            {isReadOnly ? 'Back to Versions' : 'Close'}
-          </Button>
           {!isReadOnly && (
             <Button
-              leftSection={<IconDeviceFloppy size="1rem"/>}
-              onClick={handleSaveDraft}
+              onClick={handleSaveOnly}
               loading={updateFlowMutation.isPending}
               disabled={!isDirty}
             >
-              Save Draft & Close
+              Save
             </Button>
           )}
+          {!isReadOnly && (
+            <Button
+              leftSection={<IconDeviceFloppy size="1rem"/>}
+              onClick={handleSaveAndClose}
+              loading={updateFlowMutation.isPending}
+              disabled={!isDirty}
+            >
+              Save & Close
+            </Button>
+          )}
+          <Button variant="default" onClick={handleClose}>
+            {isReadOnly ? 'Back to Versions' : 'Close'}
+          </Button>
         </Group>
       }
       loading={isLoading || !flowFromStore}
