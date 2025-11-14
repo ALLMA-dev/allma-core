@@ -24,9 +24,11 @@
     "@langchain/google-vertexai": "^1.0.0",
     "adm-zip": "^0.5.10",
     "axios": "^1.7.2",
+    "date-fns": "^4.1.0",
     "handlebars": "^4.7.8",
     "postal-mime": "^2.6.0",
-    "zod": "^3.22.4"
+    "zod": "^3.22.4",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@types/adm-zip": "^0.5.5",

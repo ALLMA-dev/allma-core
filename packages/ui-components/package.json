@@ -37,12 +37,11 @@
   "publishConfig": {
     "access": "public"
   },
-  "dependencies": {
+  "dependencies": {},
+  "peerDependencies": {
     "@mantine/core": "^8.0.0",
     "@tabler/icons-react": "^3.11.0",
-    "@uiw/react-json-view": "^2.0.0-alpha.34"
-  },
-  "peerDependencies": {
+    "@uiw/react-json-view": "^2.0.0-alpha.34",
     "react": "^19.1.0"
   },
   "devDependencies": {

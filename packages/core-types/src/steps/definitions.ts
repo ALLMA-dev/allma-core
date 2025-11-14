@@ -80,7 +80,8 @@ export const BaseStepDefinitionSchema = z.discriminatedUnion("stepType", [
     outputMappings: StepOutputMappingSchema.optional(),
     onError: StepErrorHandlerSchema.optional(),
     literals: z.record(z.any()).optional(),
-}));
+    moduleIdentifier: z.string().optional(),
+}).passthrough());
 
 /**
  * The main schema for a reusable, storable Step Definition.
@@ -93,7 +94,6 @@ export const StepDefinitionSchema = BaseStepDefinitionSchema.and(z.object({
   version: z.number().int().positive().optional().default(1),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
-  moduleIdentifier: z.string().optional(),
 })).superRefine((data: any, ctx: z.RefinementCtx) => {
   if (data.stepType === StepTypeSchema.enum.DATA_TRANSFORMATION && !data.customConfig?.script && !data.moduleIdentifier) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Either a script or a moduleIdentifier is required for DATA_TRANSFORMATION steps.", path: ["moduleIdentifier"] });
@@ -127,7 +127,7 @@ export const StepInstanceSchema = BaseStepDefinitionSchema.and(z.object({
     defaultNextStepInstanceId: z.string().min(1).optional(),
     delay: DelayOptionsSchema.optional(),
     disableS3Offload: z.boolean().optional(),
-}));
+}).passthrough());
 export type StepInstance = z.infer<typeof StepInstanceSchema>;
 
 
