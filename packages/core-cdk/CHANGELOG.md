@@ -1,5 +1,14 @@
 # @allma/core-cdk
 
+## 1.0.13
+
+### Patch Changes
+
+- e0891b0: Dependencies fix. Minor UI and types fixes
+- dab7d32: CDK updated to expose Orchestrator ARN
+- Updated dependencies [e0891b0]
+  - @allma/core-types@1.0.7
+
 ## 1.0.12
 
 ### Patch Changes
