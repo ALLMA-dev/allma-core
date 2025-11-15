@@ -87,6 +87,7 @@ export class AllmaStack extends cdk.Stack {
   public readonly allmaFlowOutputTopic: sns.ITopic; // Expose the SNS topic
   public readonly adminUserPool: cdk.aws_cognito.IUserPool; // Expose the User Pool object
   public readonly adminUserPoolClient: cdk.aws_cognito.IUserPoolClient; // Expose the client
+  public readonly orchestrationLambdaRole: iam.IRole;
 
 
   constructor(scope: Construct, id: string, props: AllmaStackProps) {
@@ -166,6 +167,8 @@ export class AllmaStack extends cdk.Stack {
       allmaFlowOutputTopic: flowOutputTopic,
       flowOrchestratorStateMachineArn: predictiveMainSfnArn,
     });
+
+    this.orchestrationLambdaRole = compute.orchestrationLambdaRole;
 
     // --- Sub-State Machines (Orchestration Helpers) ---
     const pollingOrchestrator = new PollingOrchestrator(this, 'AllmaPollingOrchestrator', {
