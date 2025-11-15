@@ -1,5 +1,11 @@
 # @allma/core-types
 
+## 1.0.7
+
+### Patch Changes
+
+- e0891b0: Dependencies fix. Minor UI and types fixes
+
 ## 1.0.6
 
 ### Patch Changes

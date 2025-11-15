@@ -1,5 +1,13 @@
 # @allma/admin-shell
 
+## 1.0.8
+
+### Patch Changes
+
+- e0891b0: Dependencies fix. Minor UI and types fixes
+- Updated dependencies [e0891b0]
+  - @allma/core-types@1.0.7
+
 ## 1.0.7
 
 ### Patch Changes
