@@ -1,6 +1,6 @@
 import React, { memo, useMemo, useState } from 'react';
 import { Handle, Position, NodeProps } from 'reactflow';
-import { Card, Text, Badge, Group, useMantineTheme, Tooltip, Code, Box, Stack } from '@mantine/core';
+import { Card, Text, Badge, Group, useMantineTheme, Tooltip, Code, Box, Stack, useMantineColorScheme } from '@mantine/core';
 import { IconPlayerPlay, IconPencil, IconGitBranch, IconGitFork, IconArrowBackUp } from '@tabler/icons-react';
 import { StepNodeData } from '../../types';
 import { getStepConfig } from '../../step-configs';
@@ -16,12 +16,14 @@ const allHandles: { id: string; position: Position; style: React.CSSProperties }
     { id: 'bottom-center', position: Position.Bottom, style: { bottom: 0, left: '50%', transform: 'translate(-50%, 50%)' } },
     { id: 'bottom-right', position: Position.Bottom, style: { bottom: 0, left: '75%', transform: 'translate(-50%, 50%)' } },
     { id: 'left', position: Position.Left, style: { left: 0, top: '50%', transform: 'translate(-50%, -50%)' } },
+    // Corrected the transform for the right handle to vertically center it.
     { id: 'right', position: Position.Right, style: { right: 0, top: '50%', transform: 'translate(50%, -50%)' } },
 ];
 
 function BaseStepNode({ data, selected, id: nodeId }: NodeProps<StepNodeData>) {
   const { label, stepType, isStartNode, isDirty, branchInfo, isBranchEnd, config } = data;
   const theme = useMantineTheme();
+  const { colorScheme } = useMantineColorScheme();
   const edges = useFlowEditorStore((state) => state.edges);
   const [isNodeHovered, setIsNodeHovered] = useState(false);
 
@@ -60,12 +62,38 @@ function BaseStepNode({ data, selected, id: nodeId }: NodeProps<StepNodeData>) {
         // A handle is connectable only if it's not already connected.
         const isConnectable = !isConnected;
 
+        // Use a larger invisible area for connection, with a smaller visible circle inside.
+        // This ensures the edge arrow is visible next to the circle, not under it.
+        const handleAreaSize = 20;
+        const handleVisibleSize = 12;
+
+        const wrapperStyle: React.CSSProperties = {
+            ...handle.style,
+            position: 'absolute',
+            width: handleAreaSize,
+            height: handleAreaSize,
+            zIndex: 10,
+            opacity: isVisible ? 1 : 0,
+            transition: 'opacity 0.15s ease-in-out',
+            pointerEvents: isVisible ? 'all' : 'none',
+        };
+
+        const circleStyle: React.CSSProperties = {
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: handleVisibleSize,
+            height: handleVisibleSize,
+            background: isConnected ? theme.colors.cyan[6] : theme.colors.gray[7],
+            border: `2px solid ${colorScheme === 'dark' ? theme.colors.dark[5] : theme.white}`,
+            borderRadius: '50%',
+        };
+
         return (
-          <div key={handle.id} className={`handle-wrapper ${isVisible ? 'visible' : ''}`} style={handle.style}>
-            {/* The styled, visible circle. This is not a ReactFlow handle. */}
-            <div className={`handle-circle ${isConnected ? 'connected' : ''}`} />
+          <div key={handle.id} style={wrapperStyle}>
+            <div style={circleStyle} />
             
-            {/* An invisible target handle overlaying the wrapper. */}
             <Handle 
               type="target" 
               position={handle.position} 
@@ -74,7 +102,6 @@ function BaseStepNode({ data, selected, id: nodeId }: NodeProps<StepNodeData>) {
               style={{ width: '100%', height: '100%', background: 'transparent', border: 'none' }}
             />
             
-            {/* An invisible source handle overlaying the wrapper for starting new connections. */}
             {!isEndNode && (
               <Handle
                 type="source"

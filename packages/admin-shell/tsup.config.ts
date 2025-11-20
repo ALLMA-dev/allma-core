@@ -17,4 +17,7 @@ export default defineConfig({
   },
   // Use a dedicated tsconfig for building, which doesn't have `noEmit: true`.
   tsconfig: 'tsconfig.build.json',
+  loader: {
+    '.png': 'dataurl',
+  }
 });

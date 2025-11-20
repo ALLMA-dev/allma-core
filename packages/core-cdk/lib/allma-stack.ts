@@ -268,14 +268,19 @@ export class AllmaStack extends cdk.Stack {
       });
 
       // --- Explicit CORS Handling to Resolve Circular Dependency ---
-      // We create a dedicated Lambda to handle all OPTIONS preflight requests.
-      // This Lambda is created *after* the Admin UI is deployed, so we have access to
-      // its dynamic CloudFront URL. This URL is passed to the Lambda via an env var.
-      // A single catch-all OPTIONS /{proxy+} route is then added to the API Gateway.
-      // This is the most robust way to handle CORS in this scenario.
+      // We explicitly override the API Gateway CORS configuration here because the Admin Shell
+      // URL (the origin) is only known after the WebAppDeployment construct is instantiated.
+      // This breaks the circular dependency between API setup (needs origins) and UI setup (needs API URL).
       
-      const adminShellUrl = `https://${adminShellDeployment.distribution.distributionDomainName}`;
-      const finalOrigins = Array.from(new Set([...stageConfig.adminApi.allowedOrigins, adminShellUrl]));
+      const adminShellCloudFrontUrl = `https://${adminShellDeployment.distribution.distributionDomainName}`;
+      const allowedOrigins = [...stageConfig.adminApi.allowedOrigins, adminShellCloudFrontUrl];
+
+      // Ensure the custom domain for the Admin Shell is also allowed if configured.
+      if (props.adminShell.domainName) {
+        allowedOrigins.push(`https://${props.adminShell.domainName}`);
+      }
+      
+      const finalOrigins = Array.from(new Set(allowedOrigins));
       
       const cfnApi = api.httpApi.node.defaultChild as cdk.aws_apigatewayv2.CfnApi;
       cfnApi.addPropertyOverride('CorsConfiguration.AllowOrigins', finalOrigins);

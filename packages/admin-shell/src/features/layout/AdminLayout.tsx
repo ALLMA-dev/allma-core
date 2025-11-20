@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import React from 'react';
-import { AppShell, Burger, Group, NavLink, ScrollArea, Title, Text, ActionIcon, useMantineColorScheme, Tooltip, Stack } from '@mantine/core';
-import { IconGauge, IconListDetails, IconLogout, IconSun, IconMoon, IconPrompt, IconActivity, IconLayoutSidebarLeftCollapse, IconLayoutSidebarRightExpand, IconTemplate } from '@tabler/icons-react';
+import { AppShell, Burger, Group, NavLink, ScrollArea, Title, Text, ActionIcon, useMantineColorScheme, Tooltip, Stack, Image } from '@mantine/core';
+import { IconGauge, IconListDetails, IconLogout, IconSun, IconMoon, IconPrompt, IconActivity, IconLayoutSidebarLeftCollapse, IconLayoutSidebarRightExpand, IconTemplate, IconPlugConnected } from '@tabler/icons-react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { useAdminAuth } from '../../hooks/useAdminAuth';
 import { AdminPermission } from '@allma/core-types';
 import { useLocalStorage } from '@mantine/hooks';
 import type { PluginNavItem } from '../../types/plugin.ts';
+import poweredByLogo from '../../../assets/powered-by-logo.png';
 
 interface AdminLayoutProps {
   navItems: PluginNavItem[];
@@ -24,6 +25,16 @@ export function AdminLayout({ navItems, children }: AdminLayoutProps) {
   const { signOut, user } = useAuthenticator();
   const { authContext } = useAdminAuth();
   const { colorScheme, setColorScheme } = useMantineColorScheme();
+
+  // State to hold the application title derived from the document <title>
+  const [appTitle, setAppTitle] = useState('ALLMA Admin');
+
+  // Effect to read the title from index.html on mount.
+  useEffect(() => {
+    if (document.title && document.title.trim().length > 0) {
+      setAppTitle(document.title);
+    }
+  }, []);
 
   return (
     <AppShell
@@ -48,7 +59,8 @@ export function AdminLayout({ navItems, children }: AdminLayoutProps) {
             >
               {navbarCollapsed ? <IconLayoutSidebarRightExpand /> : <IconLayoutSidebarLeftCollapse />}
             </ActionIcon>
-            <Title order={3}>ALLMA Admin</Title>
+            {/* Render the dynamic application title */}
+            <Title order={3}>{appTitle}</Title>
           </Group>
           <Group>
             <Text size="sm">{user?.signInDetails?.loginId}</Text>
@@ -98,8 +110,34 @@ export function AdminLayout({ navItems, children }: AdminLayoutProps) {
         </ScrollArea>
       </AppShell.Navbar>
 
-      <AppShell.Main>
-        {children}
+      <AppShell.Main style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+        {/* Main content wrapper that grows to push footer down */}
+        <div style={{ flex: 1 }}>
+            {children}
+        </div>
+        
+        {/* Global Footer */}
+        <Group justify="flex-end" mt="xl" pt="lg" pb="sm" px="md">
+             <Group 
+                component="a"
+                href="https://allma.dev"
+                target="_blank"
+                rel="noopener noreferrer"
+                gap="xs" 
+                align="center" 
+                opacity={0.6}
+                style={{ textDecoration: 'none', cursor: 'pointer' }}
+            >
+                <Text size="xs" c="dimmed" fw={500}>Powered by</Text>
+                <Image
+                    src={poweredByLogo}
+                    h={22}
+                    w="auto"
+                    fit="contain"
+                    alt="Logo"
+                />
+            </Group>
+        </Group>
       </AppShell.Main>
     </AppShell>
   );
