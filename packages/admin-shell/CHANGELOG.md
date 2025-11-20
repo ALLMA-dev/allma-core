@@ -1,5 +1,13 @@
 # @allma/admin-shell
 
+## 1.0.9
+
+### Patch Changes
+
+- bba0e3e: UI and data templation fixes
+- Updated dependencies [bba0e3e]
+  - @allma/core-types@1.0.8
+
 ## 1.0.8
 
 ### Patch Changes
