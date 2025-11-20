@@ -1,5 +1,11 @@
 # @allma/core-types
 
+## 1.0.8
+
+### Patch Changes
+
+- bba0e3e: UI and data templation fixes
+
 ## 1.0.7
 
 ### Patch Changes
