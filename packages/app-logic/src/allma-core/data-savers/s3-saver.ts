@@ -9,8 +9,8 @@ import {
   StepDefinition
 } from '@allma/core-types';
 import { log_error, log_info } from '@allma/core-sdk';
-import { TemplateService } from '../template-service';
-import { renderNestedTemplates } from '../utils/template-renderer';
+import { TemplateService } from '../template-service.js';
+import { renderNestedTemplates } from '../utils/template-renderer.js';
 
 const s3Client = new S3Client({});
 
@@ -65,7 +65,7 @@ export const executeS3Saver: StepHandler = async (
 
   // Render metadata templates
   const Metadata = config.metadataTemplate
-    ? renderNestedTemplates(config.metadataTemplate, templateContext, correlationId)
+    ? await renderNestedTemplates(config.metadataTemplate, templateContext, correlationId)
     : undefined;
   
   const command = new PutObjectCommand({
@@ -73,7 +73,7 @@ export const executeS3Saver: StepHandler = async (
     Key,
     Body,
     ContentType: config.contentType,
-    Metadata,
+    Metadata: Metadata as Record<string, string>,
   });
 
   try {

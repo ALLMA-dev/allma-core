@@ -45,7 +45,8 @@ export const executeSendEmail: StepHandler = async (
   const templateContext = { ...runtimeState.currentContextData, ...runtimeState, ...stepInput };
   
   // Now, render the templates within the stepDefinition using the full context.
-  const renderedInput = renderNestedTemplates(templateObject, templateContext, correlationId);
+  // Await the async renderer to ensure JSONPaths are resolved correctly.
+  const renderedInput = await renderNestedTemplates(templateObject, templateContext, correlationId);
   
   // First, parse against the relaxed schema to get the structure and values.
   const structuralValidation = EmailSendStepPayloadSchema.safeParse(renderedInput);
@@ -91,7 +92,10 @@ export const executeSendEmail: StepHandler = async (
       // Case 2: Treat as a comma-separated list (this also handles a single email string).
       // The split will create an array. If no commas, it's an array of one.
       // Filter out any empty strings that might result from trailing commas or ",,".
-      return trimmed.split(',').map(email => email.trim()).filter(email => email.length > 0);
+      const parts = trimmed.split(',').map(email => email.trim()).filter(email => email.length > 0);
+      
+      // Return single string if one item, array otherwise. This matches existing behaviors where single strings are allowed.
+      return parts.length === 1 ? parts[0] : parts;
   };
 
   const { from, to: rawTo, replyTo: rawReplyTo, subject, body } = structuralValidation.data;
@@ -110,8 +114,8 @@ export const executeSendEmail: StepHandler = async (
   const cleanedParams = {
     from: extractEmail(from),
     // Use the processed 'to' and 'replyTo' values
-    to: Array.isArray(to) ? to.map(extractEmail) : extractEmail(to),
-    replyTo: replyTo ? (Array.isArray(replyTo) ? replyTo.map(extractEmail) : extractEmail(replyTo)) : undefined,
+    to: Array.isArray(to) ? to.map(extractEmail) : extractEmail(to as string),
+    replyTo: replyTo ? (Array.isArray(replyTo) ? replyTo.map(extractEmail) : extractEmail(replyTo as string)) : undefined,
     subject,
     body,
   };

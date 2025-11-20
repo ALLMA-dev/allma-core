@@ -1,6 +1,7 @@
 import { log_error, log_warn, isObject } from '@allma/core-sdk';
 import { JSONPath } from 'jsonpath-plus';
 import { TemplateService } from '../template-service.js';
+import { getSmartValueByJsonPath } from '../data-mapper.js';
 
 /**
  * A centralized, robust, and recursive utility to render template strings within a given object.
@@ -9,7 +10,7 @@ import { TemplateService } from '../template-service.js';
  * It follows a sequential, two-pass process for each string:
  * 1. **Handlebars Pass:** Renders any `{{...}}` expressions.
  * 2. **JSONPath Pass:** Checks if the entire resulting string is a JSONPath expression (e.g., `$.path.to.value`)
- *    and, if so, resolves it against the context.
+ *    and, if so, resolves it against the context using the S3-aware smart resolver.
  *
  * This process is recursive to handle complex cases where a resolved value may itself be another template.
  *
@@ -18,14 +19,14 @@ import { TemplateService } from '../template-service.js';
  * @param correlationId Optional correlation ID for logging.
  * @returns The final, rendered value.
  */
-function renderValue(value: any, contextData: Record<string, any>, correlationId?: string): any {
+async function renderValue(value: any, contextData: Record<string, any>, correlationId?: string): Promise<any> {
     // For non-string values, recurse into arrays/objects or return primitives as is.
     if (typeof value !== 'string') {
         if (Array.isArray(value)) {
-            return value.map(item => renderValue(item, contextData, correlationId));
+            return Promise.all(value.map(item => renderValue(item, contextData, correlationId)));
         }
         if (isObject(value)) {
-            return renderNestedTemplates(value as Record<string, any>, contextData, correlationId);
+            return await renderNestedTemplates(value as Record<string, any>, contextData, correlationId);
         }
         return value; // Primitives like numbers, booleans, null
     }
@@ -45,7 +46,8 @@ function renderValue(value: any, contextData: Record<string, any>, correlationId
     // or the original value was a pure JSONPath. The regex `^\$\..*$` is a simple but effective check.
     if (/^\$\..*$/.test(processedValue)) {
         try {
-            const resolved = JSONPath({ path: processedValue, json: contextData, wrap: false });
+            // Use the smart resolver which handles S3 pointers and logs events
+            const { value: resolved } = await getSmartValueByJsonPath(processedValue, contextData, correlationId);
             
             if (resolved === undefined) {
                 log_warn(`JSONPath '${processedValue}' (from original value: '${value}') resolved to undefined.`, {}, correlationId);
@@ -60,7 +62,7 @@ function renderValue(value: any, contextData: Record<string, any>, correlationId
             return resolved;
 
         } catch (e) {
-            // It looked like a JSONPath but failed to parse. This is an ambiguous case.
+            // It looked like a JSONPath but failed to parse or resolve. This is an ambiguous case.
             // We'll log a warning and return the string as-is, assuming it was meant to be a literal.
             log_warn(`'${processedValue}' looks like a JSONPath but failed to resolve. Treating as literal.`, { originalValue: value, error: (e as Error).message }, correlationId);
             return processedValue;
@@ -81,13 +83,22 @@ function renderValue(value: any, contextData: Record<string, any>, correlationId
  * @param correlationId Optional correlation ID for logging.
  * @returns A new object with all template strings rendered.
  */
-export function renderNestedTemplates(obj: Record<string, any> | undefined, contextData: Record<string, any>, correlationId?: string): Record<string, any> | undefined {
+export async function renderNestedTemplates(obj: Record<string, any> | undefined, contextData: Record<string, any>, correlationId?: string): Promise<Record<string, any> | undefined> {
   if (!obj) return undefined;
 
   const renderedObj: Record<string, any> = {};
   
-  for (const [key, value] of Object.entries(obj)) {
-    renderedObj[key] = renderValue(value, contextData, correlationId);
+  // Process keys in parallel
+  const keys = Object.keys(obj);
+  const values = Object.values(obj);
+  
+  const renderedValues = await Promise.all(
+      values.map(v => renderValue(v, contextData, correlationId))
+  );
+
+  for (let i = 0; i < keys.length; i++) {
+      renderedObj[keys[i]] = renderedValues[i];
   }
+  
   return renderedObj;
 }

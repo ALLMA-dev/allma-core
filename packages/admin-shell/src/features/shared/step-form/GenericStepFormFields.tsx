@@ -134,7 +134,13 @@ export function GenericStepFormFields({ schema, form, readOnly, onPreviewPrompt,
                     <Stack key={key} gap={2}>
                         <Text component="div" size="sm" fw={500}>{fieldLabel}</Text>
                         <Text size="xs" c="dimmed" mb="xs">{placeholder}</Text>
-                        <EditableJsonView value={displayValue} onChange={handleChange} readOnly={readOnly} displayVariant={inheritedJsonVariant} />
+                        <EditableJsonView 
+                            value={displayValue} 
+                            onChange={handleChange} 
+                            readOnly={readOnly} 
+                            displayVariant={inheritedJsonVariant}
+                            allowStringFallback={true} 
+                        />
                     </Stack>
                 );
         }

@@ -12,8 +12,8 @@ export const EmailSendStepPayloadSchema = z.object({
     stepType: z.literal(StepTypeSchema.enum.EMAIL),
     moduleIdentifier: z.undefined().optional(),
     from: z.string().describe("From Address|text|The sender's email address (must be a verified SES identity). Supports templates."),
-    to: z.union([z.string(), z.array(z.string())]).describe("To Address(es)|json|A single email string (in quotes), an array of email strings, or a JSONPath to either. Supports templates."),
-    replyTo: z.union([z.string(), z.array(z.string())]).optional().describe("Reply-To Address(es)|json|Optional: A single email (in quotes), an array of emails, or a JSONPath. Supports templates."),
+    to: z.union([z.string(), z.array(z.string())]).describe("To Address(es)|json|A single email, comma-separated emails, or a template/JSONPath returning an array/string."),
+    replyTo: z.union([z.string(), z.array(z.string())]).optional().describe("Reply-To Address(es)|json|Optional: Email(s) for replies. Supports templates."),
     subject: z.string().describe("Subject|text|The email subject. Supports templates."),
     body: z.string().describe("Body|textarea|The email body (HTML is supported). Supports templates."),
   }).passthrough();

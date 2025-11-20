@@ -27,7 +27,6 @@ import { processStepOutput, setByDotNotation } from '../../allma-core/data-mappe
 import { executionLoggerClient } from '../../allma-core/execution-logger-client.js';
 import { renderNestedTemplates } from '../../allma-core/utils/template-renderer.js';
 import { resolveNextStep } from './transition-resolver.js';
-// import { ConverseStreamOutputFilterSensitiveLog } from '@aws-sdk/client-bedrock-runtime';
 
 const EXECUTION_TRACES_BUCKET_NAME = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME]!;
 // The actual SFN limit is 256KB, so let's warn above a safe threshold like 240KB.
@@ -122,7 +121,8 @@ export const executeStandardStep = async (
     // The results of input mappings (finalStepInput) are spread into the top-level context.
     // This makes variables like 'runId' directly available as `{{runId}}` in templates.
     const templateContext = { ...runtimeState.currentContextData, ...runtimeState, ...finalStepInput };
-    const renderedCustomConfig = renderNestedTemplates(customConfig, templateContext, correlationId);
+    
+    const renderedCustomConfig = await renderNestedTemplates(customConfig, templateContext, correlationId);
 
     // Create a new step definition object for this execution with the rendered config.
     // This ensures we don't mutate the original, cached definition.
