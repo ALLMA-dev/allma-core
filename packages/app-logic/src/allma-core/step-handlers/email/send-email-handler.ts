@@ -61,11 +61,10 @@ export const executeSendEmail: StepHandler = async (
     throw new Error(`Invalid input structure for email-send: ${structuralValidation.error.message}`);
   }
 
-  // --- START FIX: Handle stringified JSON arrays AND comma-separated strings from dynamic context ---
-
   /**
    * Processes a dynamic address field that could be a stringified JSON array,
    * a comma-separated string, a single email string, or a native array.
+   * This uses a heuristic to handle names containing commas (e.g., "Last, First <email@domain.com>").
    * @param fieldValue The value to process.
    * @returns An array of strings, a single string, or undefined.
    */
@@ -85,25 +84,56 @@ export const executeSendEmail: StepHandler = async (
                   return parsed;
               }
           } catch (e) {
-              log_debug('An address field appeared to be a JSON array but failed to parse. Falling back to comma-splitting.', { value: trimmed }, correlationId);
+              log_debug('An address field appeared to be a JSON array but failed to parse. Falling back to intelligent comma-splitting.', { value: trimmed }, correlationId);
           }
       }
 
-      // Case 2: Treat as a comma-separated list (this also handles a single email string).
-      // The split will create an array. If no commas, it's an array of one.
-      // Filter out any empty strings that might result from trailing commas or ",,".
-      const parts = trimmed.split(',').map(email => email.trim()).filter(email => email.length > 0);
+      // Case 2: Intelligent comma splitting.
+      // Standard splitting by comma fails on "Last, First <email>".
+      // We accumulate parts until we have a segment that looks like a complete address (has '@' and balanced quotes/brackets).
       
-      // Return single string if one item, array otherwise. This matches existing behaviors where single strings are allowed.
-      return parts.length === 1 ? parts[0] : parts;
+      const rawParts = trimmed.split(',');
+      const finalAddresses: string[] = [];
+      let currentBuffer = "";
+
+      for (let i = 0; i < rawParts.length; i++) {
+          const part = rawParts[i];
+          
+          if (currentBuffer === "") {
+              currentBuffer = part;
+          } else {
+              currentBuffer += "," + part;
+          }
+
+          // Heuristic checks
+          const hasAt = currentBuffer.includes('@');
+          const openAngles = (currentBuffer.match(/</g) || []).length;
+          const closeAngles = (currentBuffer.match(/>/g) || []).length;
+          const quotes = (currentBuffer.match(/"/g) || []).length;
+
+          // We consider the buffer "balanced" if angle brackets match and quotes are even.
+          const isBalanced = (openAngles === closeAngles) && (quotes % 2 === 0);
+
+          // We commit the address if:
+          // 1. It looks valid (has @ and is balanced)
+          // 2. OR we are at the very end of the string (flush whatever garbage is left)
+          if ((hasAt && isBalanced) || i === rawParts.length - 1) {
+               const cleanAddress = currentBuffer.trim();
+               if (cleanAddress.length > 0) {
+                   finalAddresses.push(cleanAddress);
+               }
+               currentBuffer = "";
+          }
+      }
+      
+      // Return single string if one item, array otherwise.
+      return finalAddresses.length === 1 ? finalAddresses[0] : finalAddresses;
   };
 
   const { from, to: rawTo, replyTo: rawReplyTo, subject, body } = structuralValidation.data;
 
   const to = processAddressField(rawTo);
   const replyTo = processAddressField(rawReplyTo);
-
-  // --- END FIX ---
 
   // Handle case where required fields resolve to undefined/null after templating
   if (!from) throw new Error("The 'from' field is missing or resolved to an empty value after template rendering.");
@@ -128,7 +158,7 @@ export const executeSendEmail: StepHandler = async (
         errors: runtimeValidation.error.flatten(), 
         // Log the state of data at each step for debugging
         renderedValues: structuralValidation.data,
-        processedValues: { to, replyTo }, // Log what the processAddressField function produced
+        processedValues: { to, replyTo }, 
         cleanedValues: cleanedParams
     }, correlationId);
     throw new Error(`Invalid rendered parameters for email-send: ${runtimeValidation.error.message}`);
