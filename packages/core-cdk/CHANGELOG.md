@@ -1,5 +1,11 @@
 # @allma/core-cdk
 
+## 1.0.15
+
+### Patch Changes
+
+- 65b1d0e: Email parsing fixed
+
 ## 1.0.14
 
 ### Patch Changes
