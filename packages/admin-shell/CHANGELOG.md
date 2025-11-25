@@ -1,5 +1,11 @@
 # @allma/admin-shell
 
+## 1.0.10
+
+### Patch Changes
+
+- 60e46cc: Admin UI start step fix. Admin API custom domain setup fix
+
 ## 1.0.9
 
 ### Patch Changes
