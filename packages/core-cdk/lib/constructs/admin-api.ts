@@ -3,9 +3,6 @@ import { Construct } from 'constructs';
 import * as apigwv2 from 'aws-cdk-lib/aws-apigatewayv2';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import { HttpUserPoolAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
-import * as acm from 'aws-cdk-lib/aws-certificatemanager';
-import * as route53 from 'aws-cdk-lib/aws-route53';
-import * as route53Targets from 'aws-cdk-lib/aws-route53-targets';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
@@ -14,7 +11,6 @@ import { StageConfig } from '../config/stack-config.js';
 
 interface AllmaAdminApiProps {
   stageConfig: StageConfig;
-
   adminUserPool: cognito.IUserPool;
   adminUserPoolClient: cognito.IUserPoolClient;
 
@@ -36,7 +32,6 @@ interface AllmaAdminApiProps {
 
 export class AllmaAdminApi extends Construct {
   public readonly httpApi: apigwv2.HttpApi;
-  public readonly apiDomainName?: apigwv2.DomainName;
 
   constructor(scope: Construct, id: string, props: AllmaAdminApiProps) {
     super(scope, id);
@@ -346,59 +341,5 @@ export class AllmaAdminApi extends Construct {
       ],
     });
     props.orchestrationLambdaRole.addToPolicy(apiInvokePolicy);
-
-
-    // --- Custom Domain ---
-    if (stageConfig.adminApi.domainName && stageConfig.adminApi.certificateArn) {
-      const certificate = acm.Certificate.fromCertificateArn(this, 'AdminApiCert', stageConfig.adminApi.certificateArn);
-      this.apiDomainName = new apigwv2.DomainName(this, 'AdminApiCustomDomain', {
-        domainName: stageConfig.adminApi.domainName,
-        certificate: certificate,
-        endpointType: apigwv2.EndpointType.REGIONAL,
-      });
-
-      new apigwv2.ApiMapping(this, 'AdminApiMapping', {
-        api: this.httpApi,
-        domainName: this.apiDomainName,
-        apiMappingKey: stageConfig.adminApi.apiMappingKey,
-      });
-
-      if (stageConfig.adminApi.hostedZoneId && stageConfig.adminApi.hostedZoneName) {
-        const zone = route53.HostedZone.fromHostedZoneAttributes(this, 'AdminApiHostedZone', {
-          hostedZoneId: stageConfig.adminApi.hostedZoneId,
-          zoneName: stageConfig.adminApi.hostedZoneName,
-        });
-        const recordName = stageConfig.adminApi.domainName.replace(new RegExp(`\\.?${stageConfig.adminApi.hostedZoneName.replace(/\./g, '\\.')}$`), '');
-
-        new route53.ARecord(this, 'AdminApiDnsRecord', {
-          zone: zone,
-          recordName: recordName,
-          target: route53.RecordTarget.fromAlias(new route53Targets.ApiGatewayv2DomainProperties(this.apiDomainName.regionalDomainName, this.apiDomainName.regionalHostedZoneId)),
-        });
-      } else {
-        new cdk.CfnOutput(this, 'AllmaAdminApiCustomDomainTargetOutput', {
-          value: this.apiDomainName.regionalDomainName,
-          description: `CNAME target for ALLMA Admin API custom domain ${stageConfig.adminApi.domainName}`,
-        });
-      }
-
-      new cdk.CfnOutput(this, 'AdminApiDomainNameOutput', {
-        value: this.apiDomainName.name,
-        description: 'The FQDN of the shared Admin API Gateway custom domain.',
-        exportName: `AllmaPlatform-${stageConfig.stage}-AdminApiCustomDomainName`,
-      });
-
-      new cdk.CfnOutput(this, 'AdminApiRegionalDomainNameOutput', {
-        value: this.apiDomainName.regionalDomainName,
-        description: 'The regional domain name of the shared Admin API Gateway.',
-        exportName: `AllmaPlatform-${stageConfig.stage}-AdminApiDomainName`,
-      });
-
-      new cdk.CfnOutput(this, 'AdminApiRegionalHostedZoneIdOutput', {
-        value: this.apiDomainName.regionalHostedZoneId,
-        description: 'The regional hosted zone ID of the shared Admin API Gateway.',
-        exportName: `AllmaPlatform-${stageConfig.stage}-AdminApiHostedZoneId`,
-      });
-    }
   }
 }

@@ -28,6 +28,7 @@ interface StepConfigurationFormProps<T extends StepConfigFormValues> {
   isReadOnly?: boolean;
   onPreviewPrompt?: (promptId: string) => void;
   onDelete?: () => void;
+  onSetStartNode?: () => void;
   submitButtonLabel?: string;
   variant: 'instance' | 'create-definition' | 'edit-definition';
   appliedDefinition: StepDefinition | null;
@@ -64,6 +65,7 @@ export const StepConfigurationForm = forwardRef(function StepConfigurationForm<T
     isReadOnly = false,
     onPreviewPrompt = () => {},
     onDelete = () => {},
+    onSetStartNode,
     submitButtonLabel,
     variant,
     appliedDefinition,
@@ -367,6 +369,7 @@ export const StepConfigurationForm = forwardRef(function StepConfigurationForm<T
                     isReadOnly={isReadOnly}
                     isStartNode={allNodes.find(n => n.id === (form.values as StepInstance).stepInstanceId)?.data.isStartNode ?? false}
                     onDelete={onDelete}
+                    onSetStartNode={onSetStartNode}
                 />
             ) : (
                 <Group justify="flex-end" p="md" mt="auto" style={{ borderTop: '1px solid var(--mantine-color-default-border)' }}>

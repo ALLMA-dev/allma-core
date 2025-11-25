@@ -1,7 +1,7 @@
 import { Paper, Title, Group, Tooltip, ActionIcon, Text, Box, LoadingOverlay, ScrollArea, Tabs, ColorPicker, SimpleGrid, SegmentedControl, Select, Alert, Button, Stack, Popover } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import useFlowEditorStore from '../../hooks/useFlowEditorStore.js';
-import { IconX, IconSettings, IconDatabase, IconAlertCircle } from '@tabler/icons-react';
+import { IconX, IconSettings, IconDatabase, IconAlertCircle, IconPlayerPlay } from '@tabler/icons-react';
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { useDebouncedCallback } from 'use-debounce';
 import { SandboxStepInput, StepExecutionResult, StepInstance } from '@allma/core-types';
@@ -14,6 +14,7 @@ import { useGetFlowExecutions, useGetExecutionDetail } from '../../../../../api/
 import { EditableJsonView } from '@allma/ui-components';
 import { useSandboxStep } from '../../../../../api/flowControlService.js';
 import { SandboxResultModal } from './SandboxResultModal.js';
+import { notifications } from '@mantine/notifications';
 
 
 interface StepEditorPanelProps {
@@ -31,6 +32,7 @@ export function StepEditorPanel({ selectedNodeId, onClose, isShaking, onValidati
     const flowDefinition = useFlowEditorStore(state => state.flowDefinition);
     const selectedNode = useFlowEditorStore(state => state.nodes.find(n => n.id === selectedNodeId));
     const deleteNodes = useFlowEditorStore(state => state.deleteNodes);
+    const setStartNode = useFlowEditorStore(state => state.setStartNode);
     const [shakeClass, setShakeClass] = useState('');
     const formRef = useRef<StepConfigurationFormHandle>(null);
     
@@ -180,6 +182,18 @@ export function StepEditorPanel({ selectedNodeId, onClose, isShaking, onValidati
             }
         },
     });
+
+    const handleSetStartNode = () => {
+        if (selectedNodeId) {
+            setStartNode(selectedNodeId);
+            notifications.show({
+                title: 'Start Step Updated',
+                message: `Step "${form.values.displayName || selectedNodeId}" is now the start step.`,
+                color: 'green',
+                icon: <IconPlayerPlay size="1.1rem" />,
+            });
+        }
+    };
     
     return (
         <>
@@ -228,6 +242,7 @@ export function StepEditorPanel({ selectedNodeId, onClose, isShaking, onValidati
                                         isReadOnly={isReadOnly}
                                         onPreviewPrompt={handlePreviewPrompt}
                                         onDelete={openDeleteModal}
+                                        onSetStartNode={handleSetStartNode}
                                         variant="instance"
                                         appliedDefinition={resolvedAppliedDef || null}
                                     />
