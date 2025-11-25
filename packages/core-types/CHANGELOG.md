@@ -1,5 +1,11 @@
 # @allma/core-types
 
+## 1.0.9
+
+### Patch Changes
+
+- 664bf52: Email ingress attachment support is added
+
 ## 1.0.8
 
 ### Patch Changes
