@@ -1,5 +1,14 @@
 # @allma/core-cdk
 
+## 1.0.17
+
+### Patch Changes
+
+- 664bf52: Email ingress attachment support is added
+- Updated dependencies [664bf52]
+  - @allma/core-types@1.0.9
+  - @allma/core-sdk@1.0.4
+
 ## 1.0.16
 
 ### Patch Changes
