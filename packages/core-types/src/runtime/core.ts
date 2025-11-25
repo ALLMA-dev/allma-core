@@ -103,3 +103,17 @@ export const ProcessorOutputSchema = z.object({
   }).optional(),
 });
 export type ProcessorOutput = z.infer<typeof ProcessorOutputSchema>;
+
+// Interface for Email Attachments (triggered by EMAIL_START_POINT)
+export const EmailAttachmentSchema = z.object({
+    filename: z.string(),
+    contentType: z.string(),
+    size: z.number().int(),
+    s3Location: z.object({
+        bucket: z.string(),
+        key: z.string(),
+    }),
+    contentId: z.string().optional(),
+    disposition: z.string().optional(),
+});
+export type EmailAttachment = z.infer<typeof EmailAttachmentSchema>;

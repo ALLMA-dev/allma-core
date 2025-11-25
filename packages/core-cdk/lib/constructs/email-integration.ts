@@ -52,7 +52,7 @@ export class EmailIntegration extends Construct {
         });
 
         // Grant necessary permissions to the role
-        incomingEmailsBucket.grantRead(emailIngressRole);
+        incomingEmailsBucket.grantReadWrite(emailIngressRole);
         emailMappingTable.grantReadData(emailIngressRole);
         flowStartQueue.grantSendMessages(emailIngressRole);
 

@@ -1,11 +1,11 @@
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 import PostalMime from 'postal-mime';
 import { v4 as uuidv4 } from 'uuid';
 import { log_info, log_error, log_warn } from '@allma/core-sdk';
-import { ENV_VAR_NAMES, StartFlowExecutionInput } from '@allma/core-types';
+import { ENV_VAR_NAMES, StartFlowExecutionInput, EmailAttachment } from '@allma/core-types';
 
 const s3Client = new S3Client({});
 const ddbDocClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -59,6 +59,52 @@ export const handler = async (event: { Records: SesEventRecord[] }): Promise<voi
             const textBody = parsedEmail.text || '';
             const recipient = record.ses.mail.destination[0];
 
+            // 1. Extract and upload attachments
+            const attachments: EmailAttachment[] = [];
+            if (parsedEmail.attachments && parsedEmail.attachments.length > 0) {
+                log_info(`Found ${parsedEmail.attachments.length} attachments. Uploading to S3.`, {}, correlationId);
+                
+                for (let i = 0; i < parsedEmail.attachments.length; i++) {
+                    const att = parsedEmail.attachments[i];
+                    const filename = att.filename || `attachment-${i}`;
+                    // Sanitize filename for S3 key to avoid directory traversal or weird chars
+                    const safeFilename = filename.replace(/[^a-zA-Z0-9.-]/g, '_');
+                    const attachmentKey = `attachments/${messageId}/${i}/${safeFilename}`;
+                    
+                    // Convert content (string | ArrayBuffer) to Buffer for AWS SDK and length check
+                    let contentBuffer: Buffer;
+                    if (typeof att.content === 'string') {
+                        contentBuffer = Buffer.from(att.content);
+                    } else {
+                        contentBuffer = Buffer.from(att.content);
+                    }
+
+                    await s3Client.send(new PutObjectCommand({
+                        Bucket: INCOMING_EMAILS_BUCKET_NAME,
+                        Key: attachmentKey,
+                        Body: contentBuffer,
+                        ContentType: att.mimeType || 'application/octet-stream',
+                        Metadata: {
+                            originalName: filename
+                        }
+                    }));
+
+                    attachments.push({
+                        filename: filename,
+                        contentType: att.mimeType || 'application/octet-stream',
+                        size: contentBuffer.length,
+                        s3Location: {
+                            bucket: INCOMING_EMAILS_BUCKET_NAME,
+                            key: attachmentKey
+                        },
+                        contentId: att.contentId,
+                        disposition: att.disposition || 'attachment'
+                    });
+                }
+                log_info(`Successfully uploaded ${attachments.length} attachments.`, {}, correlationId);
+            }
+
+            // 2. Find matching flow
             const queryCommand = new QueryCommand({
                 TableName: EMAIL_MAPPING_TABLE_NAME,
                 KeyConditionExpression: 'emailAddress = :recipient',
@@ -92,6 +138,7 @@ export const handler = async (event: { Records: SesEventRecord[] }): Promise<voi
                 ? (parsedEmail.from.name ? `${parsedEmail.from.name} <${parsedEmail.from.address}>` : parsedEmail.from.address)
                 : undefined;
 
+            // 3. Construct payload with attachments
             const startFlowInput: StartFlowExecutionInput = {
                 flowDefinitionId,
                 flowVersion: 'LATEST_PUBLISHED',
@@ -105,6 +152,7 @@ export const handler = async (event: { Records: SesEventRecord[] }): Promise<voi
                         subject: parsedEmail.subject,
                         body: textBody,
                         htmlBody: parsedEmail.html || undefined,
+                        attachments: attachments,
                     },
                 },
             };
@@ -115,7 +163,7 @@ export const handler = async (event: { Records: SesEventRecord[] }): Promise<voi
                 };
             }
 
-            log_info('Sending message to SQS to start flow.', { startFlowInput }, correlationId);
+            log_info('Sending message to SQS to start flow.', { flowId: flowDefinitionId }, correlationId);
 
             await sqsClient.send(new SendMessageCommand({
                 QueueUrl: FLOW_START_QUEUE_URL,
