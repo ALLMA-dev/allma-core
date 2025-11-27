@@ -1,5 +1,11 @@
 # @allma/core-types
 
+## 1.0.10
+
+### Patch Changes
+
+- 198a0ee: File download step has been added
+
 ## 1.0.9
 
 ### Patch Changes

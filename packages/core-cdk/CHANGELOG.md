@@ -1,5 +1,13 @@
 # @allma/core-cdk
 
+## 1.0.18
+
+### Patch Changes
+
+- 198a0ee: File download step has been added
+- Updated dependencies [198a0ee]
+  - @allma/core-types@1.0.10
+
 ## 1.0.17
 
 ### Patch Changes

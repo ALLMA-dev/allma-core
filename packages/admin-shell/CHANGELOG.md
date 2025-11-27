@@ -1,5 +1,13 @@
 # @allma/admin-shell
 
+## 1.0.12
+
+### Patch Changes
+
+- 198a0ee: File download step has been added
+- Updated dependencies [198a0ee]
+  - @allma/core-types@1.0.10
+
 ## 1.0.11
 
 ### Patch Changes
