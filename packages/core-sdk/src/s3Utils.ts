@@ -13,8 +13,10 @@ const PAYLOAD_OFFLOAD_THRESHOLD_BYTES = process.env[ENV_VAR_NAMES.MAX_CONTEXT_DA
 
 /**
  * Fetches the actual data from an S3 pointer.
+ * Tries to parse the content as JSON. If parsing fails (e.g. for plain text files),
+ * returns the raw string content.
  */
-export async function resolveS3Pointer(s3Pointer: S3Pointer, correlationId?: string): Promise<Record<string, any>> {
+export async function resolveS3Pointer(s3Pointer: S3Pointer, correlationId?: string): Promise<any> {
     log_info('Resolving S3 data pointer', { s3Pointer }, correlationId);
     try {
         const command = new GetObjectCommand({
@@ -24,7 +26,14 @@ export async function resolveS3Pointer(s3Pointer: S3Pointer, correlationId?: str
         const { Body } = await s3Client.send(command);
         if (Body) {
             const content = await Body.transformToString();
-            return JSON.parse(content);
+            try {
+                return JSON.parse(content);
+            } catch (jsonError) {
+                // If the content is not valid JSON, return it as a raw string.
+                // This supports hydration of text files (e.g. from FILE_DOWNLOAD step).
+                log_debug('S3 content is not JSON, returning as raw string.', { key: s3Pointer.key }, correlationId);
+                return content;
+            }
         }
         throw new Error('S3 object body for data pointer is empty.');
     } catch (e: any) {
