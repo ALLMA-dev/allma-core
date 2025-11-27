@@ -18,7 +18,7 @@ import {
     log_error,
     hydrateInputFromS3Pointers,
 } from '@allma/core-sdk';
-import { JSONPath } from 'jsonpath-plus'; // JSONPath for the validation
+import { JSONPath } from 'jsonpath-plus'; 
 import { getStepHandler } from '../../allma-core/step-handlers/handler-registry.js';
 import { hasInternalModuleHandler } from '../../allma-core/module-registry.js';
 import { invokeExternalStep } from './external-step-invoker.js';
@@ -126,10 +126,12 @@ export const executeStandardStep = async (
 
     // Create a new step definition object for this execution with the rendered config.
     // This ensures we don't mutate the original, cached definition.
-    const finalStepDefForHandler: StepDefinition = {
+    // FIX: Explicitly cast to StepDefinition to satisfy TS when discriminated union members have
+    // specific shape requirements for customConfig that generic Record<string, any> doesn't satisfy.
+    const finalStepDefForHandler = {
         ...stepDef,
         customConfig: renderedCustomConfig,
-    };
+    } as unknown as StepDefinition;
     // --- END CENTRALIZED RENDERING ---
 
     const baseRecord = {

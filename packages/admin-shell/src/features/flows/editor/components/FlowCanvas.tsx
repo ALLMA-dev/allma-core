@@ -63,8 +63,9 @@ export function FlowCanvas({ onNodeClick, onEdgeClick, onPaneClick, onNodeDouble
   });
 
   const handleNodeDoubleClick = useCallback((_: React.MouseEvent, node: Node) => {
-    if (!isReadOnly) onNodeDoubleClick(node.id);
-  }, [isReadOnly, onNodeDoubleClick]);
+    // Double-clicking is allowed in read-only mode to inspect in sandbox
+    onNodeDoubleClick(node.id);
+  }, [onNodeDoubleClick]);
 
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
@@ -194,43 +195,53 @@ export function FlowCanvas({ onNodeClick, onEdgeClick, onPaneClick, onNodeDouble
         fitView
         nodesDraggable={!isReadOnly}
         nodesConnectable={!isReadOnly}
-        elementsSelectable={!isReadOnly}
+        elementsSelectable={true}
         deleteKeyCode={isReadOnly ? null : ['Backspace', 'Delete']}
         isValidConnection={() => true}
       >
         <Controls />
         <MiniMap />
         <Background gap={12} size={1} />
-        {menu && (
-            <Menu
-                opened={!!menu}
-                onClose={() => setMenu(null)}
-                shadow="md"
-                width={200}
-                position="right-start"
-                offset={0}
-                styles={{ dropdown: { position: 'absolute', left: menu.x, top: menu.y } }}
-            >
-                <Menu.Label>Node Actions</Menu.Label>
-                <Menu.Item
-                    leftSection={<IconPlayerPlay size={14} />}
-                    onClick={handleSetStartNode}
-                    disabled={nodes.find(n => n.id === menu.id)?.data.isStartNode}
-                >
-                    Set as Start Node
-                </Menu.Item>
-                <Menu.Divider />
-                <Menu.Item
-                    color="red"
-                    leftSection={<IconTrash size={14} />}
-                    onClick={handleDeleteNodeFromMenu}
-                    disabled={nodes.find(n => n.id === menu.id)?.data.isStartNode}
-                >
-                    Delete Node
-                </Menu.Item>
-            </Menu>
-        )}
       </ReactFlow>
+      
+      <Menu
+        opened={!!menu}
+        onClose={() => setMenu(null)}
+        shadow="md"
+        width={200}
+        withinPortal
+      >
+        <Menu.Target>
+            <Box
+                style={{
+                    position: 'absolute',
+                    left: menu?.x ?? -9999, // Move off-screen when hidden
+                    top: menu?.y ?? -9999,
+                    width: 1,
+                    height: 1,
+                }}
+            />
+        </Menu.Target>
+        <Menu.Dropdown className="nodrag nopan">
+            <Menu.Label>Node Actions</Menu.Label>
+            <Menu.Item
+                leftSection={<IconPlayerPlay size={14} />}
+                onClick={handleSetStartNode}
+                disabled={nodes.find(n => n.id === menu?.id)?.data.isStartNode}
+            >
+                Set as Start Node
+            </Menu.Item>
+            <Menu.Divider />
+            <Menu.Item
+                color="red"
+                leftSection={<IconTrash size={14} />}
+                onClick={handleDeleteNodeFromMenu}
+                disabled={nodes.find(n => n.id === menu?.id)?.data.isStartNode}
+            >
+                Delete Node
+            </Menu.Item>
+        </Menu.Dropdown>
+    </Menu>
     </Box>
   );
 }

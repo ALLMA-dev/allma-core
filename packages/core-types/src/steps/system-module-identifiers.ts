@@ -27,4 +27,5 @@ export const SystemModuleIdentifiers = {
     WAIT_FOR_EXTERNAL_EVENT: 'system/wait-for-external-event',
     EMAIL_START_POINT: 'system/email-start-point',
     SCHEDULE_START_POINT: 'system/schedule-start-point',
+    FILE_DOWNLOAD: 'system/file-download',
 } as const;

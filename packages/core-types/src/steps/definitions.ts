@@ -55,6 +55,7 @@ export const PollExternalApiStepSchema = z.object({}).merge(SystemSteps.PollExte
 export const CustomLambdaInvokeStepSchema = z.object({}).merge(SystemSteps.CustomLambdaInvokeStepPayloadSchema);
 export const ParallelForkManagerStepSchema = z.object({}).merge(SystemSteps.ParallelForkManagerStepPayloadSchema);
 export const McpCallStepSchema = z.object({}).merge(SystemSteps.McpCallStepPayloadSchema);
+export const FileDownloadStepSchema = z.object({}).merge(SystemSteps.FileDownloadStepPayloadSchema);
 
 /**
  * The most abstract schema containing all possible fields for any step type.
@@ -73,6 +74,7 @@ export const BaseStepDefinitionSchema = z.discriminatedUnion("stepType", [
   EmailStartPointStepSchema,
   ScheduleStartPointStepSchema,
   EmailSendStepSchema,
+  FileDownloadStepSchema,
 ]).and(z.object({
     // Common configuration applicable to most step types.
     customConfig: z.record(z.any()).optional(),
@@ -163,4 +165,5 @@ export const SYSTEM_STEP_DEFINITIONS: Pick<StepDefinition, 'id' | 'name' | 'step
     { id: 'system-wait-for-external-event', name: 'Wait for External Event', stepType: StepTypeSchema.enum.WAIT_FOR_EXTERNAL_EVENT, moduleIdentifier: SystemModuleIdentifiers.WAIT_FOR_EXTERNAL_EVENT },
     { id: 'system-email-start-point', name: 'Email Start Point', stepType: StepTypeSchema.enum.EMAIL_START_POINT, moduleIdentifier: SystemModuleIdentifiers.EMAIL_START_POINT },
     { id: 'system-schedule-start-point', name: 'Schedule Start Point', stepType: StepTypeSchema.enum.SCHEDULE_START_POINT, moduleIdentifier: SystemModuleIdentifiers.SCHEDULE_START_POINT },
+    { id: 'system-file-download', name: 'File Download', stepType: StepTypeSchema.enum.FILE_DOWNLOAD, moduleIdentifier: SystemModuleIdentifiers.FILE_DOWNLOAD },
 ];

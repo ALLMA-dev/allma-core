@@ -18,6 +18,7 @@ import {
     IconMail,
     IconClock,
     IconPlugConnected,
+    IconDownload,
 } from '@tabler/icons-react';
 import React from 'react';
 
@@ -33,9 +34,10 @@ export interface StepTypeConfig {
 // This drives the appearance of nodes and the available steps in the palette.
 export const STEP_TYPE_CONFIGS: Record<StepType, StepTypeConfig> = {
   [StepType.LLM_INVOCATION]: { type: StepType.LLM_INVOCATION, label: 'LLM Invocation', icon: IconMessage2Code, isAvailableInPalette: true },
-  [StepType.DATA_LOAD]: { type: StepType.DATA_LOAD, label: 'Data Load', icon: IconFileImport, isAvailableInPalette: true },
-  [StepType.DATA_SAVE]: { type: StepType.DATA_SAVE, label: 'Data Save', icon: IconDeviceFloppy, isAvailableInPalette: true },
-  [StepType.DATA_TRANSFORMATION]: { type: StepType.DATA_TRANSFORMATION, label: 'Data Transform', icon: IconLogicAnd, isAvailableInPalette: true },
+  [StepType.DATA_LOAD]: { type: StepType.DATA_LOAD, label: 'Data Load', icon: IconFileImport, isAvailableInPalette: true, category: 'Data Handling' },
+  [StepType.DATA_SAVE]: { type: StepType.DATA_SAVE, label: 'Data Save', icon: IconDeviceFloppy, isAvailableInPalette: true, category: 'Data Handling' },
+  [StepType.DATA_TRANSFORMATION]: { type: StepType.DATA_TRANSFORMATION, label: 'Data Transform', icon: IconLogicAnd, isAvailableInPalette: true, category: 'Data Handling' },
+  [StepType.FILE_DOWNLOAD]: { type: StepType.FILE_DOWNLOAD, label: 'File Download', icon: IconDownload, isAvailableInPalette: true, category: 'Data Handling' },
   [StepType.CUSTOM_LOGIC]: { type: StepType.CUSTOM_LOGIC, label: 'Custom Logic', icon: IconBox, isAvailableInPalette: false },
   [StepType.API_CALL]: { type: StepType.API_CALL, label: 'API Call', icon: IconApi, isAvailableInPalette: true, category: 'Integrations' },
   [StepType.MCP_CALL]: { type: StepType.MCP_CALL, label: 'MCP Call', icon: IconPlugConnected, isAvailableInPalette: true, category: 'Integrations' },

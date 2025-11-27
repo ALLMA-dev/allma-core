@@ -244,6 +244,21 @@ Validates the structure of the LLM's output, which is crucial when using \`jsonO
 `,
         },
     },
+    [StepType.FILE_DOWNLOAD]: {
+        general: 'Downloads a file from a specified URL and saves it to an S3 bucket. The step output is an S3 Pointer object that can be used by subsequent steps. This is ideal for ingesting binary files, images, documents, or large data files into your workflow.',
+        fields: {
+            sourceUrlTemplate: 'The full URL of the file to download. This field supports Handlebars templating to construct the URL dynamically from flow context data (e.g., `https://api.example.com/files/{{steps_output.get_file_id.fileId}}`).',
+            method: 'The HTTP method for the download request. Defaults to `GET`.',
+            headersTemplate: 'A JSON object for creating dynamic request headers. Keys are header names (e.g., `Authorization`), and values are JSONPaths to data in the flow context (e.g., `$.flow_variables.api_token`). This is useful for authenticated downloads.',
+            destinationBucket: 'The name of the S3 bucket to save the file to. If left blank, it defaults to the system\'s central execution traces bucket.',
+            destinationKeyTemplate: 'A template for the S3 object key (path). If left blank, a unique path will be auto-generated. Supports Handlebars templating (e.g., `downloads/{{flowExecutionId}}/invoice.pdf`).',
+            customConfig: `
+#### Advanced Download Options
+- \`timeoutMs\`: The request timeout in milliseconds (default: 30000).
+- \`verifySsl\`: (boolean) Set to \`false\` to disable SSL certificate verification. Use with caution.
+`,
+        },
+    },
     [StepType.CUSTOM_LAMBDA_INVOKE]: {
         general: 'Invokes one of your custom AWS Lambda functions to perform specialized business logic. The Lambda receives the step\'s input and is expected to return a JSON object as its output. This is the primary pattern for extending Allma with proprietary logic.',
         fields: {

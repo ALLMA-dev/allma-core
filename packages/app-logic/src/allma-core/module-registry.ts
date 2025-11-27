@@ -12,6 +12,7 @@ import { executeGenerateArrayTransformer } from './data-transformers/generate-ar
 import { executeFlattenArrayTransformer } from './data-transformers/flatten-array-transformer.js';
 import { executeArrayAggregatorTransformer } from './data-transformers/array-aggregator-transformer.js';
 import { executeDateTimeCalculator } from './data-transformers/date-time-calculator.js';
+import { handleFileDownload } from './step-handlers/file-download-handler.js';
 
 const internalSystemModuleIdentifiers = new Set(
   SYSTEM_STEP_DEFINITIONS.map(def => def.moduleIdentifier)
@@ -35,6 +36,7 @@ const moduleHandlerRegistry: Record<string, StepHandler> = {
     [SystemModuleIdentifiers.FLATTEN_ARRAY]: executeFlattenArrayTransformer,
     [SystemModuleIdentifiers.ARRAY_AGGREGATOR]: executeArrayAggregatorTransformer,
     [SystemModuleIdentifiers.DATE_TIME_CALCULATOR]: executeDateTimeCalculator,
+    [SystemModuleIdentifiers.FILE_DOWNLOAD]: handleFileDownload,
 };
 
 export function getModuleHandler(moduleIdentifier: string): StepHandler {

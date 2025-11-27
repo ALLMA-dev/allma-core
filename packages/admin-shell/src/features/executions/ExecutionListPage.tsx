@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Table, Select, Group, Badge, Text, ActionIcon, Tooltip, Box, LoadingOverlay, Alert, Pagination } from '@mantine/core';
+import { Table, Select, Group, Badge, Text, ActionIcon, Tooltip, Box, LoadingOverlay, Alert, Pagination, Button } from '@mantine/core';
 import { IconEye, IconAlertCircle, IconFilter, IconPlayerPlay, IconInfoCircle, IconRefresh } from '@tabler/icons-react';
 import { format } from 'date-fns';
 import { useQueryClient } from '@tanstack/react-query';
@@ -40,6 +40,9 @@ export function ExecutionListPage() {
     // pageTokens[i] is the token needed to fetch page i+1.
     const [pageTokens, setPageTokens] = useState<(string | undefined)[]>([undefined]);
 
+    // --- REDIRECT STATE ---
+    const [redirectInfo, setRedirectInfo] = useState<{ newId: string; countdown: number } | null>(null);
+
     const { data: allFlowMetadata, isLoading: isLoadingFlows, error: flowsError } = useGetFlows({
         searchText: "",
         tag: undefined,
@@ -69,6 +72,22 @@ export function ExecutionListPage() {
             }
         }
     }, [executionsResponse, currentPage, pageTokens]);
+
+    // --- EFFECT: Timer for delayed redirect ---
+    useEffect(() => {
+        if (!redirectInfo || redirectInfo.countdown <= 0) {
+            if (redirectInfo?.countdown === 0) {
+                navigate(`/executions/${redirectInfo.newId}`);
+            }
+            return;
+        }
+
+        const timer = setTimeout(() => {
+            setRedirectInfo(info => info ? { ...info, countdown: info.countdown - 1 } : null);
+        }, 1000);
+
+        return () => clearTimeout(timer);
+    }, [redirectInfo, navigate]);
 
 
     // Save the selected flow ID to local storage whenever it changes.
@@ -141,11 +160,11 @@ export function ExecutionListPage() {
                         queryClient.invalidateQueries({ queryKey: [EXECUTIONS_LIST_QUERY_KEY] });
                         notifications.show({
                             title: 'Redrive Initiated',
-                            message: `Navigating to new execution: ${data.newFlowExecutionId.substring(0,8)}...`,
+                            message: `Successfully started new execution: ${data.newFlowExecutionId.substring(0,8)}...`,
                             color: 'green',
                             icon: <IconPlayerPlay size="1.1rem" />,
                         });
-                        navigate(`/executions/${data.newFlowExecutionId}`);
+                        setRedirectInfo({ newId: data.newFlowExecutionId, countdown: 5 });
                     }
                 });
             },
@@ -214,6 +233,24 @@ export function ExecutionListPage() {
                 </Tooltip>
             }
         >
+            {redirectInfo && (
+                <Alert 
+                    title="Redirecting..." 
+                    color="blue" 
+                    withCloseButton 
+                    onClose={() => setRedirectInfo(null)} 
+                    mb="md"
+                >
+                    <Group justify="space-between">
+                        <Text>
+                            Successfully started new execution. Redirecting in <strong>{redirectInfo.countdown}</strong> seconds...
+                        </Text>
+                        <Button component={Link} to={`/executions/${redirectInfo.newId}`} variant="light" size="xs">
+                            Go Now
+                        </Button>
+                    </Group>
+                </Alert>
+            )}
             <Group mb="md" align="flex-end" grow>
                 <Select
                     label="Select a Flow"

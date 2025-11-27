@@ -17,7 +17,8 @@ import {
     SnsPublishStepSchema,
     EmailStartPointStepSchema,
     ScheduleStartPointStepPayloadSchema,
-    McpCallStepSchema
+    McpCallStepSchema,
+    FileDownloadStepSchema,
 } from '@allma/core-types';
 import { z } from 'zod';
 
@@ -84,6 +85,7 @@ const stepSchemaMap: Partial<Record<StepType, z.ZodObject<any, any>>> = {
     [StepType.EMAIL_START_POINT]: EmailStartPointStepSchema,
     [StepType.SCHEDULE_START_POINT]: ScheduleStartPointStepPayloadSchema,
     [StepType.MCP_CALL]: McpCallStepSchema,
+    [StepType.FILE_DOWNLOAD]: FileDownloadStepSchema,
     // Add other step types here as they are created
 };
 
