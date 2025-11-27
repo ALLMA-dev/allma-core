@@ -1,5 +1,13 @@
 # @allma/core-cdk
 
+## 1.0.19
+
+### Patch Changes
+
+- 77d9180: S3 resolver improvements
+- Updated dependencies [77d9180]
+  - @allma/core-sdk@1.0.5
+
 ## 1.0.18
 
 ### Patch Changes
