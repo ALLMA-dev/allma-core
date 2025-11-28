@@ -1,5 +1,11 @@
 # @allma/core-types
 
+## 1.0.11
+
+### Patch Changes
+
+- d643b0c: Orchestrator concurrency added
+
 ## 1.0.10
 
 ### Patch Changes
