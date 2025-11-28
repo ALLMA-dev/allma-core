@@ -1,5 +1,14 @@
 # @allma/core-cdk
 
+## 1.0.20
+
+### Patch Changes
+
+- e2bb9b1: Email ingress more sender fields
+- d643b0c: Orchestrator concurrency added
+- Updated dependencies [d643b0c]
+  - @allma/core-types@1.0.11
+
 ## 1.0.19
 
 ### Patch Changes
