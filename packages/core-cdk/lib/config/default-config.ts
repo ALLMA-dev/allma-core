@@ -69,6 +69,11 @@ export const defaultConfig: StageConfig = {
   limits: {
     maxContextDataSizeBytes: 10 * 1024, // 10KB
   },
+  
+  // --- Concurrency Settings ---
+  // orchestratorConcurrency is omitted here to rely on the interface's optionality.
+  // By default, no reserved concurrency is set (uses account unreserved pool).
+  // The system logic will fallback to a soft limit (e.g., 20) if this is unset.
 
   // --- Logging Configuration ---
   logging: {

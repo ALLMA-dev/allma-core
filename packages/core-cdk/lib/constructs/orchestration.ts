@@ -32,15 +32,16 @@ export class AllmaOrchestration extends Construct {
     const { stageConfig, initializeFlowLambda, iterativeStepProcessorLambda, finalizeFlowLambda, pollingStateMachineArn, branchStateMachineArn, executionTracesBucket } = props;
 
     // Common retry policy for transient Lambda service errors like throttling (429).
+    // Configured to retry at approximately 1s, 3s, 9s, 27s, 81s.
     const lambdaServiceErrorRetryPolicy = {
       errors: [
         'Lambda.TooManyRequestsException',
         'Lambda.ServiceException',
-        'Lambda.Unknown', // Throttling can sometimes manifest as an unknown error to SFN.
+        'Lambda.Unknown',
       ],
-      interval: cdk.Duration.seconds(5),
-      maxAttempts: 3,
-      backoffRate: 2.0, // Exponential backoff
+      interval: cdk.Duration.seconds(1),
+      maxAttempts: 5,
+      backoffRate: 3.0,
     };
     
 
@@ -175,6 +176,7 @@ export class AllmaOrchestration extends Construct {
             bucket: props.executionTracesBucket,
             key: sfn.JsonPath.stringAt('$.s3ItemReader.key'),
         }),
+        maxConcurrencyPath: sfn.JsonPath.stringAt('$.s3ItemReader.aggregationConfig.maxConcurrency'),
         itemSelector: {
             'currentItem.$': '$$.Map.Item.Value',
             'mapContext.$': '$$.ExecutionContext.Input.mapContext',
@@ -243,13 +245,12 @@ export class AllmaOrchestration extends Construct {
     processAsyncResultAndContinue.addCatch(normalizeErrorState, failureCatchConfig);
     parallelMapStateFromS3.addCatch(normalizeErrorState, failureCatchConfig);
 
+    // Add specific throttling retry for main task logic
+    iterativeStepTask.addRetry(lambdaServiceErrorRetryPolicy);
     iterativeStepTask.addRetry({
         errors: [
             RETRYABLE_STEP_ERROR_NAME, 
             CONTENT_BASED_RETRYABLE_ERROR_NAME,
-            'Lambda.TooManyRequestsException',
-            'Lambda.ServiceException',
-            'Lambda.Unknown',
         ],
         interval: cdk.Duration.seconds(10),
         maxAttempts: 3,

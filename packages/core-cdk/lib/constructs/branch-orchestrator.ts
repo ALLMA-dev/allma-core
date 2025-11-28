@@ -38,14 +38,23 @@ export class BranchOrchestrator extends Construct {
             // Custom application-level retryable errors
             RETRYABLE_STEP_ERROR_NAME, 
             CONTENT_BASED_RETRYABLE_ERROR_NAME,
-            // AWS Lambda service-level transient errors, including throttling (429)
+        ],
+        interval: cdk.Duration.seconds(10),
+        maxAttempts: 3,
+        backoffRate: 2.0,
+    });
+
+    // Add retry logic for Throttling (TooManyRequests) with specific backoff strategy.
+    // 1s, 3s, 9s, 27s, 81s
+    processStepTask.addRetry({
+        errors: [
             'Lambda.TooManyRequestsException',
             'Lambda.ServiceException',
             'Lambda.Unknown',
         ],
-        interval: cdk.Duration.seconds(10),
-        maxAttempts: 3,
-        backoffRate: 2.0, // Use exponential backoff for service errors
+        interval: cdk.Duration.seconds(1),
+        maxAttempts: 5,
+        backoffRate: 3.0,
     });
 
     // A Pass state to extract just the final output from the context, ensuring a clean result.

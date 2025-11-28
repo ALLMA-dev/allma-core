@@ -95,19 +95,6 @@ export class AllmaCompute extends Construct {
     /**
      * Grants the orchestration engine permission to read secrets from AWS Secrets Manager
      * that are used for authenticating with external MCP (Modular Capability Provider) servers.
-     *
-     * SECURITY NOTE: This policy is intentionally broad in its resource scope (`secret:*`) but is
-     * strictly limited by a condition on a resource tag. For this policy to grant access,
-     * a secret *must* be tagged with the key `allma-mcp-secret` and the value `'true'`.
-     *
-     * OPERATIONAL REQUIREMENT: To enable an MCP connection that requires authentication,
-     * users must:
-     * 1. Create a secret in AWS Secrets Manager containing the necessary credentials (e.g., API key, bearer token).
-     * 2. Apply a tag to that secret with the key `allma-mcp-secret` and the value `'true'`.
-     *
-     * This tag-based approach ensures that the orchestration engine can only access secrets
-     * that have been explicitly designated for its use, preventing accidental access to
-     * other secrets within the AWS account.
      */
     this.orchestrationLambdaRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
@@ -126,9 +113,6 @@ export class AllmaCompute extends Construct {
                 'ses:SendEmail',
                 'ses:SendRawEmail'
             ],
-            // Allow sending from ANY verified identity and using ANY configuration set.
-            // Security is maintained by SES, which only allows sending from verified identities.
-            // Using configuration sets is optional but this permission provides that flexibility.
             resources: [
                 `arn:aws:ses:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:identity/*`,
                 `arn:aws:ses:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:configuration-set/*`
@@ -177,11 +161,26 @@ export class AllmaCompute extends Construct {
     // --- IterativeStepProcessorLambda ---
     const iterativeStepProcessorMemory = stageConfig.lambdaMemorySizes.iterativeStepProcessor;
     const iterativeStepProcessorTimeout = cdk.Duration.minutes(stageConfig.lambdaTimeouts.iterativeStepProcessorMinutes);
-    this.iterativeStepProcessorLambda = this.createNodejsLambda('IterativeStepProcessorLambda', `AllmaIterativeStepProcessor-${stageConfig.stage}`, 'allma-flows/iterative-step-processor/index.js', this.orchestrationLambdaRole, iterativeStepProcessorTimeout, iterativeStepProcessorMemory, {
-      ...commonEnvVars,
-      [ENV_VAR_NAMES.AI_API_KEY_SECRET_ARN!]: stageConfig.aiApiKeySecretArn || '',
-      [ENV_VAR_NAMES.ALLMA_FLOW_START_REQUEST_QUEUE_URL!]: props.flowStartRequestQueue?.queueUrl || '',
-    });
+    
+    this.iterativeStepProcessorLambda = this.createNodejsLambda(
+        'IterativeStepProcessorLambda', 
+        `AllmaIterativeStepProcessor-${stageConfig.stage}`, 
+        'allma-flows/iterative-step-processor/index.js', 
+        this.orchestrationLambdaRole, 
+        iterativeStepProcessorTimeout, 
+        iterativeStepProcessorMemory, 
+        {
+            ...commonEnvVars,
+            [ENV_VAR_NAMES.AI_API_KEY_SECRET_ARN!]: stageConfig.aiApiKeySecretArn || '',
+            [ENV_VAR_NAMES.ALLMA_FLOW_START_REQUEST_QUEUE_URL!]: props.flowStartRequestQueue?.queueUrl || '',
+            // Pass the concurrency limit to the lambda env for logic use (e.g. capping map parallelism)
+            // If undefined in config, pass empty string. Logic will default to soft limit.
+            [ENV_VAR_NAMES.MAX_CONCURRENT_STEP_EXECUTIONS]: stageConfig.orchestratorConcurrency ? String(stageConfig.orchestratorConcurrency) : '',
+        },
+        undefined,
+        undefined,
+        stageConfig.orchestratorConcurrency // Set reserved concurrency on the function ONLY if defined
+    );
 
     // --- FinalizeFlowExecutionLambda ---
     this.finalizeFlowLambda = this.createNodejsLambda('FinalizeFlowLambda', `AllmaFinalizeFlow-${stageConfig.stage}`, 'allma-flows/finalize-flow.js', this.orchestrationLambdaRole, defaultLambdaTimeout, defaultLambdaMemory, commonEnvVars);
@@ -295,6 +294,7 @@ export class AllmaCompute extends Construct {
     id: string, functionName: string, entry: string, role: iam.IRole,
     timeout: cdk.Duration, memorySize: number, environment: { [key: string]: string },
     bundlingOptions?: lambdaNodejs.BundlingOptions, layers?: lambda.ILayerVersion[],
+    reservedConcurrentExecutions?: number, // NEW parameter
   ): lambdaNodejs.NodejsFunction {
     const architecture =
       this.stageConfig.lambdaArchitecture === LambdaArchitectureType.ARM_64
@@ -310,6 +310,8 @@ export class AllmaCompute extends Construct {
       timeout,
       memorySize,
       environment,
+      // Fix: Conditionally add the property to avoid typescript error with exactOptionalPropertyTypes
+      ...(reservedConcurrentExecutions !== undefined && { reservedConcurrentExecutions }),
       ...(layers && { layers }),
       bundling: {
         minify: true,

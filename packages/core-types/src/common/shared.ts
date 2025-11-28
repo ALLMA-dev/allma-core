@@ -3,7 +3,9 @@
  */
 export enum Stage {
     DEV = 'dev',
+    ALPHA = 'alpha',
     BETA = 'beta',
+    GAMMA = 'gamma',
     PROD = 'prod',
 }
 
@@ -46,4 +48,6 @@ export const ENV_VAR_NAMES = {
     // System Limits and Behavior Configs
     LOG_RETENTION_DAYS: "LOG_RETENTION_DAYS",
     MAX_CONTEXT_DATA_SIZE_BYTES: "MAX_CONTEXT_DATA_SIZE_BYTES",
+    // Max concurrent executions for throttling logic
+    MAX_CONCURRENT_STEP_EXECUTIONS: "MAX_CONCURRENT_STEP_EXECUTIONS",
 } as const;

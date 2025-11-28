@@ -20,13 +20,17 @@ import {
 import {
     log_info, log_error, log_warn, log_debug, resolveS3Pointer, offloadIfLarge,
 } from '@allma/core-sdk';
-import { getSmartValueByJsonPath, processStepOutput } from '../../allma-core/data-mapper.js';
+import { processStepOutput, getSmartValueByJsonPath } from '../../allma-core/data-mapper.js';
 import { executionLoggerClient } from '../../allma-core/execution-logger-client.js';
 import { resolveNextStep } from './transition-resolver.js';
 
 const s3Client = new S3Client({});
 const EXECUTION_TRACES_BUCKET_NAME = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME];
 const SFN_INLINE_PAYLOAD_LIMIT_BYTES = 250 * 1024; // 250KB, slightly less than the 256KB hard limit.
+
+// Read global limit. Default to a safe "soft limit" of 20 if undefined.
+const GLOBAL_MAX_CONCURRENCY_STR = process.env[ENV_VAR_NAMES.MAX_CONCURRENT_STEP_EXECUTIONS];
+const GLOBAL_MAX_CONCURRENCY = GLOBAL_MAX_CONCURRENCY_STR ? parseInt(GLOBAL_MAX_CONCURRENCY_STR, 10) : 20;
 
 /**
  * Aggregates the results from parallel branch executions based on the defined strategy.
@@ -267,12 +271,27 @@ export const handleParallelFork = async (
         throw new Error(`Parallel fork step '${stepInstanceConfig.stepInstanceId}' must have an 'itemsPath' defined.`);
     }
 
-    const maxConcurrency = aggregationConfig?.maxConcurrency ?? 0;
+    // Logic to clamp maxConcurrency based on global limit
+    const userMaxConcurrency = aggregationConfig?.maxConcurrency;
+    // Calculate the safe limit (80% of global reserved concurrency) OR default soft limit
+    const safeLimit = Math.max(1, Math.floor(GLOBAL_MAX_CONCURRENCY * 0.8));
+    // If no limit set by user, or user set > safeLimit, clamp it.
+    // If user set 0 (unlimited) or undefined, also clamp it to safe limit.
+    let effectiveMaxConcurrency = safeLimit;
+    if (userMaxConcurrency && userMaxConcurrency > 0) {
+        effectiveMaxConcurrency = Math.min(userMaxConcurrency, safeLimit);
+        if (effectiveMaxConcurrency !== userMaxConcurrency) {
+            log_warn(`User requested maxConcurrency ${userMaxConcurrency} clamped to ${effectiveMaxConcurrency} (80% of global limit ${GLOBAL_MAX_CONCURRENCY}).`, {}, correlationId);
+        }
+    } else {
+        log_info(`No specific maxConcurrency set in step. Defaulting to safe limit: ${safeLimit} (80% of global limit).`, {}, correlationId);
+    }
+
     const finalAggregationConfig: AggregationConfig = {
         strategy: AggregationStrategy.COLLECT_ARRAY,
         failOnBranchError: true,
         ...aggregationConfig,
-        maxConcurrency,
+        maxConcurrency: effectiveMaxConcurrency,
     };
     
     // Perform a simple, non-hydrating lookup first to check for an S3 pointer wrapper.

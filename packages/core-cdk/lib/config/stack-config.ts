@@ -200,6 +200,18 @@ export interface StageConfig {
   };
 
   /**
+   * Maximum concurrent executions for the core Orchestrator Lambda.
+   * This sets the ReservedConcurrentExecutions on the Lambda and guides
+   * the Parallel Fork throttling logic.
+   * 
+   * If undefined, no reserved concurrency is set on the Lambda (it uses the account's unreserved pool).
+   * This is recommended for dev/test accounts with low limits.
+   * 
+   * @default undefined
+   */
+  orchestratorConcurrency?: number;
+
+  /**
    * Logging configuration.
    */
   logging: {
