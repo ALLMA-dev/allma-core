@@ -134,11 +134,23 @@ export const handler = async (event: { Records: SesEventRecord[] }): Promise<voi
             const { flowDefinitionId, stepInstanceId } = targetMapping;
             const newFlowExecutionId = uuidv4();
 
-            const fromText = parsedEmail.from
-                ? (parsedEmail.from.name ? `${parsedEmail.from.name} <${parsedEmail.from.address}>` : parsedEmail.from.address)
+            const fromObj = parsedEmail.from;
+            const fromText = fromObj
+                ? (fromObj.name ? `${fromObj.name} <${fromObj.address}>` : fromObj.address)
                 : undefined;
 
-            // 3. Construct payload with attachments
+            // Extract detailed sender info
+            const senderName = fromObj?.name || undefined;
+            const senderFullEmail = fromObj?.address || undefined;
+            let senderEmailPrefix: string | undefined;
+
+            if (senderFullEmail) {
+                // Extracts "nkav" from "nkav@hello.lu"
+                const parts = senderFullEmail.split('@');
+                senderEmailPrefix = parts[0];
+            }
+
+            // 3. Construct payload with extended sender info
             const startFlowInput: StartFlowExecutionInput = {
                 flowDefinitionId,
                 flowVersion: 'LATEST_PUBLISHED',
@@ -148,6 +160,11 @@ export const handler = async (event: { Records: SesEventRecord[] }): Promise<voi
                 initialContextData: {
                     triggeringEmail: {
                         from: fromText,
+                        // Expanded sender data
+                        senderName: senderName,
+                        senderFullEmail: senderFullEmail,
+                        senderEmailPrefix: senderEmailPrefix,
+                        // Standard fields
                         to: recipient,
                         subject: parsedEmail.subject,
                         body: textBody,
