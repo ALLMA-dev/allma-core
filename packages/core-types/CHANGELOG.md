@@ -1,5 +1,11 @@
 # @allma/core-types
 
+## 1.0.12
+
+### Patch Changes
+
+- 67664df: ExpressionAttributeNames added to DDB steps
+
 ## 1.0.11
 
 ### Patch Changes
