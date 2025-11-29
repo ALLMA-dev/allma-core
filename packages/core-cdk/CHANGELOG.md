@@ -1,5 +1,13 @@
 # @allma/core-cdk
 
+## 1.0.21
+
+### Patch Changes
+
+- 67664df: ExpressionAttributeNames added to DDB steps
+- Updated dependencies [67664df]
+  - @allma/core-types@1.0.12
+
 ## 1.0.20
 
 ### Patch Changes
