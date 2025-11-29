@@ -26,6 +26,8 @@ const DdbQueryToS3ManifestConfigSchema = z.object({
         indexName: z.string().min(1, "indexName is required.").optional(),
         keyConditionExpression: z.string().min(1, "keyConditionExpression is required."),
         expressionAttributeValues: z.record(z.union([z.string(), z.number(), z.boolean()])),
+        expressionAttributeNames: z.record(z.string()).optional(),
+        filterExpression: z.string().min(1).optional(),
         projectionExpression: z.string().min(1).optional(),
     }),
     destination: z.object({
@@ -78,6 +80,8 @@ export const handleDdbQueryToS3Manifest: StepHandler = async (stepDef: any, step
                 IndexName: config.query.indexName,
                 KeyConditionExpression: config.query.keyConditionExpression,
                 ExpressionAttributeValues: renderedExpressionAttributeValues,
+                ExpressionAttributeNames: config.query.expressionAttributeNames,
+                FilterExpression: config.query.filterExpression,
                 ProjectionExpression: config.query.projectionExpression,
                 ExclusiveStartKey: lastEvaluatedKey,
             };

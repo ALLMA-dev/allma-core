@@ -42,6 +42,8 @@ export const handleDynamoDBLoader: StepHandler = async (
         ddbCommand = new GetCommand({
           TableName: config.tableName,
           Key: config.key, // Use directly, already rendered
+          ProjectionExpression: config.projectionExpression,
+          ExpressionAttributeNames: config.expressionAttributeNames,
         });
         ddbCommandParams = ddbCommand.input;
         const response = await ddbDocClient.send(ddbCommand);
@@ -58,6 +60,7 @@ export const handleDynamoDBLoader: StepHandler = async (
           FilterExpression: config.filterExpression,
           ProjectionExpression: config.projectionExpression,
           ExpressionAttributeValues: config.expressionAttributeValues, // Use directly
+          ExpressionAttributeNames: config.expressionAttributeNames,
           Limit: config.limit,
           ScanIndexForward: config.scanIndexForward,
         });
@@ -83,6 +86,7 @@ export const handleDynamoDBLoader: StepHandler = async (
           FilterExpression: config.filterExpression,
           ProjectionExpression: config.projectionExpression,
           ExpressionAttributeValues: config.expressionAttributeValues, // Use directly
+          ExpressionAttributeNames: config.expressionAttributeNames,
           Limit: config.limit,
         });
         ddbCommandParams = ddbCommand.input;

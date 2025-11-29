@@ -15,6 +15,8 @@ const DynamoDBQueryAndUpdateConfigSchema = z.object({
     indexName: z.string().min(1).optional(),
     keyConditionExpression: z.string().min(1),
     expressionAttributeValues: z.record(z.any()),
+    expressionAttributeNames: z.record(z.string()).optional(),
+    filterExpression: z.string().min(1).optional(),
     // Limit the number of items to query (and attempt to update).
     // This also protects against overly large transactions.
     limit: z.number().int().min(1).max(1000000).default(100),
@@ -55,6 +57,8 @@ export const executeDynamoDBQueryAndUpdate: StepHandler = async (
     IndexName: config.query.indexName,
     KeyConditionExpression: config.query.keyConditionExpression,
     ExpressionAttributeValues: config.query.expressionAttributeValues,
+    ExpressionAttributeNames: config.query.expressionAttributeNames,
+    FilterExpression: config.query.filterExpression,
     Limit: config.query.limit,
   });
 

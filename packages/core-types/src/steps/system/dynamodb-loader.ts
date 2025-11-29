@@ -6,6 +6,8 @@ const DynamoDBGetOperationSchema = z.object({
   operation: z.literal('GET'),
   tableName: z.string().min(1),
   key: z.record(DynamoDBTemplateableValueSchema),
+  projectionExpression: z.string().min(1).optional(),
+  expressionAttributeNames: z.record(z.string()).optional(),
 });
 
 const DynamoDBQueryOperationSchema = z.object({
@@ -15,6 +17,7 @@ const DynamoDBQueryOperationSchema = z.object({
   select: z.enum(['ALL_ATTRIBUTES', 'ALL_PROJECTED_ATTRIBUTES', 'SPECIFIC_ATTRIBUTES', 'COUNT']).optional(),
   keyConditionExpression: z.string().min(1),
   expressionAttributeValues: z.record(DynamoDBTemplateableValueSchema).optional(),
+  expressionAttributeNames: z.record(z.string()).optional(),
   filterExpression: z.string().min(1).optional(),
   projectionExpression: z.string().min(1).optional(),
   limit: z.number().int().positive().optional(),
@@ -27,6 +30,7 @@ const DynamoDBScanOperationSchema = z.object({
   indexName: z.string().min(1).optional(),
   select: z.enum(['ALL_ATTRIBUTES', 'ALL_PROJECTED_ATTRIBUTES', 'SPECIFIC_ATTRIBUTES', 'COUNT']).optional(),
   expressionAttributeValues: z.record(DynamoDBTemplateableValueSchema).optional(),
+  expressionAttributeNames: z.record(z.string()).optional(),
   filterExpression: z.string().min(1).optional(),
   projectionExpression: z.string().min(1).optional(),
   limit: z.number().int().positive().optional(),
