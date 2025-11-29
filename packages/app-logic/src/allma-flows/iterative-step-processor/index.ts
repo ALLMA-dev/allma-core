@@ -11,6 +11,7 @@ import {
     StepInstanceSchema,
     FlowRuntimeState,
     AllmaError,
+    ContentBasedRetryableError,
 } from '@allma/core-types';
 import {
     log_info, log_error, log_debug, log_warn, deepMerge, isObject,
@@ -244,14 +245,6 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
 
                 runtimeState = updatedRuntimeState;
                 runtimeState.currentStepInstanceId = nextStepId;
-
-                // If this step was part of a branch, `currentItem` has been used for input mappings
-                // and is no longer needed. Remove it immediately to prevent it from bloating
-                // the state payload for the next step transition within the branch.
-                if (runtimeState.branchId && runtimeState.currentContextData?.currentItem) {
-                    log_debug("Step within a branch finished. Removing 'currentItem' from context to reduce state size.", { branchId: runtimeState.branchId }, correlationId);
-                    delete runtimeState.currentContextData.currentItem;
-                }
             }
 
             if (currentStepInstanceId) {
@@ -264,7 +257,7 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
             if (runtimeState.status === 'RUNNING') runtimeState.status = 'COMPLETED';
         }
     } catch (error: any) {
-        if (error instanceof RetryableStepError) {
+        if (error instanceof RetryableStepError || error instanceof ContentBasedRetryableError) {
             throw error;
         }
 
@@ -328,10 +321,9 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
     }
 
     // This block handles the final cleanup at the very end of a branch's lifecycle.
-    // It's a safeguard but the primary fix is the earlier, intra-step cleanup.
     if ((isMapContext || runtimeState.branchId) && !runtimeState.currentStepInstanceId) {
         if (runtimeState.currentContextData?.currentItem) {
-            log_warn("End of branch detected, but 'currentItem' was still in context. Cleaning up now.", { branchId: runtimeState.branchId }, correlationId);
+            log_debug("End of branch reached. Cleaning up 'currentItem' from context.", { branchId: runtimeState.branchId }, correlationId);
             delete runtimeState.currentContextData.currentItem;
         }
     }

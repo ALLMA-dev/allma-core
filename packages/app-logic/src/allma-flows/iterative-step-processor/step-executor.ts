@@ -91,8 +91,6 @@ export const executeStandardStep = async (
 
     let hydratedStepInput: Record<string, any>;
 
-    // MODIFIED LOGIC:
-    // Hydrate S3 pointers unless it's a custom lambda that has NOT opted in to hydration.
     if (stepInstanceConfig.stepType !== StepType.CUSTOM_LAMBDA_INVOKE || (stepInstanceConfig.customConfig as any)?.hydrateInputFromS3 === true) {
         log_info(`Hydrating step input for step '${currentStepInstanceId}' from any S3 pointers.`, {}, correlationId);
         hydratedStepInput = await hydrateInputFromS3Pointers(stepInput, correlationId);
@@ -391,7 +389,7 @@ export const executeStandardStep = async (
                 mappingEvents: allMappingEvents,
                 inputMappingContext: inputContext,
                 outputMappingContext: inputContext,
-                logDetails: {},
+                logDetails: error.details?.logDetails, // Extract logDetails from the error
                 templateContextMappingContext: { ...inputContext, ...finalStepInput },
                 stepInstanceConfig: stepInstanceConfig, // Log the exact config used
             });

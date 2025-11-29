@@ -99,54 +99,66 @@ export const handleLlmInvocation: StepHandler = async (
   log_debug('Final context keys for prompt template', { keys: Object.keys(templateContext), sizes: contextSizes }, correlationId);
   const finalPrompt = templateService.render(promptTemplate.content, templateContext);
 
+  // Prepare this now, so it's available in both success and error paths
+  const s3KeyPrefix = `step_outputs/${runtimeState.flowExecutionId}/${llmStepDef.id}/template_context`;
+  const finalTemplateContextForLog = await offloadIfLarge(
+    mappedContextResult,
+    EXECUTION_TRACES_BUCKET_NAME,
+    s3KeyPrefix,
+    correlationId
+  );
+  
+  const adapter = getLlmAdapter(llmProvider);
+  const useJsonOutputMode = finalCustomConfig.jsonOutputMode === true;
+  const generationRequest: LlmGenerationRequest = {
+    provider: llmProvider,
+    modelId: modelId,
+    prompt: finalPrompt,
+    temperature: finalParams.temperature ?? 0.7,
+    maxOutputTokens: finalParams.maxOutputTokens ?? 16000,
+    topP: finalParams.topP ?? 0.95,
+    topK: finalParams.topK ?? 40,
+    ...(finalParams.seed !== undefined && { seed: finalParams.seed }),
+    customConfig: finalCustomConfig,
+    jsonOutputMode: useJsonOutputMode,
+    correlationId,
+  };
+
+  const response = await adapter.generateContent(generationRequest);
+
+  if (!response.success) {
+    log_warn('LLM adapter reported failure.', { errorMessage: response.errorMessage, provider: llmProvider }, correlationId);
+    throw new Error(response.errorMessage || 'LLM Invocation failed without a specific error message.');
+  }
+
   try {
-    const adapter = getLlmAdapter(llmProvider);
-    const useJsonOutputMode = finalCustomConfig.jsonOutputMode === true;
-
-    const generationRequest: LlmGenerationRequest = {
-      provider: llmProvider,
-      modelId: modelId,
-      prompt: finalPrompt,
-      temperature: finalParams.temperature ?? 0.7,
-      maxOutputTokens: finalParams.maxOutputTokens ?? 16000,
-      topP: finalParams.topP ?? 0.95,
-      topK: finalParams.topK ?? 40,
-      ...(finalParams.seed !== undefined && { seed: finalParams.seed }),
-      customConfig: finalCustomConfig,
-      jsonOutputMode: useJsonOutputMode,
-      correlationId,
-    };
-
-    const response = await adapter.generateContent(generationRequest);
-
-    if (!response.success) {
-      log_warn('LLM adapter reported failure.', { errorMessage: response.errorMessage, provider: llmProvider }, correlationId);
-      throw new Error(response.errorMessage || 'LLM Invocation failed without a specific error message.');
-    }
-
     let parsedOutput: any;
     if (finalCustomConfig.jsonOutputMode === true && response.responseText) {
       try {
         parsedOutput = extractAndParseJson(response.responseText, correlationId);
       } catch (e: any) {
-        if (e instanceof SyntaxError || e instanceof JsonParseError) {
+        if (e instanceof JsonParseError) {
           log_warn('LLM response is not valid JSON. Throwing ContentBasedRetryableError.', { responseText: response.responseText }, correlationId);
-          throw new ContentBasedRetryableError(`Failed to parse LLM response as JSON. Raw response: ${response.responseText}`);
+          
+          const errorLogDetails = {
+            tokenUsage: response.tokenUsage,
+            llmPrompt: finalPrompt,
+            llmRawResponse: response.responseText,
+            templateContextMappingResult: finalTemplateContextForLog,
+            _templateContextMappingEvents: templateMappingEvents,
+          };
+
+          throw new ContentBasedRetryableError(
+            `Failed to parse LLM response as JSON. Raw response: ${response.responseText}`,
+            { logDetails: errorLogDetails }, // Pass rich details
+            e
+          );
         }
         throw e;
       }
     } else {
       parsedOutput = { llm_response: response.responseText };
     }
-
-
-    const s3KeyPrefix = `step_outputs/${runtimeState.flowExecutionId}/${llmStepDef.id}/template_context`;
-    const finalTemplateContextForLog = await offloadIfLarge(
-      mappedContextResult,
-      EXECUTION_TRACES_BUCKET_NAME,
-      s3KeyPrefix,
-      correlationId
-    );
 
     const { ...invocationParametersForLog } = generationRequest;
 
@@ -164,7 +176,8 @@ export const handleLlmInvocation: StepHandler = async (
       },
     };
   } catch (error: any) {
-    const errorType = error instanceof ContentBasedRetryableError ? 'Content-based retryable error (incorect JSON?)' : 'General failure';
+    // This outer catch block now primarily handles ContentBasedRetryableError and other unexpected errors
+    const errorType = error instanceof ContentBasedRetryableError ? 'Content-based retryable error (incorrect JSON?)' : 'General failure';
     log_error(`LLM_INVOCATION step '${llmStepDef.name}' failed. Reason: ${errorType}`, { error: error.message }, correlationId);
     throw error;
   }

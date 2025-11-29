@@ -49,10 +49,9 @@ export class RetryableStepError extends Error {
  * An error for failures due to invalid content (e.g., malformed JSON) that might succeed on retry.
  */
 export const CONTENT_BASED_RETRYABLE_ERROR_NAME = 'ContentBasedRetryableError';
-export class ContentBasedRetryableError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = CONTENT_BASED_RETRYABLE_ERROR_NAME;
+export class ContentBasedRetryableError extends BaseProcessingError {
+  constructor(message: string, details?: any, originalError?: Error) {
+    super(message, CONTENT_BASED_RETRYABLE_ERROR_NAME, details, originalError);
   }
 }
 
