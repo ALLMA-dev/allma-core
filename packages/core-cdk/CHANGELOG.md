@@ -1,5 +1,13 @@
 # @allma/core-cdk
 
+## 1.0.22
+
+### Patch Changes
+
+- e233841: LLM retry fix, currentItem in PARALLEL fork clean fix
+- Updated dependencies [e233841]
+  - @allma/core-types@1.0.13
+
 ## 1.0.21
 
 ### Patch Changes

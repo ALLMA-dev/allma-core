@@ -1,5 +1,11 @@
 # @allma/core-types
 
+## 1.0.13
+
+### Patch Changes
+
+- e233841: LLM retry fix, currentItem in PARALLEL fork clean fix
+
 ## 1.0.12
 
 ### Patch Changes
