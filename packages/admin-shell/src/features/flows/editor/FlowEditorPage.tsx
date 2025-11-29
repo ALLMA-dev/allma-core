@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Button, Group, Alert, ActionIcon, Tooltip, Paper, Stack, Title } from '@mantine/core';
+import { Box, Button, Group, Alert, ActionIcon, Tooltip, Paper, Stack, Title, Badge, Text, Modal } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconAlertCircle, IconDeviceFloppy, IconLock, IconLayoutSidebarLeftCollapse, IconPlus } from '@tabler/icons-react';
+import { IconAlertCircle, IconDeviceFloppy, IconLock, IconLayoutSidebarLeftCollapse, IconPlus, IconDownloadOff } from '@tabler/icons-react';
 import { ReactFlowProvider, useReactFlow } from 'reactflow';
 
 import { PageContainer, CopyableText } from '@allma/ui-components';
-import { useGetFlowByVersion, useUpdateFlowVersion } from '../../../api/flowService';
+import { useGetFlowByVersion, useUpdateFlowVersion, useUnpublishFlowVersion } from '../../../api/flowService';
 import useFlowEditorStore from './hooks/useFlowEditorStore';
 import { flowDefinitionToElements } from './flow-utils';
 import { FlowCanvas } from './components/FlowCanvas';
@@ -28,7 +28,10 @@ function FlowEditorPageContent() {
   const clearDirtyState = useFlowEditorStore(state => state.clearDirtyState);
   
   const updateFlowMutation = useUpdateFlowVersion();
+  const unpublishMutation = useUnpublishFlowVersion();
+
   const [paletteVisible, { close: closePalette, toggle: togglePalette }] = useDisclosure(false);
+  const [unpublishModalOpened, { open: openUnpublishModal, close: closeUnpublishModal }] = useDisclosure(false);
   
   // State for the right panel
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -87,6 +90,21 @@ function FlowEditorPageContent() {
     }
   };
 
+  const handleUnpublish = () => {
+    if (flowFromStore) {
+        unpublishMutation.mutate(
+            { flowId: flowFromStore.id, version: flowFromStore.version },
+            {
+                onSuccess: () => {
+                    closeUnpublishModal();
+                    // React Query will automatically invalidate the 'flowDetail' query,
+                    // causing this component to re-render with the updated isPublished status.
+                }
+            }
+        );
+    }
+  };
+
   // --- Coordinated Panel Handlers ---
 
   const handleNodeSelect = (nodeId: string | null) => {
@@ -138,9 +156,16 @@ function FlowEditorPageContent() {
 
   const titleComponent = (
     <Stack gap={0} align="flex-start">
-      <Title order={2}>
-        {isReadOnly ? `Viewing Flow: ${flowFromStore?.name || '...'}` : `Editing Flow: ${flowFromStore?.name || '...'}`}
-      </Title>
+      <Group gap="xs" align="center">
+        <Title order={2}>
+            {isReadOnly ? `Viewing Flow: ${flowFromStore?.name || '...'}` : `Editing Flow: ${flowFromStore?.name || '...'}`}
+        </Title>
+        {isReadOnly && (
+            <Tooltip label="This version is published and cannot be edited directly. Unpublish or create a new version to make changes." withArrow>
+                <Badge color="orange" variant="light" leftSection={<IconLock size={12} />} style={{ cursor: 'help' }}>Read-Only</Badge>
+            </Tooltip>
+        )}
+      </Group>
       {flowId && <CopyableText text={flowId} size="sm" />}
     </Stack>
   );
@@ -152,28 +177,43 @@ function FlowEditorPageContent() {
       breadcrumb={<FlowsBreadcrumbs flowId={flowId} flowName={flowFromStore?.name} isEditing />}
       rightSection={
         <Group>
-          {!isReadOnly && (
-            <Button
-              onClick={handleSaveOnly}
-              loading={updateFlowMutation.isPending}
-              disabled={!isDirty}
-            >
-              Save
-            </Button>
+          {isReadOnly ? (
+            <>
+                <Button 
+                    variant="subtle" 
+                    color="orange" 
+                    leftSection={<IconDownloadOff size="1rem" />}
+                    onClick={openUnpublishModal}
+                    loading={unpublishMutation.isPending}
+                >
+                    Unpublish
+                </Button>
+                <Button variant="default" onClick={handleClose}>
+                    Back to Versions
+                </Button>
+            </>
+          ) : (
+            <>
+                <Button
+                    onClick={handleSaveOnly}
+                    loading={updateFlowMutation.isPending}
+                    disabled={!isDirty}
+                >
+                    Save
+                </Button>
+                <Button
+                    leftSection={<IconDeviceFloppy size="1rem"/>}
+                    onClick={handleSaveAndClose}
+                    loading={updateFlowMutation.isPending}
+                    disabled={!isDirty}
+                >
+                    Save & Close
+                </Button>
+                <Button variant="default" onClick={handleClose}>
+                    Close
+                </Button>
+            </>
           )}
-          {!isReadOnly && (
-            <Button
-              leftSection={<IconDeviceFloppy size="1rem"/>}
-              onClick={handleSaveAndClose}
-              loading={updateFlowMutation.isPending}
-              disabled={!isDirty}
-            >
-              Save & Close
-            </Button>
-          )}
-          <Button variant="default" onClick={handleClose}>
-            {isReadOnly ? 'Back to Versions' : 'Close'}
-          </Button>
         </Group>
       }
       loading={isLoading || !flowFromStore}
@@ -182,16 +222,12 @@ function FlowEditorPageContent() {
       
       {flowFromStore && (
         <Box style={{ 
-          height: `calc(100vh - ${isReadOnly ? 34 : 24}vh)`,
+          height: `calc(100vh - ${isReadOnly ? 24 : 24}vh)`, // Adjusted height since Alert is gone
           display: 'flex', 
           flexDirection: 'column' 
         }}>
-          {isReadOnly && (
-              <Alert color="orange" title="Read-Only Mode! This flow version is published and cannot be edited. To make changes, please create a new version." icon={<IconLock />} mb="md">
-              </Alert>
-          )}
           <Group wrap="nowrap" align="stretch" gap={0} style={{ flex: 1, minHeight: 0 }}>
-            {/* NEW: Left-side panel for the Step Palette */}
+            {/* Left-side panel for the Step Palette */}
             {paletteVisible && !isReadOnly && (
                 <Paper
                     shadow="md"
@@ -251,6 +287,16 @@ function FlowEditorPageContent() {
           </Group>
         </Box>
       )}
+
+      {/* Unpublish Confirmation Modal */}
+      <Modal opened={unpublishModalOpened} onClose={closeUnpublishModal} title="Confirm Unpublish" centered>
+        <Text>Are you sure you want to unpublish <Text span fw={700}>version {flowFromStore?.version}</Text>?</Text>
+        <Text c="dimmed" size="sm" mt="sm">This will remove the &ldquo;Published&rdquo; status, and there will be no active version for this flow until a new one is published.</Text>
+        <Group justify="flex-end" mt="xl">
+            <Button variant="default" onClick={closeUnpublishModal}>Cancel</Button>
+            <Button color="orange" onClick={handleUnpublish} loading={unpublishMutation.isPending}>Unpublish</Button>
+        </Group>
+      </Modal>
     </PageContainer>
   );
 }
