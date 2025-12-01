@@ -157,6 +157,10 @@ export const executeStandardStep = async (
         });
     }
 
+    let outputDataForMapping: Record<string, any> | undefined;
+    let logDetailsForRecord: any = {};
+    let executionError: any = null;
+
     try {
         // 4. Execute Step via internal handler or external invoker.
         let stepHandlerResult;
@@ -220,113 +224,32 @@ export const executeStandardStep = async (
         }
         // --- END: GENERIC OUTPUT VALIDATION LOGIC ---
 
-        const stepEndTime = new Date().toISOString();
-        const stepDurationMs = new Date(stepEndTime).getTime() - new Date(stepStartTime).getTime();
-
-        log_info(`Step '${currentStepInstanceId}' of type '${stepDef.stepType}' executed successfully.`, { durationMs: stepDurationMs }, correlationId);
-
         // Deconstruct the handler result for mapping and logging.
-        const outputDataForMapping = stepHandlerResult.outputData || {};
-        const logDetailsForRecord = outputDataForMapping._meta || {};
-        const templateMappingEvents = logDetailsForRecord?._templateContextMappingEvents;
-
-        // This is a special internal key, remove it before further processing.
+        outputDataForMapping = stepHandlerResult.outputData || {};
+        
+        // Extract meta information for logs and remove it from data passed to mapping
         if (outputDataForMapping._meta) {
+            logDetailsForRecord = outputDataForMapping._meta;
             delete outputDataForMapping._meta;
         }
-
-        // Offload large outputs to S3 before merging into runtime state to protect SFN state limit.
-        const s3KeyPrefix = `step_outputs/${runtimeState.flowExecutionId}/${stepInstanceConfig.stepInstanceId}`;
-
-        // Check the new flag before attempting to offload.
-        let finalOutputForMapping;
-        if (stepInstanceConfig.disableS3Offload) {
-            log_info(`S3 offload is disabled for step '${currentStepInstanceId}'.`, {}, correlationId);
-            finalOutputForMapping = outputDataForMapping;
-
-            // Warn if the payload is dangerously large, as it might break the SFN execution.
-            if (outputDataForMapping) {
-                try {
-                    const payloadString = JSON.stringify(outputDataForMapping);
-                    const payloadSize = Buffer.byteLength(payloadString, 'utf-8');
-                    if (payloadSize > SFN_PAYLOAD_WARN_THRESHOLD_BYTES) {
-                        log_warn(`S3 offload is disabled, but payload size (${payloadSize} bytes) is near or exceeds the SFN state limit of 256KB. This may cause the flow to fail.`, {}, correlationId);
-                    }
-                } catch (e) { /* ignore potential stringify errors on huge objects */ }
-            }
-        } else {
-            finalOutputForMapping = await offloadIfLarge(
-                outputDataForMapping,
-                EXECUTION_TRACES_BUCKET_NAME,
-                s3KeyPrefix,
-                correlationId
-            );
-        }
-
-        // Apply output mappings. Use a default mapping if none is provided.
-        const effectiveOutputMappings = stepInstanceConfig.outputMappings === undefined
-            ? { [`$.steps_output.${currentStepInstanceId}`]: '$' }
-            : stepInstanceConfig.outputMappings;
-
-        let outputMappingEvents: MappingEvent[] = [];
-        if (Object.keys(effectiveOutputMappings).length > 0 && finalOutputForMapping) {
-            outputMappingEvents = processStepOutput(effectiveOutputMappings, finalOutputForMapping, runtimeState.currentContextData, correlationId);
-            log_debug('Context data after output mapping', { contextKeys: Object.keys(runtimeState.currentContextData) }, correlationId);
-        }
-
-        const { nextStepId, transitionDetails } = await resolveNextStep(stepInstanceConfig, runtimeState);
-
-        const allMappingEvents: MappingEvent[] = [...inputMappingEvents, ...outputMappingEvents];
-        if (templateMappingEvents) {
-            allMappingEvents.push(...templateMappingEvents);
-        }
-
-        logDetailsForRecord.transitionEvaluation = transitionDetails;
-
-        // Log successful completion, if enabled
-        if (runtimeState.enableExecutionLogs) {
-            const s3Pointer = await executionLoggerClient.logStepExecution({
-                ...baseRecord,
-                status: 'COMPLETED',
-                eventTimestamp: stepEndTime, // Use step end time as the event time for COMPLETED
-                endTime: stepEndTime,
-                durationMs: stepDurationMs,
-                logDetails: logDetailsForRecord,
-                inputMappingResult: finalStepInput,
-                outputData: outputDataForMapping, // Pass the raw output data
-                mappingEvents: allMappingEvents,
-                inputMappingContext: inputContext, // Log the "before" context again for a self-contained record
-                outputMappingContext: runtimeState.currentContextData,
-                stepInstanceConfig: stepInstanceConfig, // Log the exact config used
-            });
-
-            // If in sandbox mode, capture the S3 pointer to the full debug log.
-            if (runtimeState._internal?.sandboxMode && s3Pointer) {
-                log_debug('Sandbox mode detected. Captured full debug log S3 pointer.', {}, correlationId);
-                runtimeState._internal.sandboxDebugLogS3Pointer = s3Pointer;
-            }
-        }
-
-        return { updatedRuntimeState: runtimeState, nextStepId };
 
     } catch (error: any) {
         const stepEndTime = new Date().toISOString();
         const stepDurationMs = new Date(stepEndTime).getTime() - new Date(stepStartTime).getTime();
 
-        const isRetryableBySfn = error instanceof RetryableStepError || error instanceof ContentBasedRetryableError;
-
+        // 1. Handle Retryable Errors first (Content-based or System)
         if (error instanceof ContentBasedRetryableError && stepInstanceConfig.onError?.retryOnContentError) {
             const retryConfig = stepInstanceConfig.onError.retryOnContentError;
             const attemptsMade = runtimeState.stepRetryAttempts[currentStepInstanceId] || 1;
 
             if (attemptsMade < retryConfig.count) {
                 log_warn(`Step '${currentStepInstanceId}' failed with a content-based error. Attempting retry ${attemptsMade + 1}/${retryConfig.count}.`, { error: error.message }, correlationId);
-
+                // Log the intermediate failure and throw to trigger retry logic
                 if (runtimeState.enableExecutionLogs) {
                     await executionLoggerClient.logStepExecution({
                         ...baseRecord,
                         status: 'RETRYING_CONTENT',
-                        eventTimestamp: stepEndTime, // The time of the failure event
+                        eventTimestamp: stepEndTime,
                         endTime: stepEndTime,
                         durationMs: stepDurationMs,
                         errorInfo: { isRetryable: true, errorName: error.name, errorMessage: error.message },
@@ -334,74 +257,175 @@ export const executeStandardStep = async (
                         mappingEvents: inputMappingEvents,
                         inputMappingContext: inputContext,
                         templateContextMappingContext: { ...inputContext, ...finalStepInput },
-                        stepInstanceConfig: stepInstanceConfig, // Log the exact config used
+                        stepInstanceConfig: stepInstanceConfig,
                     });
                 }
-
                 throw new RetryableStepError(error.message);
-            } else {
-                log_error(`Step '${currentStepInstanceId}' failed with a content-based error and has exhausted all retries (${retryConfig.count}). Treating as terminal.`, { error: error.message }, correlationId);
             }
         }
 
+        // 2. Handle continueOnFailure Logic
+        if (stepInstanceConfig.onError?.continueOnFailure) {
+            log_warn(`Step '${currentStepInstanceId}' failed but continueOnFailure is active. Suppressing error.`, { error: error.message }, correlationId);
+            
+            // Capture the error to treat as the result
+            executionError = error;
+            
+            // Construct the error object to be passed as output
+            outputDataForMapping = {
+                errorName: error.name || 'StepError',
+                errorMessage: error.message,
+                errorDetails: {
+                    failedStepInstanceId: currentStepInstanceId,
+                    cause: error.cause,
+                    stack: error.stack,
+                    ...error.details
+                },
+                isRetryable: false 
+            };
+            
+            // Mark the state as successful in logs because we handled the failure gracefully
+            // but record the error info in the log payload.
+        } else {
+            // 3. Fallback: Log and Re-throw for standard failure handling (Retry/Fallback/Fail)
+            
+            const isRetryableBySfn = error instanceof RetryableStepError || error instanceof ContentBasedRetryableError;
+            
+            // Determine the log status
+            let logStatus: 'RETRYING_SFN' | 'RETRYING_CONTENT' | 'FAILED' = 'FAILED';
+            if (error instanceof RetryableStepError) logStatus = 'RETRYING_SFN';
+            else if (error instanceof ContentBasedRetryableError) logStatus = 'RETRYING_CONTENT';
 
-        const errorInfo: AllmaError = {
-            errorName: error.name || 'StepExecutionError',
-            errorMessage: error.message,
-            errorDetails: {
-                failedStepInstanceId: currentStepInstanceId,
-                cause: error.cause,
-                stack: error.stack?.substring(0, 5000),
-                ...error.details // Merge details from the thrown error (e.g., dynamodb_params)
-            },
-            isRetryable: isRetryableBySfn,
-        };
+            const errorInfo: AllmaError = {
+                errorName: error.name || 'StepExecutionError',
+                errorMessage: error.message,
+                errorDetails: {
+                    failedStepInstanceId: currentStepInstanceId,
+                    cause: error.cause,
+                    stack: error.stack?.substring(0, 5000),
+                    ...error.details
+                },
+                isRetryable: isRetryableBySfn,
+            };
 
-        // Determine the log status
-        let logStatus: 'RETRYING_SFN' | 'RETRYING_CONTENT' | 'FAILED' = 'FAILED';
-        if (error instanceof RetryableStepError) {
-            logStatus = 'RETRYING_SFN';
-        } else if (error instanceof ContentBasedRetryableError) {
-            logStatus = 'RETRYING_CONTENT';
-        }
-
-        if (isRetryableBySfn) {
-            log_warn(`Step '${currentStepInstanceId}' failed with a retryable error. SFN will attempt to retry.`, { errorName: error.name, errorMessage: error.message }, correlationId);
-        }
-
-        const allMappingEvents: MappingEvent[] = [...inputMappingEvents];
-        const stepHandlerResult = runtimeState._internal?.currentStepHandlerResult;
-        const templateMappingEvents = stepHandlerResult?.outputData?._meta?._templateContextMappingEvents;
-        if (templateMappingEvents) {
-            allMappingEvents.push(...templateMappingEvents);
-        }
-
-        // Log the failure immediately, if enabled
-        if (runtimeState.enableExecutionLogs) {
-            const s3Pointer = await executionLoggerClient.logStepExecution({
-                ...baseRecord,
-                status: logStatus,
-                eventTimestamp: stepEndTime,
-                endTime: stepEndTime,
-                durationMs: stepDurationMs,
-                errorInfo: errorInfo,
-                inputMappingResult: finalStepInput,
-                mappingEvents: allMappingEvents,
-                inputMappingContext: inputContext,
-                outputMappingContext: inputContext,
-                logDetails: error.details?.logDetails, // Extract logDetails from the error
-                templateContextMappingContext: { ...inputContext, ...finalStepInput },
-                stepInstanceConfig: stepInstanceConfig, // Log the exact config used
-            });
-
-            // Capture the pointer for failed sandbox executions too, so the UI can see what went wrong.
-            if (runtimeState._internal?.sandboxMode && s3Pointer) {
-                log_debug('Sandbox mode detected (FAILED/RETRYING status). Captured full debug log S3 pointer.', {}, correlationId);
-                runtimeState._internal.sandboxDebugLogS3Pointer = s3Pointer;
+            const allMappingEvents: MappingEvent[] = [...inputMappingEvents];
+            const stepHandlerResult = runtimeState._internal?.currentStepHandlerResult;
+            const templateMappingEvents = stepHandlerResult?.outputData?._meta?._templateContextMappingEvents;
+            if (templateMappingEvents) {
+                allMappingEvents.push(...templateMappingEvents);
             }
-        }
 
-        // Re-throw the error so the caller can handle SFN state (retry, fallback, fail).
-        throw error;
+            if (runtimeState.enableExecutionLogs) {
+                await executionLoggerClient.logStepExecution({
+                    ...baseRecord,
+                    status: logStatus,
+                    eventTimestamp: stepEndTime,
+                    endTime: stepEndTime,
+                    durationMs: stepDurationMs,
+                    errorInfo: errorInfo,
+                    inputMappingResult: finalStepInput,
+                    mappingEvents: allMappingEvents,
+                    inputMappingContext: inputContext,
+                    outputMappingContext: inputContext, // No new context generated on failure
+                    logDetails: error.details?.logDetails, 
+                    templateContextMappingContext: { ...inputContext, ...finalStepInput },
+                    stepInstanceConfig: stepInstanceConfig, 
+                });
+            }
+
+            throw error; // Propagate to SFN or Error Handler
+        }
     }
+
+    // --- Post-Execution Processing (Success or Continued Failure) ---
+
+    const stepEndTime = new Date().toISOString();
+    const stepDurationMs = new Date(stepEndTime).getTime() - new Date(stepStartTime).getTime();
+
+    if (!executionError) {
+        log_info(`Step '${currentStepInstanceId}' executed successfully.`, { durationMs: stepDurationMs }, correlationId);
+    }
+
+    const templateMappingEvents = logDetailsForRecord?._templateContextMappingEvents;
+
+    // Offload large outputs to S3 before merging into runtime state to protect SFN state limit.
+    const s3KeyPrefix = `step_outputs/${runtimeState.flowExecutionId}/${stepInstanceConfig.stepInstanceId}`;
+
+    let finalOutputForMapping;
+    if (stepInstanceConfig.disableS3Offload) {
+        log_info(`S3 offload is disabled for step '${currentStepInstanceId}'.`, {}, correlationId);
+        finalOutputForMapping = outputDataForMapping;
+
+        // Warn if the payload is dangerously large
+        if (outputDataForMapping) {
+            try {
+                const payloadString = JSON.stringify(outputDataForMapping);
+                const payloadSize = Buffer.byteLength(payloadString, 'utf-8');
+                if (payloadSize > SFN_PAYLOAD_WARN_THRESHOLD_BYTES) {
+                    log_warn(`S3 offload is disabled, but payload size (${payloadSize} bytes) is near or exceeds the SFN state limit of 256KB.`, {}, correlationId);
+                }
+            } catch (e) { /* ignore */ }
+        }
+    } else {
+        finalOutputForMapping = await offloadIfLarge(
+            outputDataForMapping,
+            EXECUTION_TRACES_BUCKET_NAME,
+            s3KeyPrefix,
+            correlationId
+        );
+    }
+
+    // Apply output mappings.
+    // If continueOnFailure was triggered, this allows mapping the error object to the context.
+    const effectiveOutputMappings = stepInstanceConfig.outputMappings === undefined
+        ? { [`$.steps_output.${currentStepInstanceId}`]: '$' }
+        : stepInstanceConfig.outputMappings;
+
+    let outputMappingEvents: MappingEvent[] = [];
+    if (Object.keys(effectiveOutputMappings).length > 0 && finalOutputForMapping) {
+        outputMappingEvents = processStepOutput(effectiveOutputMappings, finalOutputForMapping, runtimeState.currentContextData, correlationId);
+        log_debug('Context data after output mapping', { contextKeys: Object.keys(runtimeState.currentContextData) }, correlationId);
+    }
+
+    const { nextStepId, transitionDetails } = await resolveNextStep(stepInstanceConfig, runtimeState);
+
+    const allMappingEvents: MappingEvent[] = [...inputMappingEvents, ...outputMappingEvents];
+    if (templateMappingEvents) {
+        allMappingEvents.push(...templateMappingEvents);
+    }
+
+    logDetailsForRecord.transitionEvaluation = transitionDetails;
+
+    // Log successful completion (or continued failure as completion), if enabled
+    if (runtimeState.enableExecutionLogs) {
+        const s3Pointer = await executionLoggerClient.logStepExecution({
+            ...baseRecord,
+            status: 'COMPLETED', // Treat as completed for SFN flow purposes
+            eventTimestamp: stepEndTime,
+            endTime: stepEndTime,
+            durationMs: stepDurationMs,
+            logDetails: logDetailsForRecord,
+            inputMappingResult: finalStepInput,
+            outputData: outputDataForMapping, // Pass the raw output data (or error object)
+            mappingEvents: allMappingEvents,
+            inputMappingContext: inputContext,
+            outputMappingContext: runtimeState.currentContextData,
+            stepInstanceConfig: stepInstanceConfig,
+            // If it was a continued failure, include error info for visibility
+            ...(executionError && {
+                errorInfo: {
+                    errorName: executionError.name || 'HandledError',
+                    errorMessage: executionError.message,
+                    isRetryable: false
+                }
+            })
+        });
+
+        if (runtimeState._internal?.sandboxMode && s3Pointer) {
+            log_debug('Sandbox mode detected. Captured full debug log S3 pointer.', {}, correlationId);
+            runtimeState._internal.sandboxDebugLogS3Pointer = s3Pointer;
+        }
+    }
+
+    return { updatedRuntimeState: runtimeState, nextStepId };
 };
