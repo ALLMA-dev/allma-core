@@ -1,5 +1,11 @@
 # @allma/admin-shell
 
+## 1.0.16
+
+### Patch Changes
+
+- 9b54b64: Minor Flow Edit UI update
+
 ## 1.0.15
 
 ### Patch Changes
