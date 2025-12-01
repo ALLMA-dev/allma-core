@@ -1,5 +1,11 @@
 # @allma/core-cdk
 
+## 1.0.23
+
+### Patch Changes
+
+- a0f0d9b: Conditions util improvement. Step execution error handling updated
+
 ## 1.0.22
 
 ### Patch Changes
