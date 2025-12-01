@@ -372,9 +372,13 @@ export class AllmaStack extends cdk.Stack {
           },
           physicalResourceId: customResources.PhysicalResourceId.of(`allma-config-importer-${Date.now()}`),
         },
-        policy: customResources.AwsCustomResourcePolicy.fromSdkCalls({
-          resources: [compute.configImporterLambda.functionArn],
-        }),
+        // Explicitly granting invoke permissions
+        policy: customResources.AwsCustomResourcePolicy.fromStatements([
+          new iam.PolicyStatement({
+            actions: ['lambda:InvokeFunction'],
+            resources: [compute.configImporterLambda.functionArn],
+          }),
+        ]),
       });
 
       customResource.node.addDependency(dataStores.allmaConfigTable);
