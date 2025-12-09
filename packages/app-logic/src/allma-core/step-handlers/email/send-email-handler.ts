@@ -188,7 +188,8 @@ export const executeSendEmail: StepHandler = async (
     throw new Error(`Invalid rendered parameters for email-send: ${runtimeValidation.error.message}`);
   }
 
-  const { from: validFrom, to: validTo, replyTo: validReplyTo, subject: validSubject, body: validBody, attachments: validAttachments } = runtimeValidation.data;
+  const validatedEmailParams = runtimeValidation.data;
+  const { from: validFrom, to: validTo, replyTo: validReplyTo, subject: validSubject, body: validBody, attachments: validAttachments } = validatedEmailParams;
   
   try {
     if (validAttachments && validAttachments.length > 0) {
@@ -213,7 +214,11 @@ export const executeSendEmail: StepHandler = async (
         const result:SendRawEmailCommandOutput = await sesClient.send(command);
         log_info(`Successfully sent raw email via SES.`, { messageId: result.MessageId }, correlationId);
         return {
-          outputData: { sesMessageId: result.MessageId, _meta: { status: 'SUCCESS' } },
+          outputData: {
+            sesMessageId: result.MessageId,
+            renderedEmail: validatedEmailParams,
+            _meta: { status: 'SUCCESS' },
+          },
         };
     } else {
         // --- Send Simple Email (No Attachments) ---
@@ -237,7 +242,11 @@ export const executeSendEmail: StepHandler = async (
         const result:SendEmailCommandOutput = await sesV2Client.send(command);
         log_info(`Successfully sent email via SES.`, { messageId: result.MessageId }, correlationId);
         return {
-          outputData: { sesMessageId: result.MessageId, _meta: { status: 'SUCCESS' } },
+          outputData: {
+            sesMessageId: result.MessageId,
+            renderedEmail: validatedEmailParams,
+            _meta: { status: 'SUCCESS' },
+          },
         };
     }
   } catch (error: any) {
