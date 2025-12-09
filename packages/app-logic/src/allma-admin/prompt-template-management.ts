@@ -6,6 +6,13 @@ import { PromptTemplateService } from './services/prompt-template.service.js';
 import { createCrudHandler } from './utils/create-crud-handler.js';
 import z from 'zod';
 
+// NEW: Schema for updating the master (metadata) record of a prompt.
+const UpdatePromptMasterInputSchema = z.object({
+    name: z.string().min(1, "Prompt name is required."),
+    description: z.string().optional().nullable(),
+    tags: z.array(z.string()).optional().default([]),
+});
+
 /**
  * Main handler for all Prompt Template management API requests.
  * This handler is created by a generic factory, which wires up all the necessary
@@ -29,7 +36,7 @@ export const handler = createCrudHandler({
     },
     schemas: {
         createMaster: CreatePromptTemplateInputSchema,
-        updateMaster: z.object({}), 
+        updateMaster: UpdatePromptMasterInputSchema, // FIXED
         cloneMaster: ClonePromptInputSchema,
         createVersion: CreatePromptVersionInputSchema,
         updateVersion: UpdatePromptTemplateInputSchema,

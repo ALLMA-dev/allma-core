@@ -23,14 +23,15 @@ interface AllmaComputeProps {
   executionTracesBucket: s3.IBucket;
   flowContinuationStateTable: dynamodb.Table;
   flowStartRequestQueue?: sqs.IQueue;
+  emailToFlowMappingTable?: dynamodb.Table;
   allmaFlowOutputTopic: sns.ITopic;
   flowOrchestratorStateMachineArn: string;
+  eventBridgeSchedulerRoleArn: string;
 }
 
 /**
  * Defines the core compute resources (Lambda functions and IAM roles)
- * for the Allma flow orchestration engine. This construct no longer includes
- * Admin API or Crawler-specific resources.
+ * for the Allma flow orchestration engine.
  */
 export class AllmaCompute extends Construct {
   public readonly initializeFlowLambda: lambdaNodejs.NodejsFunction;
@@ -59,6 +60,7 @@ export class AllmaCompute extends Construct {
       flowOrchestratorStateMachineArn,
       flowStartRequestQueue,
       allmaFlowOutputTopic,
+      eventBridgeSchedulerRoleArn,
     } = props;
 
     const defaultLambdaTimeout = cdk.Duration.seconds(stageConfig.lambdaTimeouts.defaultSeconds);
@@ -77,7 +79,7 @@ export class AllmaCompute extends Construct {
       AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
     };
 
-    // --- IAM Role for Core Orchestration Lambdas (Initialize, IterativeStepProcessor, Finalize) ---
+    // --- IAM Role for Core Orchestration Lambdas ---
     this.orchestrationLambdaRole = new iam.Role(this, 'AllmaOrchestrationLambdaRole', {
       assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
       description: `IAM Role for ALLMA Core Orchestration Lambdas (${stageConfig.stage})`,
@@ -92,10 +94,6 @@ export class AllmaCompute extends Construct {
       }));
     }
 
-    /**
-     * Grants the orchestration engine permission to read secrets from AWS Secrets Manager
-     * that are used for authenticating with external MCP (Modular Capability Provider) servers.
-     */
     this.orchestrationLambdaRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: ['secretsmanager:GetSecretValue'],
@@ -105,7 +103,6 @@ export class AllmaCompute extends Construct {
       },
     }));
 
-    // Grant SES SendEmail permission
     if (stageConfig.ses?.fromEmailAddress) {
         this.orchestrationLambdaRole.addToPolicy(new iam.PolicyStatement({
             effect: iam.Effect.ALLOW,
@@ -173,19 +170,17 @@ export class AllmaCompute extends Construct {
             ...commonEnvVars,
             [ENV_VAR_NAMES.AI_API_KEY_SECRET_ARN!]: stageConfig.aiApiKeySecretArn || '',
             [ENV_VAR_NAMES.ALLMA_FLOW_START_REQUEST_QUEUE_URL!]: props.flowStartRequestQueue?.queueUrl || '',
-            // Pass the concurrency limit to the lambda env for logic use (e.g. capping map parallelism)
-            // If undefined in config, pass empty string. Logic will default to soft limit.
             [ENV_VAR_NAMES.MAX_CONCURRENT_STEP_EXECUTIONS]: stageConfig.orchestratorConcurrency ? String(stageConfig.orchestratorConcurrency) : '',
         },
         undefined,
         undefined,
-        stageConfig.orchestratorConcurrency // Set reserved concurrency on the function ONLY if defined
+        stageConfig.orchestratorConcurrency 
     );
 
     // --- FinalizeFlowExecutionLambda ---
     this.finalizeFlowLambda = this.createNodejsLambda('FinalizeFlowLambda', `AllmaFinalizeFlow-${stageConfig.stage}`, 'allma-flows/finalize-flow.js', this.orchestrationLambdaRole, defaultLambdaTimeout, defaultLambdaMemory, commonEnvVars);
 
-    // --- Role for ResumeFlowLambda (Webhook) ---
+    // --- ResumeFlowLambda ---
     const resumeFlowLambdaRole = new iam.Role(this, 'AllmaResumeFlowLambdaRole', {
       assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
       managedPolicies: [iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole')],
@@ -197,7 +192,7 @@ export class AllmaCompute extends Construct {
     }));
     this.resumeFlowLambda = this.createNodejsLambda('ResumeFlowLambda', `AllmaResumeFlow-${stageConfig.stage}`, 'allma-flows/resume-flow.js', resumeFlowLambdaRole, defaultLambdaTimeout, defaultLambdaMemory, commonEnvVars);
 
-    // --- IAM Role and Lambda for Execution Logger ---
+    // --- Execution Logger ---
     const executionLoggerRole = new iam.Role(this, 'ExecutionLoggerRole', {
       assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
       description: `IAM Role for ALLMA Execution Logger Lambda (${stageConfig.stage})`,
@@ -210,7 +205,7 @@ export class AllmaCompute extends Construct {
     });
     this.executionLoggerLambda.grantInvoke(this.orchestrationLambdaRole);
 
-    // --- Role for ApiPollingLambda ---
+    // --- ApiPollingLambda ---
     const apiPollingLambdaRole = new iam.Role(this, 'ApiPollingLambdaRole', {
       assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
       managedPolicies: [iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole')],
@@ -249,7 +244,6 @@ export class AllmaCompute extends Construct {
       [ENV_VAR_NAMES.ALLMA_FLOW_START_REQUEST_QUEUE_URL!]: props.flowStartRequestQueue?.queueUrl || '',
     });
 
-    // Add logger ARN to environment variables for relevant lambdas
     const loggerArn = this.executionLoggerLambda.functionArn;
     const lambdasToUpdate = [this.initializeFlowLambda, this.finalizeFlowLambda, this.iterativeStepProcessorLambda];
     for (const lambdaFunc of lambdasToUpdate) {
@@ -284,9 +278,25 @@ export class AllmaCompute extends Construct {
     });
     configTable.grantReadWriteData(configImporterLambdaRole);
     executionTracesBucket.grantRead(configImporterLambdaRole); // For S3 assets
+    // Grant DynamoDB permissions for email mapping (as FlowService uses it)
+    props.emailToFlowMappingTable?.grantReadWriteData(configImporterLambdaRole);
+
+    // Grant EventBridge Scheduler permissions
+    configImporterLambdaRole.addToPolicy(new iam.PolicyStatement({
+        actions: ['scheduler:CreateSchedule', 'scheduler:UpdateSchedule', 'scheduler:DeleteSchedule', 'scheduler:GetSchedule'],
+        resources: [`arn:aws:scheduler:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:schedule/default/*`],
+    }));
+    configImporterLambdaRole.addToPolicy(new iam.PolicyStatement({
+        actions: ['iam:PassRole'],
+        resources: [eventBridgeSchedulerRoleArn],
+    }));
 
     this.configImporterLambda = this.createNodejsLambda('ConfigImporterLambda', `AllmaConfigImporter-${stageConfig.stage}`, 'allma-cdk/config-importer.js', configImporterLambdaRole, cdk.Duration.minutes(5), 256, {
       [ENV_VAR_NAMES.ALLMA_CONFIG_TABLE_NAME]: configTable.tableName,
+      // Pass these env vars as the importer uses FlowDefinitionService which needs them
+      [ENV_VAR_NAMES.EMAIL_TO_FLOW_MAPPING_TABLE_NAME]: props.emailToFlowMappingTable?.tableName || '',
+      [ENV_VAR_NAMES.ALLMA_FLOW_START_REQUEST_QUEUE_ARN]: props.flowStartRequestQueue?.queueArn || '',
+      [ENV_VAR_NAMES.EVENTBRIDGE_SCHEDULER_ROLE_ARN]: eventBridgeSchedulerRoleArn,
     });
   }
 
@@ -294,7 +304,7 @@ export class AllmaCompute extends Construct {
     id: string, functionName: string, entry: string, role: iam.IRole,
     timeout: cdk.Duration, memorySize: number, environment: { [key: string]: string },
     bundlingOptions?: lambdaNodejs.BundlingOptions, layers?: lambda.ILayerVersion[],
-    reservedConcurrentExecutions?: number, // NEW parameter
+    reservedConcurrentExecutions?: number, 
   ): lambdaNodejs.NodejsFunction {
     const architecture =
       this.stageConfig.lambdaArchitecture === LambdaArchitectureType.ARM_64
@@ -310,7 +320,6 @@ export class AllmaCompute extends Construct {
       timeout,
       memorySize,
       environment,
-      // Fix: Conditionally add the property to avoid typescript error with exactOptionalPropertyTypes
       ...(reservedConcurrentExecutions !== undefined && { reservedConcurrentExecutions }),
       ...(layers && { layers }),
       bundling: {

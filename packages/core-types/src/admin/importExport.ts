@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { StepDefinitionSchema } from '../steps/definitions.js';
 import { FlowDefinitionSchema } from '../flow/core.js';
 import { PromptTemplateSchema } from '../prompt/index.js';
+import { McpConnectionSchema } from '../mcp/connections.js';
 
 /**
  * Defines the structure of the JSON file used for import/export.
@@ -12,6 +13,7 @@ export const AllmaExportFormatSchema = z.object({
   stepDefinitions: z.array(StepDefinitionSchema).optional(),
   flows: z.array(FlowDefinitionSchema).optional(),
   promptTemplates: z.array(PromptTemplateSchema).optional(),
+  mcpConnections: z.array(McpConnectionSchema).optional(),
 });
 
 /**
@@ -22,6 +24,7 @@ export const ExportApiInputSchema = z.object({
   flowIds: z.array(z.string()).optional(),
   stepDefinitionIds: z.array(z.string()).optional(),
   promptTemplateIds: z.array(z.string()).optional(),
+  mcpConnectionIds: z.array(z.string()).optional(),
 });
 
 /**
@@ -41,20 +44,23 @@ export const ImportApiResponseSchema = z.object({
     flows: z.number(),
     steps: z.number(),
     prompts: z.number(),
+    mcpConnections: z.number(),
   }),
   updated: z.object({
     flows: z.number(),
     steps: z.number(),
     prompts: z.number(),
+    mcpConnections: z.number(),
   }),
   skipped: z.object({
     flows: z.number(),
     steps: z.number(),
-    prompts: z.number(), 
+    prompts: z.number(),
+    mcpConnections: z.number(),
   }),
   errors: z.array(z.object({
     id: z.string(),
-    type: z.enum(['flow', 'step', 'prompt']), 
+    type: z.enum(['flow', 'step', 'prompt', 'mcpConnection']), 
     message: z.string(),
   })),
 });

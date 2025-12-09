@@ -83,6 +83,7 @@ export const ScheduleService = {
       log_info(`Successfully created schedule: ${scheduleName}`);
     } catch (error: any) {
       log_error(`Error creating schedule ${scheduleName}: ${error.name} - ${error.message}`);
+      throw error;
     }
   },
 
@@ -123,6 +124,7 @@ export const ScheduleService = {
         await this._createSchedule(flowId, version, step, isPublished);
       } else {
         log_error(`Error updating schedule ${scheduleName}: ${error.name} - ${error.message}`);
+        throw error;
       }
     }
   },
@@ -138,6 +140,7 @@ export const ScheduleService = {
     } catch (error: any) {
       if (error.name !== 'ResourceNotFoundException') {
         log_error(`Error deleting schedule ${scheduleName}: ${error.name} - ${error.message}`);
+        throw error;
       }
     }
   },

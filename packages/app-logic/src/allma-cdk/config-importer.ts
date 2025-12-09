@@ -1,6 +1,6 @@
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { AllmaImporterService } from '../services/allma-importer.service.js';
-import { AllmaExportFormat, StepDefinition, FlowDefinition } from '@allma/core-types';
+import { AllmaExportFormat, StepDefinition, FlowDefinition, PromptTemplate, McpConnection } from '@allma/core-types';
 import { sendCloudFormationResponse, CloudFormationEvent } from '@allma/core-sdk';
 import fs from 'fs';
 import path from 'path';
@@ -38,12 +38,16 @@ async function downloadAsset(bucket: string, key: string): Promise<string> {
  * @param data The parsed JSON data from a file.
  * @param allStepDefinitions Accumulator for step definitions.
  * @param allFlows Accumulator for flows.
+ * @param allPromptTemplates Accumulator for prompt templates.
+ * @param allMcpConnections Accumulator for MCP connections.
  * @param sourceFileName The name of the file for error reporting.
  */
 function aggregateConfigData(
   data: unknown,
   allStepDefinitions: StepDefinition[],
   allFlows: FlowDefinition[],
+  allPromptTemplates: PromptTemplate[],
+  allMcpConnections: McpConnection[],
   sourceFileName: string
 ): void {
   const importer = new AllmaImporterService();
@@ -68,6 +72,12 @@ function aggregateConfigData(
   if (config.flows) {
     allFlows.push(...config.flows);
   }
+  if (config.promptTemplates) {
+    allPromptTemplates.push(...config.promptTemplates);
+  }
+  if (config.mcpConnections) {
+    allMcpConnections.push(...config.mcpConnections);
+  }
 }
 
 export async function handler(event: CloudFormationEvent): Promise<void> {
@@ -85,6 +95,8 @@ export async function handler(event: CloudFormationEvent): Promise<void> {
 
       const allStepDefinitions: StepDefinition[] = [];
       const allFlows: FlowDefinition[] = [];
+      const allPromptTemplates: PromptTemplate[] = [];
+      const allMcpConnections: McpConnection[] = [];
 
       if (S3Key.endsWith('.zip')) {
         const zip = new AdmZip(localAssetPath);
@@ -94,13 +106,13 @@ export async function handler(event: CloudFormationEvent): Promise<void> {
           if (!entry.isDirectory && entry.entryName.endsWith('.json')) {
             const fileContent = entry.getData().toString('utf8');
             const jsonData = JSON.parse(fileContent);
-            aggregateConfigData(jsonData, allStepDefinitions, allFlows, entry.entryName);
+            aggregateConfigData(jsonData, allStepDefinitions, allFlows, allPromptTemplates, allMcpConnections, entry.entryName);
           }
         }
       } else {
         const fileContent = fs.readFileSync(localAssetPath, 'utf8');
         const jsonData = JSON.parse(fileContent);
-        aggregateConfigData(jsonData, allStepDefinitions, allFlows, path.basename(S3Key));
+        aggregateConfigData(jsonData, allStepDefinitions, allFlows, allPromptTemplates, allMcpConnections, path.basename(S3Key));
       }
 
       const finalConfig: AllmaExportFormat = {
@@ -108,6 +120,8 @@ export async function handler(event: CloudFormationEvent): Promise<void> {
         exportedAt: new Date().toISOString(),
         stepDefinitions: allStepDefinitions,
         flows: allFlows,
+        promptTemplates: allPromptTemplates,
+        mcpConnections: allMcpConnections,
       };
 
       const importer = new AllmaImporterService();

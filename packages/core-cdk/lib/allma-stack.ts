@@ -17,7 +17,6 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import { DeepPartial, StageConfig, WebAppConfig } from './config/stack-config.js';
 import * as s3_assets from 'aws-cdk-lib/aws-s3-assets';
-import * as customResources from 'aws-cdk-lib/custom-resources';
 
 export * from './config/stack-config.js';
 
@@ -151,10 +150,15 @@ export class AllmaStack extends cdk.Stack {
       exportName: `${stackPrefix}-FlowOutputTopicArn`,
     });
 
+    // --- IAM Role for EventBridge Scheduler ---
+    const schedulerRole = new iam.Role(this, 'EventBridgeSchedulerSqsRole', {
+      assumedBy: new iam.ServicePrincipal('scheduler.amazonaws.com'),
+      description: 'Role for EventBridge Scheduler to send messages to SQS',
+    });
+    flowStartRequestQueue.grantSendMessages(schedulerRole);
 
     // --- Predictive ARNs to break circular dependencies ---
     const predictiveMainSfnArn = `arn:aws:states:${this.region}:${this.account}:stateMachine:AllmaFlowOrchestrator-${stageConfig.stage}`;
-
 
     // --- Core Orchestration Compute (Lambdas & Roles) ---
     const compute = new AllmaCompute(this, 'AllmaCompute', {
@@ -166,6 +170,8 @@ export class AllmaStack extends cdk.Stack {
       flowStartRequestQueue: flowStartRequestQueue,
       allmaFlowOutputTopic: flowOutputTopic,
       flowOrchestratorStateMachineArn: predictiveMainSfnArn,
+       eventBridgeSchedulerRoleArn: schedulerRole.roleArn,
+      emailToFlowMappingTable: dataStores.emailToFlowMappingTable,
     });
 
     this.orchestrationLambdaRole = compute.orchestrationLambdaRole;
@@ -203,13 +209,6 @@ export class AllmaStack extends cdk.Stack {
       }));
     }
 
-    // --- IAM Role for EventBridge Scheduler ---
-    const schedulerRole = new iam.Role(this, 'EventBridgeSchedulerSqsRole', {
-      assumedBy: new iam.ServicePrincipal('scheduler.amazonaws.com'),
-      description: 'Role for EventBridge Scheduler to send messages to SQS',
-    });
-    flowStartRequestQueue.grantSendMessages(schedulerRole);
-
 
     // --- Admin API Feature (API Gateway, Cognito, Lambdas) ---
     const api = new ApiConstruct(this, 'AllmaApiFeature', {
@@ -229,7 +228,7 @@ export class AllmaStack extends cdk.Stack {
     this.adminUserPool = api.userPool;
     this.adminUserPoolClient = api.userPoolClient;
 
-    // NEW: Email Integration (SES, S3, Lambda)
+    // Email Integration (SES, S3, Lambda)
     if (stageConfig.ses?.verifiedDomain) {
         new EmailIntegration(this, 'AllmaEmailIntegration', {
             stageConfig,
@@ -343,44 +342,18 @@ export class AllmaStack extends cdk.Stack {
 
       configAsset.grantRead(compute.configImporterLambda);
 
-      const customResource = new customResources.AwsCustomResource(this, 'AllmaConfigImporterResource', {
-        onCreate: {
-          service: 'Lambda',
-          action: 'invoke',
-          parameters: {
-            FunctionName: compute.configImporterLambda.functionName,
-            Payload: JSON.stringify({
-              ResourceProperties: {
-                S3Bucket: configAsset.s3BucketName,
-                S3Key: configAsset.s3ObjectKey,
-              }
-            }),
-          },
-          physicalResourceId: customResources.PhysicalResourceId.of(`allma-config-importer-${Date.now()}`),
+      const customResource = new cdk.CustomResource(this, 'AllmaConfigImporterResource', {
+        serviceToken: compute.configImporterLambda.functionArn,
+        properties: {
+          // These properties are accessible via event.ResourceProperties in the Lambda
+          S3Bucket: configAsset.s3BucketName,
+          S3Key: configAsset.s3ObjectKey,
         },
-        onUpdate: {
-          service: 'Lambda',
-          action: 'invoke',
-          parameters: {
-            FunctionName: compute.configImporterLambda.functionName,
-            Payload: JSON.stringify({
-              ResourceProperties: {
-                S3Bucket: configAsset.s3BucketName,
-                S3Key: configAsset.s3ObjectKey,
-              }
-            }),
-          },
-          physicalResourceId: customResources.PhysicalResourceId.of(`allma-config-importer-${Date.now()}`),
-        },
-        // Explicitly granting invoke permissions
-        policy: customResources.AwsCustomResourcePolicy.fromStatements([
-          new iam.PolicyStatement({
-            actions: ['lambda:InvokeFunction'],
-            resources: [compute.configImporterLambda.functionArn],
-          }),
-        ]),
+        // Helps identify this resource in CloudFormation
+        resourceType: 'Custom::AllmaConfigImporter',
       });
 
+      // Ensure the config table exists before we try to write to it
       customResource.node.addDependency(dataStores.allmaConfigTable);
     }
   }

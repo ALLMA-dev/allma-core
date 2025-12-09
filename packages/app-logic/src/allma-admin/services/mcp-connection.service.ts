@@ -18,14 +18,17 @@ export const McpConnectionService = {
 
   /**
    * Overrides the generic 'create' method to handle custom ID generation for MCP connections.
-   * @param item The connection data, excluding system-managed fields.
+   * Allows passing an ID to support import scenarios where ID preservation is key.
+   * @param item The connection data, excluding system-managed fields (timestamps).
    * @returns The newly created McpConnection entity.
    */
-  create: (item: Omit<McpConnection, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const id = `mcp-${uuidv4()}`;
-    // The generic 'create' method will handle setting 'createdAt' and 'updatedAt'.
-    // We just need to provide the generated ID along with the rest of the item data.
-    // The `as any` cast is appropriate here as we are fulfilling the `CreateEntityInput` contract.
+  create: (item: Omit<McpConnection, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
+    // If ID is provided (e.g. from import), use it. Otherwise generate a new one.
+    const id = item.id || `mcp-${uuidv4()}`;
+    // The generic 'create' method expects an object with 'id'.
+    // We construct the full object (minus timestamps which entityManager handles).
+    // Casting as any is used to satisfy the generic constraint which expects exact types, 
+    // though safely here as we ensure 'id' is present.
     return entityManager.create({ ...item, id } as any);
   },
 };

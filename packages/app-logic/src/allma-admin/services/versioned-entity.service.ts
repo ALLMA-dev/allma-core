@@ -205,13 +205,6 @@ export class VersionedEntityManager<TMaster extends MasterItem, TVersion extends
         return Item ? fromStorageItem<any, TVersion>(Item) : null;
     }
 
-    /**
-     * Creates a new master entity record and its initial version 1 in a single transaction.
-     * Can create from a factory or a provided override object (for imports).
-     * @param id The pre-generated unique ID for the new entity.
-     * @param createInput The data for the new entity (e.g., name, description).
-     * @param initialVersionOverride An optional full version object to use instead of the factory.
-     */
     async createMasterWithInitialVersion(id: string, createInput: TCreateInput, initialVersionOverride?: TVersion): Promise<{ metadata: TMaster, version: TVersion }> {
         const now = new Date().toISOString();
         
@@ -219,9 +212,8 @@ export class VersionedEntityManager<TMaster extends MasterItem, TVersion extends
             ? {
                 ...initialVersionOverride,
                 id: id,
-                // Preserve created/updated from import file if valid, otherwise set to now.
                 createdAt: initialVersionOverride.createdAt && !isNaN(new Date(initialVersionOverride.createdAt).getTime()) ? initialVersionOverride.createdAt : now,
-                updatedAt: now, // The 'updatedAt' for this new record in our system is now.
+                updatedAt: now,
             }
             : this.config.initialVersionFactory(id, now, createInput);
         
@@ -238,7 +230,6 @@ export class VersionedEntityManager<TMaster extends MasterItem, TVersion extends
             tags: (validatedInitialVersion as any).tags ?? [],
         };
 
-        // Handle entity-specific properties that need to be on the master record (like emailTriggerAddress for flows)
         if ((validatedInitialVersion as any).emailTriggerAddress) {
             metadataInput.emailTriggerAddress = (validatedInitialVersion as any).emailTriggerAddress;
         }
@@ -258,13 +249,6 @@ export class VersionedEntityManager<TMaster extends MasterItem, TVersion extends
         return { metadata: metadataItem, version: validatedInitialVersion };
     }
     
-    /**
-     * Clones an existing entity, creating a new entity with its own version history.
-     * Generates a new UUID for the cloned entity.
-     * @param idToClone The ID of the source entity.
-     * @param newEntityInput The initial data (name, etc.) for the new cloned entity.
-     * @param cloneDataTransformer A function to merge data from the source version into the new version 1.
-     */
     async clone(
         idToClone: string,
         newEntityInput: TCreateInput,
@@ -353,8 +337,13 @@ export class VersionedEntityManager<TMaster extends MasterItem, TVersion extends
         return validatedNewVersion;
     }
 
-    async updateVersion(id: string, version: number, data: TVersion, options?: { skipValidation?: boolean }): Promise<TVersion> {
-        const { versionKey } = this.getKeys(id, version);
+    async updateVersion(
+        id: string, 
+        version: number, 
+        data: TVersion, 
+        options?: { skipValidation?: boolean, ignorePublishedStatus?: boolean }
+    ): Promise<TVersion> {
+        const { versionKey, metadataKey } = this.getKeys(id, version);
         
         const itemForDb = {
             ...data,
@@ -366,11 +355,67 @@ export class VersionedEntityManager<TMaster extends MasterItem, TVersion extends
         
         const validatedData = options?.skipValidation ? itemForDb : this.config.versionSchema.parse(itemForDb);
         
-        await ddbDocClient.send(new PutCommand({
-            TableName: CONFIG_TABLE_NAME, Item: validatedData as Record<string, any>,
-            ConditionExpression: 'attribute_exists(PK) AND (attribute_not_exists(isPublished) OR isPublished = :isPublishedFalse)',
-            ExpressionAttributeValues: { ':isPublishedFalse': false },
-        }));
+        const conditionExpression = options?.ignorePublishedStatus
+            ? 'attribute_exists(PK)' 
+            : 'attribute_exists(PK) AND (attribute_not_exists(isPublished) OR isPublished = :isPublishedFalse)';
+            
+        const expressionAttributeValuesForPut: Record<string, any> = {};
+        if (!options?.ignorePublishedStatus) {
+            expressionAttributeValuesForPut[':isPublishedFalse'] = false;
+        }
+    
+        const transactionItems: any[] = [{
+            Put: {
+                TableName: CONFIG_TABLE_NAME, 
+                Item: validatedData as Record<string, any>,
+                ConditionExpression: conditionExpression,
+                ExpressionAttributeValues: Object.keys(expressionAttributeValuesForPut).length > 0 ? expressionAttributeValuesForPut : undefined,
+            }
+        }];
+    
+        const metadata = await this.getMaster(id);
+        if (!metadata) {
+            throw new Error(`${this.config.entityName} with id ${id} not found.`);
+        }
+    
+        if (metadata.latestVersion === version) {
+            const now = new Date().toISOString();
+            const updateExpressionParts: string[] = ['SET updatedAt = :now'];
+            const expressionAttributeValuesForUpdate: Record<string, any> = { ':now': now };
+            const expressionAttributeNamesForUpdate: Record<string, string> = {};
+    
+            const dataAsAny = data as any;
+            if ('name' in dataAsAny && typeof dataAsAny.name === 'string') {
+                updateExpressionParts.push('#nm = :name');
+                expressionAttributeNamesForUpdate['#nm'] = 'name';
+                expressionAttributeValuesForUpdate[':name'] = dataAsAny.name;
+            }
+            if ('description' in dataAsAny) {
+                updateExpressionParts.push('#desc = :desc');
+                expressionAttributeNamesForUpdate['#desc'] = 'description';
+                expressionAttributeValuesForUpdate[':desc'] = dataAsAny.description ?? null;
+            }
+            if ('tags' in dataAsAny && Array.isArray(dataAsAny.tags)) {
+                updateExpressionParts.push('#tags = :tags');
+                expressionAttributeNamesForUpdate['#tags'] = 'tags';
+                expressionAttributeValuesForUpdate[':tags'] = dataAsAny.tags;
+            }
+            
+            if (updateExpressionParts.length > 1) {
+                transactionItems.push({
+                    Update: {
+                        TableName: CONFIG_TABLE_NAME,
+                        Key: metadataKey,
+                        UpdateExpression: updateExpressionParts.join(', '),
+                        ExpressionAttributeNames: Object.keys(expressionAttributeNamesForUpdate).length > 0 ? expressionAttributeNamesForUpdate : undefined,
+                        ExpressionAttributeValues: expressionAttributeValuesForUpdate,
+                    }
+                });
+            }
+        }
+    
+        await ddbDocClient.send(new TransactWriteCommand({ TransactItems: transactionItems }));
+        
         return fromStorageItem<any, TVersion>(validatedData);
     }
     

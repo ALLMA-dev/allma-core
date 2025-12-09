@@ -4,6 +4,7 @@ import {
   buildSuccessResponse,
   buildErrorResponse,
   log_error,
+  log_info,
   AuthContext,
 } from '@allma/core-sdk';
 import {
@@ -14,19 +15,19 @@ import {
   FlowDefinition,
   StepDefinition,
   PromptTemplate,
+  McpConnection,
+  StepType,
 } from '@allma/core-types';
 import { FlowDefinitionService } from './services/flow-definition.service.js';
 import { StepDefinitionService } from './services/step-definition.service.js';
 import { PromptTemplateService } from './services/prompt-template.service.js';
+import { McpConnectionService } from './services/mcp-connection.service.js';
 import { AllmaImporterService } from '../services/allma-importer.service.js';
 import { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2 } from 'aws-lambda';
 
 /**
  * The inner handler that contains the business logic for import and export operations.
  * It's wrapped by `withAdminAuth` to provide authentication and authorization context.
- * @param event The API Gateway event.
- * @param authContext The authorization context provided by the middleware.
- * @returns A promise resolving to a full API Gateway proxy result.
  */
 async function mainHandler(
   event: APIGatewayProxyEventV2WithJWTAuthorizer,
@@ -48,34 +49,82 @@ async function mainHandler(
         return createApiGatewayResponse(400, buildErrorResponse('Invalid input for export.', 'VALIDATION_ERROR', validation.error.flatten()), correlationId);
       }
       
-      const { flowIds, stepDefinitionIds, promptTemplateIds } = validation.data;
-      const isExportingFlows = !!flowIds && flowIds.length > 0;
-      const isExportingSteps = !!stepDefinitionIds && stepDefinitionIds.length > 0;
-      const isExportingPrompts = !!promptTemplateIds && promptTemplateIds.length > 0;
-      const isFullExport = !isExportingFlows && !isExportingSteps && !isExportingPrompts;
+      const { flowIds, stepDefinitionIds, promptTemplateIds, mcpConnectionIds } = validation.data;
+      const inputFlowIds = flowIds || [];
+      const inputStepIds = stepDefinitionIds || [];
+      const inputPromptIds = promptTemplateIds || [];
+      const inputMcpIds = mcpConnectionIds || [];
 
+      const isFullExport = inputFlowIds.length === 0 && inputStepIds.length === 0 && inputPromptIds.length === 0 && inputMcpIds.length === 0;
+
+      // Sets to track all IDs we need to fetch
+      const flowsToExport = new Set<string>(inputFlowIds);
+      const stepsToExport = new Set<string>(inputStepIds);
+      const promptsToExport = new Set<string>(inputPromptIds);
+      const mcpsToExport = new Set<string>(inputMcpIds);
+
+      // --- 1. If Full Export, gather ALL IDs from the system first ---
+      if (isFullExport) {
+        const allFlows = await FlowDefinitionService.listMasters();
+        allFlows.forEach(f => flowsToExport.add(f.id));
+
+        const allSteps = await StepDefinitionService.list();
+        allSteps.forEach(s => stepsToExport.add(s.id));
+
+        const allPrompts = await PromptTemplateService.listMasters();
+        allPrompts.forEach(p => promptsToExport.add(p.id));
+
+        const allMcps = await McpConnectionService.list();
+        allMcps.forEach(m => mcpsToExport.add(m.id));
+      }
+
+      // --- 2. Recursive Dependency Discovery for Flows ---
+      const processedFlowIds = new Set<string>();
+      const flowProcessingQueue = [...flowsToExport];
+
+      // Array to hold the final full flow definitions
       const finalFlows: FlowDefinition[] = [];
-      let finalSteps: StepDefinition[] = [];
-      const finalPrompts: PromptTemplate[] = [];
-      const customStepIdsFromFlows = new Set<string>();
 
-      // 1. Determine which flows to export and gather their step dependencies.
-      if (isExportingFlows || isFullExport) {
-        const allFlowMetadatas = await FlowDefinitionService.listMasters();
-        const flowsToProcess = isExportingFlows ? allFlowMetadatas.filter(f => flowIds.includes(f.id)) : allFlowMetadatas;
+      while (flowProcessingQueue.length > 0) {
+        const currentFlowId = flowProcessingQueue.shift()!;
+        if (processedFlowIds.has(currentFlowId)) continue;
+        processedFlowIds.add(currentFlowId);
+
+        // Fetch all versions of this flow
+        const versions = await FlowDefinitionService.listVersions(currentFlowId);
         
-        for (const meta of flowsToProcess) {
-          const versions = await FlowDefinitionService.listVersions(meta.id);
-          for (const v of versions) {
-            if (v.version) {
-              const fullVersion = await FlowDefinitionService.getVersion(meta.id, v.version);
-              if (fullVersion) {
-                finalFlows.push(fullVersion);
-                // Collect dependent custom step IDs
-                for (const step of Object.values(fullVersion.steps)) {
-                  if (step.stepDefinitionId && !step.stepDefinitionId.startsWith('system')) {
-                    customStepIdsFromFlows.add(step.stepDefinitionId);
-                  }
+        for (const v of versions) {
+          if (v.version) {
+            const fullVersion = await FlowDefinitionService.getVersion(currentFlowId, v.version);
+            if (fullVersion) {
+              finalFlows.push(fullVersion);
+
+              // Inspect steps for dependencies
+              for (const step of Object.values(fullVersion.steps)) {
+                // Dependency: Custom Step Definition
+                if (step.stepDefinitionId && !step.stepDefinitionId.startsWith('system')) {
+                  stepsToExport.add(step.stepDefinitionId);
+                }
+
+                // Dependency: Prompt Template
+                if (step.stepType === StepType.LLM_INVOCATION) {
+                    const promptId = (step as any).promptTemplateId;
+                    if (promptId) promptsToExport.add(promptId);
+                }
+
+                // Dependency: MCP Connection
+                if (step.stepType === StepType.MCP_CALL) {
+                    const mcpId = (step as any).mcpConnectionId;
+                    if (mcpId) mcpsToExport.add(mcpId);
+                }
+
+                // Dependency: Sub-Flow (Recursive)
+                if (step.stepType === StepType.START_SUB_FLOW) {
+                    const subFlowId = (step as any).subFlowDefinitionId;
+                    if (subFlowId && !processedFlowIds.has(subFlowId)) {
+                        flowsToExport.add(subFlowId);
+                        flowProcessingQueue.push(subFlowId);
+                    }
                 }
               }
             }
@@ -83,38 +132,48 @@ async function mainHandler(
         }
       }
 
-      // 2. Determine which prompts to export.
-      if (isExportingPrompts || isFullExport) {
-        const allPromptMetadatas = await PromptTemplateService.listMasters();
-        const promptsToProcess = isExportingPrompts ? allPromptMetadatas.filter(p => promptTemplateIds.includes(p.id)) : allPromptMetadatas;
-
-        for (const meta of promptsToProcess) {
-          const versions = await PromptTemplateService.listVersions(meta.id);
-          for (const v of versions) {
-            if (v.version) {
-              const fullVersion = await PromptTemplateService.getVersion(meta.id, v.version);
-              if (fullVersion) {
-                finalPrompts.push(fullVersion);
+      // --- 3. Fetch Prompt Templates ---
+      const finalPrompts: PromptTemplate[] = [];
+      const promptsToFetch = [...promptsToExport];
+      
+      for (const promptId of promptsToFetch) {
+          // Fetch master to check existence
+          const meta = await PromptTemplateService.getMaster(promptId);
+          if (meta) {
+              const versions = await PromptTemplateService.listVersions(promptId);
+              for (const v of versions) {
+                  if (v.version) {
+                      const fullVersion = await PromptTemplateService.getVersion(promptId, v.version);
+                      if (fullVersion) finalPrompts.push(fullVersion);
+                  }
               }
-            }
           }
-        }
       }
 
-      // 3. Determine the final set of step definition IDs to fetch.
-      const allStepIdsToFetch = new Set<string>(customStepIdsFromFlows);
-      if (isExportingSteps) {
-        stepDefinitionIds.forEach(id => allStepIdsToFetch.add(id));
-      }
+      // --- 4. Fetch Step Definitions ---
+      const finalSteps: StepDefinition[] = [];
+      const stepsToFetch = [...stepsToExport];
+      const stepPromises = stepsToFetch.map(id => StepDefinitionService.get(id));
+      const stepResults = await Promise.all(stepPromises);
+      stepResults.forEach(s => {
+          if (s) finalSteps.push(s);
+      });
 
-      // 4. Fetch the required step definitions.
-      if (allStepIdsToFetch.size > 0) {
-        const stepPromises = Array.from(allStepIdsToFetch).map(id => StepDefinitionService.get(id));
-        finalSteps = (await Promise.all(stepPromises)).filter((s): s is StepDefinition => s !== null);
-      } else if (isFullExport) {
-        // For a full export, if no flows had custom steps, we still need to get all steps.
-        finalSteps = await StepDefinitionService.list();
-      }
+      // --- 5. Fetch MCP Connections ---
+      const finalMcpConnections: McpConnection[] = [];
+      const mcpsToFetch = [...mcpsToExport];
+      const mcpPromises = mcpsToFetch.map(id => McpConnectionService.get(id));
+      const mcpResults = await Promise.all(mcpPromises);
+      mcpResults.forEach(m => {
+          if (m) finalMcpConnections.push(m);
+      });
+
+      log_info(`Export complete. Found dependencies:`, { 
+          flows: finalFlows.length, 
+          steps: finalSteps.length, 
+          prompts: finalPrompts.length, 
+          mcps: finalMcpConnections.length 
+      }, correlationId);
 
       const exportData: AllmaExportFormat = {
         formatVersion: '1.0',
@@ -122,6 +181,7 @@ async function mainHandler(
         stepDefinitions: finalSteps,
         flows: finalFlows,
         promptTemplates: finalPrompts,
+        mcpConnections: finalMcpConnections,
       };
 
       return createApiGatewayResponse(200, buildSuccessResponse(exportData), correlationId);
