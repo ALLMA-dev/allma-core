@@ -1,5 +1,6 @@
 import { SYSTEM_STEP_DEFINITIONS, StepHandler, SystemModuleIdentifiers } from '@allma/core-types';
 import { handleS3DataLoader } from './data-loaders/s3-loader.js';
+import { handleS3ListFiles } from './data-loaders/s3-list-files.js';
 import { handleDynamoDBLoader } from './data-loaders/dynamodb-loader.js';
 import { handleDdbQueryToS3Manifest } from './data-loaders/ddb-query-to-s3-manifest.js';
 import { handleSqsGetQueueAttributes } from './data-loaders/sqs-get-queue-attributes.js';
@@ -24,6 +25,7 @@ export function hasInternalModuleHandler(moduleIdentifier: string): boolean {
 
 const moduleHandlerRegistry: Record<string, StepHandler> = {
     [SystemModuleIdentifiers.S3_DATA_LOADER]: handleS3DataLoader,
+    [SystemModuleIdentifiers.S3_LIST_FILES]: handleS3ListFiles,
     [SystemModuleIdentifiers.DYNAMODB_DATA_LOADER]: handleDynamoDBLoader,
     [SystemModuleIdentifiers.DDB_QUERY_TO_S3_MANIFEST]: handleDdbQueryToS3Manifest,
     [SystemModuleIdentifiers.SQS_GET_QUEUE_ATTRIBUTES]: handleSqsGetQueueAttributes,

@@ -5,6 +5,7 @@ export const SystemModuleIdentifiers = {
     DDB_QUERY_TO_S3_MANIFEST: 'system/ddb-query-to-s3-manifest',
     DYNAMODB_DATA_LOADER: 'system/dynamodb-data-loader',
     S3_DATA_LOADER: 'system/s3-data-loader',
+    S3_LIST_FILES: 'system/s3-list-files',
     SQS_GET_QUEUE_ATTRIBUTES: 'system/sqs-get-queue-attributes',
     SQS_RECEIVE_MESSAGES: 'system/sqs-receive-messages',
     DYNAMODB_QUERY_AND_UPDATE: 'system/dynamodb-query-and-update',

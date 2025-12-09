@@ -143,6 +143,7 @@ export const SYSTEM_STEP_DEFINITIONS: Pick<StepDefinition, 'id' | 'name' | 'step
     { id: 'system-ddb-query-to-s3-manifest', name: 'DDB Query to S3 Manifest', stepType: StepTypeSchema.enum.DATA_LOAD, moduleIdentifier: SystemModuleIdentifiers.DDB_QUERY_TO_S3_MANIFEST },
     { id: 'system-dynamodb-data-loader', name: 'DynamoDB Data Loader', stepType: StepTypeSchema.enum.DATA_LOAD, moduleIdentifier: SystemModuleIdentifiers.DYNAMODB_DATA_LOADER },
     { id: 'system-s3-data-loader', name: 'S3 Data Loader', stepType: StepTypeSchema.enum.DATA_LOAD, moduleIdentifier: SystemModuleIdentifiers.S3_DATA_LOADER },
+    { id: 'system-s3-list-files', name: 'S3 List Files', stepType: StepTypeSchema.enum.DATA_LOAD, moduleIdentifier: SystemModuleIdentifiers.S3_LIST_FILES },
     { id: 'system-sqs-get-queue-attributes', name: 'SQS Get Queue Attributes', stepType: StepTypeSchema.enum.DATA_LOAD, moduleIdentifier: SystemModuleIdentifiers.SQS_GET_QUEUE_ATTRIBUTES },
     { id: 'system-sqs-receive-messages', name: 'SQS Receive Messages', stepType: StepTypeSchema.enum.DATA_LOAD, moduleIdentifier: SystemModuleIdentifiers.SQS_RECEIVE_MESSAGES },
     { id: 'system-dynamodb-query-and-update', name: 'DynamoDB Query and Update', stepType: StepTypeSchema.enum.DATA_SAVE, moduleIdentifier: SystemModuleIdentifiers.DYNAMODB_QUERY_AND_UPDATE },

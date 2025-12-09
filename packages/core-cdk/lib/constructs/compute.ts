@@ -131,7 +131,7 @@ export class AllmaCompute extends Construct {
     }));
     this.orchestrationLambdaRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
-      actions: ['s3:GetObject', 's3:PutObject'],
+      actions: ['s3:GetObject', 's3:PutObject', 's3:ListBucket'],
       resources: ['*'],
     }));
     this.orchestrationLambdaRole.addToPolicy(new iam.PolicyStatement({
