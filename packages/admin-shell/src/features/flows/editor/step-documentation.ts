@@ -174,6 +174,33 @@ See [AWS documentation for more details.](https://docs.aws.amazon.com/scheduler/
             replyTo: 'An optional email address to be used for replies. This should be a single email address string (in quotes), or an array of email strings.',
             subject: 'The subject line of the email.',
             body: 'The body of the email. Both plain text and HTML are supported.',
+            attachments: `
+An optional array of objects specifying files to attach to the email. The files must already exist in S3.
+
+Each object in the array must have two properties:
+- \`filename\`: (string) The name of the file as it should appear in the email. This field supports Handlebars templating.
+- \`s3Pointer\`: (object) A standard Allma S3 Pointer object with \`bucket\` and \`key\` properties pointing to the file in S3. The properties of this object also support Handlebars templating.
+
+**Example (in Literals or mapped from context):**
+\`\`\`json
+[
+  {
+    "filename": "invoice-{{flow_variables.invoiceId}}.pdf",
+    "s3Pointer": {
+      "bucket": "my-app-bucket",
+      "key": "invoices/{{flow_variables.invoiceId}}.pdf"
+    }
+  },
+  {
+    "filename": "report.csv",
+    "s3Pointer": {
+      "bucket": "my-reports-bucket",
+      "key": "daily-reports/2024-07-26.csv"
+    }
+  }
+]
+\`\`\`
+`,
         },
     },
 

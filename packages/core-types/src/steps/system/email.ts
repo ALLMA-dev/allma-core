@@ -1,6 +1,16 @@
 import { z } from 'zod';
 import { StepTypeSchema } from '../../common/enums.js';
-import { SystemModuleIdentifiers } from '../system-module-identifiers.js';
+import { S3PointerSchema } from '../../common/core.js';
+
+/**
+ * Defines an email attachment by referencing a file in S3.
+ * Includes a filename for the recipient's email client.
+ */
+export const EmailAttachmentS3PointerSchema = z.object({
+  filename: z.string().min(1, 'Attachment filename is required.'),
+  s3Pointer: S3PointerSchema,
+});
+export type EmailAttachmentS3Pointer = z.infer<typeof EmailAttachmentS3PointerSchema>;
 
 /**
  * Defines the payload for the 'system/email-send' module.
@@ -16,7 +26,17 @@ export const EmailSendStepPayloadSchema = z.object({
     replyTo: z.union([z.string(), z.array(z.string())]).optional().describe("Reply-To Address(es)|json|Optional: Email(s) for replies. Supports templates."),
     subject: z.string().describe("Subject|text|The email subject. Supports templates."),
     body: z.string().describe("Body|textarea|The email body (HTML is supported). Supports templates."),
+    attachments: z.array(EmailAttachmentS3PointerSchema).optional().describe("Attachments|json|An array of files to attach from S3."),
   }).passthrough();
+
+/**
+ * Schema for a rendered attachment, used for strict runtime validation.
+ */
+export const RenderedEmailAttachmentSchema = z.object({
+  filename: z.string(),
+  s3Pointer: S3PointerSchema,
+});
+export type RenderedEmailAttachment = z.infer<typeof RenderedEmailAttachmentSchema>;
 
 // This schema is for strict runtime validation AFTER templates have been rendered.
 export const RenderedEmailParamsSchema = z.object({
@@ -31,4 +51,5 @@ export const RenderedEmailParamsSchema = z.object({
     ]).optional(),
     subject: z.string(),
     body: z.string(),
+    attachments: z.array(RenderedEmailAttachmentSchema).optional(),
 });

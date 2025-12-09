@@ -20,6 +20,7 @@
     "@aws-sdk/client-bedrock-runtime": "^3.614.0",
     "@aws-sdk/client-dynamodb": "^3.500.0",
     "@aws-sdk/client-scheduler": "^3.614.0",
+    "@aws-sdk/client-ses": "^3.948.0",
     "@aws-sdk/client-sesv2": "^3.626.0",
     "@aws-sdk/lib-storage": "^3.940.0",
     "@langchain/google-vertexai": "^1.0.0",

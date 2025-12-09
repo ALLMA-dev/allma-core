@@ -1,4 +1,7 @@
-import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
+import { SESv2Client, SendEmailCommand, SendEmailCommandOutput } from '@aws-sdk/client-sesv2';
+import { SESClient, SendRawEmailCommand, SendRawEmailCommandOutput } from '@aws-sdk/client-ses';
+import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { v4 as uuidv4 } from 'uuid';
 import {
     FlowRuntimeState,
     StepHandler,
@@ -7,11 +10,16 @@ import {
     StepDefinition,
     EmailSendStepPayloadSchema,
     RenderedEmailParamsSchema,
+    RenderedEmailAttachment,
+    PermanentStepError,
 } from '@allma/core-types';
 import { log_error, log_info, log_debug } from '@allma/core-sdk';
 import { renderNestedTemplates } from '../../../allma-core/utils/template-renderer.js';
 
-const sesClient = new SESv2Client({});
+const sesV2Client = new SESv2Client({});
+const sesClient = new SESClient({}); // For Raw Email
+const s3Client = new S3Client({});
+const SES_ATTACHMENT_SIZE_LIMIT_BYTES = 7 * 1024 * 1024; // 7MB safe limit for raw attachments before base64 encoding.
 
 /**
  * Extracts the email address from a string that might be in the "Name <email@example.com>" format.
@@ -24,6 +32,71 @@ function extractEmail(input: string): string {
     return match ? match[1] : input.trim();
 }
 
+/**
+ * Builds a raw multipart/mixed MIME message for sending an email with attachments.
+ */
+async function buildRawEmail(params: {
+    from: string;
+    to: string | string[];
+    replyTo?: string | string[];
+    subject: string;
+    body: string;
+    attachments: RenderedEmailAttachment[];
+    correlationId: string;
+}): Promise<string> {
+    const { from, to, replyTo, subject, body, attachments, correlationId } = params;
+    const boundary = `----=_Part_${uuidv4().replace(/-/g, '')}`;
+
+    let rawMessage = `From: ${from}\r\n`;
+    rawMessage += `To: ${Array.isArray(to) ? to.join(', ') : to}\r\n`;
+    if (replyTo) {
+        rawMessage += `Reply-To: ${Array.isArray(replyTo) ? replyTo.join(', ') : replyTo}\r\n`;
+    }
+    rawMessage += `Subject: ${subject}\r\n`;
+    rawMessage += `MIME-Version: 1.0\r\n`;
+    rawMessage += `Content-Type: multipart/mixed; boundary="${boundary}"\r\n\r\n`;
+
+    // HTML body part
+    rawMessage += `--${boundary}\r\n`;
+    rawMessage += `Content-Type: text/html; charset=UTF-8\r\n\r\n`;
+    rawMessage += body + `\r\n`;
+
+    // Attachment parts
+    let totalAttachmentSize = 0;
+
+    for (const attachment of attachments) {
+        log_debug(`Processing attachment: ${attachment.filename}`, { s3: attachment.s3Pointer }, correlationId);
+
+        const getObjectResponse = await s3Client.send(new GetObjectCommand({
+            Bucket: attachment.s3Pointer.bucket,
+            Key: attachment.s3Pointer.key,
+        }));
+        
+        if (!getObjectResponse.Body) {
+            throw new PermanentStepError(`S3 object body is empty for attachment: ${attachment.s3Pointer.key}`);
+        }
+        
+        totalAttachmentSize += getObjectResponse.ContentLength || 0;
+        if (totalAttachmentSize > SES_ATTACHMENT_SIZE_LIMIT_BYTES) {
+            throw new PermanentStepError(`Total attachment size of ${totalAttachmentSize} bytes exceeds the safe limit of ${SES_ATTACHMENT_SIZE_LIMIT_BYTES} bytes.`);
+        }
+        
+        const buffer = await getObjectResponse.Body.transformToByteArray();
+        const base64Content = Buffer.from(buffer).toString('base64');
+        
+        rawMessage += `--${boundary}\r\n`;
+        rawMessage += `Content-Type: ${getObjectResponse.ContentType || 'application/octet-stream'}\r\n`;
+        rawMessage += `Content-Disposition: attachment; filename="${attachment.filename}"\r\n`;
+        rawMessage += `Content-Transfer-Encoding: base64\r\n\r\n`;
+        // Chunk the base64 content to be compliant with RFC 2045
+        rawMessage += base64Content.replace(/.{76}/g, "$&\r\n") + `\r\n`;
+    }
+
+    // Final boundary
+    rawMessage += `--${boundary}--\r\n`;
+
+    return rawMessage;
+}
 
 /**
  * A standard StepHandler for sending an email via AWS SES.
@@ -35,20 +108,11 @@ export const executeSendEmail: StepHandler = async (
   runtimeState: FlowRuntimeState,
 ): Promise<StepHandlerOutput> => {
   const correlationId = runtimeState.flowExecutionId;
-
-  // The stepDefinition object itself contains the templates (e.g., subject: "Re: {{subject}}").
-  // This will be the object we render.
   const templateObject = stepDefinition;
-  
-  // The context for rendering needs to include the general flow context
-  // AND the specific inputs for this step from inputMappings.
   const templateContext = { ...runtimeState.currentContextData, ...runtimeState, ...stepInput };
   
-  // Now, render the templates within the stepDefinition using the full context.
-  // Await the async renderer to ensure JSONPaths are resolved correctly.
   const renderedInput = await renderNestedTemplates(templateObject, templateContext, correlationId);
   
-  // First, parse against the relaxed schema to get the structure and values.
   const structuralValidation = EmailSendStepPayloadSchema.safeParse(renderedInput);
 
   if (!structuralValidation.success) {
@@ -61,81 +125,42 @@ export const executeSendEmail: StepHandler = async (
     throw new Error(`Invalid input structure for email-send: ${structuralValidation.error.message}`);
   }
 
-  /**
-   * Processes a dynamic address field that could be a stringified JSON array,
-   * a comma-separated string, a single email string, or a native array.
-   * This uses a heuristic to handle names containing commas (e.g., "Last, First <email@domain.com>").
-   * @param fieldValue The value to process.
-   * @returns An array of strings, a single string, or undefined.
-   */
   const processAddressField = (fieldValue: string | string[] | undefined): string | string[] | undefined => {
-      if (typeof fieldValue !== 'string') {
-          return fieldValue; // It's already an array, or undefined/null.
-      }
-      
+      if (typeof fieldValue !== 'string') return fieldValue;
       const trimmed = fieldValue.trim();
-
-      // Case 1: Attempt to parse as a stringified JSON array.
       if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
           try {
               const parsed = JSON.parse(trimmed);
-              if (Array.isArray(parsed)) {
-                  log_debug('Successfully parsed stringified JSON array in address field.', { originalValue: fieldValue }, correlationId);
-                  return parsed;
-              }
+              if (Array.isArray(parsed)) return parsed;
           } catch (e) {
-              log_debug('An address field appeared to be a JSON array but failed to parse. Falling back to intelligent comma-splitting.', { value: trimmed }, correlationId);
+              log_debug('An address field looked like a JSON array but failed to parse. Falling back to intelligent comma-splitting.', { value: trimmed }, correlationId);
           }
       }
-
-      // Case 2: Intelligent comma splitting.
-      // Standard splitting by comma fails on "Last, First <email>".
-      // We accumulate parts until we have a segment that looks like a complete address (has '@' and balanced quotes/brackets).
-      
       const rawParts = trimmed.split(',');
       const finalAddresses: string[] = [];
       let currentBuffer = "";
-
       for (let i = 0; i < rawParts.length; i++) {
           const part = rawParts[i];
-          
-          if (currentBuffer === "") {
-              currentBuffer = part;
-          } else {
-              currentBuffer += "," + part;
-          }
-
-          // Heuristic checks
+          currentBuffer = currentBuffer === "" ? part : `${currentBuffer},${part}`;
           const hasAt = currentBuffer.includes('@');
           const openAngles = (currentBuffer.match(/</g) || []).length;
           const closeAngles = (currentBuffer.match(/>/g) || []).length;
           const quotes = (currentBuffer.match(/"/g) || []).length;
-
-          // We consider the buffer "balanced" if angle brackets match and quotes are even.
           const isBalanced = (openAngles === closeAngles) && (quotes % 2 === 0);
-
-          // We commit the address if:
-          // 1. It looks valid (has @ and is balanced)
-          // 2. OR we are at the very end of the string (flush whatever garbage is left)
           if ((hasAt && isBalanced) || i === rawParts.length - 1) {
                const cleanAddress = currentBuffer.trim();
-               if (cleanAddress.length > 0) {
-                   finalAddresses.push(cleanAddress);
-               }
+               if (cleanAddress.length > 0) finalAddresses.push(cleanAddress);
                currentBuffer = "";
           }
       }
-      
-      // Return single string if one item, array otherwise.
       return finalAddresses.length === 1 ? finalAddresses[0] : finalAddresses;
   };
 
-  const { from, to: rawTo, replyTo: rawReplyTo, subject, body } = structuralValidation.data;
+  const { from, to: rawTo, replyTo: rawReplyTo, subject, body, attachments } = structuralValidation.data;
 
   const to = processAddressField(rawTo);
   const replyTo = processAddressField(rawReplyTo);
 
-  // Handle case where required fields resolve to undefined/null after templating
   if (!from) throw new Error("The 'from' field is missing or resolved to an empty value after template rendering.");
   if (!to || (Array.isArray(to) && to.length === 0)) throw new Error("The 'to' field is missing or resolved to an empty value after template rendering.");
   if (subject === undefined || subject === null) throw new Error("The 'subject' field is missing or resolved to an empty value after template rendering.");
@@ -148,15 +173,14 @@ export const executeSendEmail: StepHandler = async (
     replyTo: replyTo ? (Array.isArray(replyTo) ? replyTo.map(extractEmail) : extractEmail(replyTo as string)) : undefined,
     subject,
     body,
+    attachments,
   };
 
-  // Now, perform a strict validation on the cleaned, rendered values.
   const runtimeValidation = RenderedEmailParamsSchema.safeParse(cleanedParams);
 
   if (!runtimeValidation.success) {
     log_error("Rendered email parameters are invalid. Check that your templates resolve to valid email addresses.", { 
-        errors: runtimeValidation.error.flatten(), 
-        // Log the state of data at each step for debugging
+        errors: runtimeValidation.error.flatten(),
         renderedValues: structuralValidation.data,
         processedValues: { to, replyTo }, 
         cleanedValues: cleanedParams
@@ -164,35 +188,60 @@ export const executeSendEmail: StepHandler = async (
     throw new Error(`Invalid rendered parameters for email-send: ${runtimeValidation.error.message}`);
   }
 
-  const { from: validFrom, to: validTo, replyTo: validReplyTo, subject: validSubject, body: validBody } = runtimeValidation.data;
-  const toAddresses = Array.isArray(validTo) ? validTo : [validTo];
-  const replyToAddresses = validReplyTo ? (Array.isArray(validReplyTo) ? validReplyTo : [validReplyTo]) : undefined;
-
-  log_info(`Sending email via SES`, { from: validFrom, to: toAddresses, replyTo: replyToAddresses, subject: validSubject }, correlationId);
-
-  const command = new SendEmailCommand({
-    FromEmailAddress: validFrom,
-    Destination: { ToAddresses: toAddresses },
-    ReplyToAddresses: replyToAddresses,
-    Content: {
-      Simple: {
-        Subject: { Data: validSubject },
-        Body: { Html: { Data: validBody } },
-      },
-    },
-  });
-
+  const { from: validFrom, to: validTo, replyTo: validReplyTo, subject: validSubject, body: validBody, attachments: validAttachments } = runtimeValidation.data;
+  
   try {
-    const result = await sesClient.send(command);
-    log_info(`Successfully sent email via SES.`, { messageId: result.MessageId }, correlationId);
-    return {
-      outputData: {
-        sesMessageId: result.MessageId,
-        _meta: { status: 'SUCCESS' },
-      },
-    };
+    if (validAttachments && validAttachments.length > 0) {
+        // --- Send with Attachments using SendRawEmail ---
+        log_info(`Sending email with ${validAttachments.length} attachments via SES SendRawEmail`, { from: validFrom, to: validTo, subject: validSubject }, correlationId);
+
+       const buildParams = {
+            from: validFrom,
+            to: validTo,
+            subject: validSubject,
+            body: validBody,
+            attachments: validAttachments,
+            correlationId,
+            ...(validReplyTo && { replyTo: validReplyTo })
+        };
+        const rawMessage = await buildRawEmail(buildParams);
+
+        const command = new SendRawEmailCommand({
+            RawMessage: { Data: Buffer.from(rawMessage) }
+        });
+
+        const result:SendRawEmailCommandOutput = await sesClient.send(command);
+        log_info(`Successfully sent raw email via SES.`, { messageId: result.MessageId }, correlationId);
+        return {
+          outputData: { sesMessageId: result.MessageId, _meta: { status: 'SUCCESS' } },
+        };
+    } else {
+        // --- Send Simple Email (No Attachments) ---
+        const toAddresses = Array.isArray(validTo) ? validTo.map(extractEmail) : [extractEmail(validTo)];
+        const replyToAddresses = validReplyTo ? (Array.isArray(validReplyTo) ? validReplyTo.map(extractEmail) : [extractEmail(validReplyTo)]) : undefined;
+
+        log_info(`Sending simple email via SES`, { from: validFrom, to: toAddresses, replyTo: replyToAddresses, subject: validSubject }, correlationId);
+
+        const command = new SendEmailCommand({
+            FromEmailAddress: extractEmail(validFrom),
+            Destination: { ToAddresses: toAddresses },
+            ReplyToAddresses: replyToAddresses,
+            Content: {
+                Simple: {
+                    Subject: { Data: validSubject },
+                    Body: { Html: { Data: validBody } },
+                },
+            },
+        });
+        
+        const result:SendEmailCommandOutput = await sesV2Client.send(command);
+        log_info(`Successfully sent email via SES.`, { messageId: result.MessageId }, correlationId);
+        return {
+          outputData: { sesMessageId: result.MessageId, _meta: { status: 'SUCCESS' } },
+        };
+    }
   } catch (error: any) {
-    log_error(`Failed to send email via SES: ${error.message}`, { from: validFrom, to: toAddresses, error: error.message }, correlationId);
+    log_error(`Failed to send email via SES: ${error.message}`, { from: validFrom, to: validTo, error: error.message, stack: error.stack }, correlationId);
     if (['ServiceUnavailable', 'ThrottlingException', 'InternalFailure'].includes(error.name)) {
       throw new TransientStepError(`SES send failed due to a transient error: ${error.message}`);
     }

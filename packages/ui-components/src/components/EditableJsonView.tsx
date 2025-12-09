@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
-import { useMantineColorScheme, JsonInput, Group, ActionIcon, Tooltip, Stack, Paper, Button, useMantineTheme, Code } from '@mantine/core';
-import { IconPencil, IconDeviceFloppy, IconX } from '@tabler/icons-react';
+import { useMantineColorScheme, JsonInput, Group, ActionIcon, Tooltip, Stack, Paper, Button, useMantineTheme, Code, Modal } from '@mantine/core';
+import { IconPencil, IconDeviceFloppy, IconX, IconArrowsMaximize } from '@tabler/icons-react';
+import { useDisclosure } from '@mantine/hooks';
 import JsonView from '@uiw/react-json-view';
 import { lightTheme } from '@uiw/react-json-view/light';
 import { darkTheme } from '@uiw/react-json-view/dark';
 import React from 'react';
+import { notifications } from '@mantine/notifications';
 
 interface EditableJsonViewProps {
   value: any;
@@ -25,6 +27,7 @@ interface EditableJsonViewProps {
 /**
  * A wrapper component that provides a read-only view of a JSON object
  * with the ability to switch to a text-based editing mode using Mantine's JsonInput.
+ * Includes a modal for full-screen editing.
  */
 export function EditableJsonView({ value, onChange, readOnly = false, displayVariant = 'default', error: formError, allowStringFallback = false }: EditableJsonViewProps) {
   const theme = useMantineTheme();
@@ -32,6 +35,10 @@ export function EditableJsonView({ value, onChange, readOnly = false, displayVar
   const [isEditing, setIsEditing] = useState(false);
   const [jsonString, setJsonString] = useState('');
   const [internalError, setInternalError] = useState<string | null>(null);
+
+  // Modal state
+  const [modalOpened, { open: openModal, close: closeModal }] = useDisclosure(false);
+  const [modalJsonString, setModalJsonString] = useState('');
 
   // Effect to synchronize the internal string state whenever the external value prop changes.
   useEffect(() => {
@@ -101,6 +108,38 @@ export function EditableJsonView({ value, onChange, readOnly = false, displayVar
     }
   };
 
+  const handleOpenModal = () => {
+    setModalJsonString(jsonString);
+    openModal();
+  };
+
+  const handleModalSave = () => {
+    try {
+      const parsedValue = JSON.parse(modalJsonString);
+      if (onChange) {
+        onChange(parsedValue);
+      }
+      setInternalError(null);
+      setIsEditing(false); // Exit inline editing mode as well
+      closeModal();
+    } catch (e) {
+      if (allowStringFallback) {
+        if (onChange) {
+          onChange(modalJsonString);
+        }
+        setInternalError(null);
+        setIsEditing(false);
+        closeModal();
+      } else {
+        notifications.show({
+          title: 'Invalid JSON',
+          message: 'Please correct the JSON format before saving.',
+          color: 'red',
+        });
+      }
+    }
+  };
+
   const variantStyle = displayVariant === 'inherited' ? {
     borderStyle: 'dashed',
     borderColor: theme.colors.cyan[7],
@@ -123,51 +162,101 @@ export function EditableJsonView({ value, onChange, readOnly = false, displayVar
     return <Code block style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{String(value ?? 'null')}</Code>;
   };
 
-  if (readOnly || !isEditing) {
-    return (
-      <Paper withBorder p="xs" radius="md" pos="relative" style={variantStyle}>
-        {!readOnly && (
-          <Tooltip label="Edit Value">
+  // The group of action icons to be displayed in the top right corner.
+  const actionIcons = (
+    <Group gap={4} style={{ position: 'absolute', top: 5, right: 5, zIndex: 1 }}>
+        <Tooltip label="Expand to full screen editor">
             <ActionIcon
-              variant="default"
-              size="sm"
-              onClick={handleEditClick}
-              style={{ position: 'absolute', top: 5, right: 5, zIndex: 1 }}
-              aria-label="Edit Value"
+                variant="default"
+                size="sm"
+                onClick={handleOpenModal}
+                aria-label="Expand editor"
             >
-              <IconPencil size="0.9rem" />
+                <IconArrowsMaximize size="0.9rem" />
             </ActionIcon>
-          </Tooltip>
+        </Tooltip>
+        {!readOnly && !isEditing && (
+            <Tooltip label="Edit Value">
+                <ActionIcon
+                    variant="default"
+                    size="sm"
+                    onClick={handleEditClick}
+                    aria-label="Edit Value"
+                >
+                    <IconPencil size="0.9rem" />
+                </ActionIcon>
+            </Tooltip>
         )}
-        {renderReadOnlyView()}
-      </Paper>
-    );
-  }
+    </Group>
+  );
 
-  // Editing mode
   return (
-    <Paper withBorder p="md" radius="md">
-      <Stack>
-        <JsonInput
-          value={jsonString}
-          onChange={handleJsonStringChange}
-          placeholder='Enter valid JSON or a plain string'
-          error={formError || internalError}
-          formatOnBlur
-          autosize
-          minRows={5}
-          maxRows={20}
-          styles={{ input: { fontFamily: 'monospace' } }}
-        />
-        <Group justify="flex-end">
-          <Button variant="default" onClick={handleCancelClick} leftSection={<IconX size="1rem" />}>
-            Cancel
-          </Button>
-          <Button onClick={handleSaveClick} leftSection={<IconDeviceFloppy size="1rem" />}>
-            Save
-          </Button>
-        </Group>
-      </Stack>
-    </Paper>
+    <>
+      {isEditing ? (
+        // Editing mode
+        <Paper withBorder p="md" radius="md" pos="relative">
+          {actionIcons}
+          <Stack>
+            <JsonInput
+              value={jsonString}
+              onChange={handleJsonStringChange}
+              placeholder='Enter valid JSON or a plain string'
+              error={formError || internalError}
+              formatOnBlur
+              autosize
+              minRows={5}
+              maxRows={20}
+              styles={{ input: { fontFamily: 'monospace' } }}
+            />
+            <Group justify="flex-end">
+              <Button variant="default" onClick={handleCancelClick} leftSection={<IconX size="1rem" />}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveClick} leftSection={<IconDeviceFloppy size="1rem" />}>
+                Save
+              </Button>
+            </Group>
+          </Stack>
+        </Paper>
+      ) : (
+        // Read-only mode
+        <Paper withBorder p="xs" radius="md" pos="relative" style={variantStyle}>
+            {actionIcons}
+            {renderReadOnlyView()}
+        </Paper>
+      )}
+
+      {/* Full-screen Modal for editing */}
+      <Modal
+        opened={modalOpened}
+        onClose={closeModal}
+        title="JSON Editor"
+        size="90%"
+        overlayProps={{ backgroundOpacity: 0.55, blur: 3 }}
+      >
+        <Stack>
+          <JsonInput
+            label="JSON Content"
+            value={modalJsonString}
+            onChange={setModalJsonString}
+            placeholder='Enter valid JSON or a plain string'
+            formatOnBlur
+            autosize
+            minRows={25} // Much larger for modal view
+            styles={{ input: { fontFamily: 'monospace' } }}
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={closeModal}>
+              Cancel
+            </Button>
+            {!readOnly && (
+              <Button onClick={handleModalSave}>
+                Save Changes
+              </Button>
+            )}
+          </Group>
+        </Stack>
+      </Modal>
+    </>
   );
 }
