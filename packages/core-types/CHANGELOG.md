@@ -1,5 +1,13 @@
 # @allma/core-types
 
+## 1.0.14
+
+### Patch Changes
+
+- 97ea67a: Send email with attachments implemented
+- 6f103d7: CDK deployment imports improvements
+- 23b6fb6: List files on S3 step added
+
 ## 1.0.13
 
 ### Patch Changes
