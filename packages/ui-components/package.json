@@ -1,6 +1,6 @@
 {
   "name": "@allma/ui-components",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Shared React UI components based on Mantine for the Allma serverless AI orchestration platform.",
   "license": "Apache-2.0",
   "main": "./dist/index.js",

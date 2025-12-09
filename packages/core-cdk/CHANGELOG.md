@@ -1,5 +1,18 @@
 # @allma/core-cdk
 
+## 1.0.25
+
+### Patch Changes
+
+- f8c4d05: Send email output contains rendered values now
+- 97ea67a: Send email with attachments implemented
+- 6f103d7: CDK deployment imports improvements
+- 23b6fb6: List files on S3 step added
+- Updated dependencies [97ea67a]
+- Updated dependencies [6f103d7]
+- Updated dependencies [23b6fb6]
+  - @allma/core-types@1.0.14
+
 ## 1.0.24
 
 ### Patch Changes

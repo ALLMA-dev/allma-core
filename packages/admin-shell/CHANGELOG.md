@@ -1,5 +1,15 @@
 # @allma/admin-shell
 
+## 1.0.17
+
+### Patch Changes
+
+- 97ea67a: Send email with attachments implemented
+- Updated dependencies [97ea67a]
+- Updated dependencies [6f103d7]
+- Updated dependencies [23b6fb6]
+  - @allma/core-types@1.0.14
+
 ## 1.0.16
 
 ### Patch Changes

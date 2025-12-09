@@ -1,6 +1,6 @@
 {
   "name": "@allma/core-types",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "description": "Shared TypeScript types, interfaces, and Zod schemas for the Allma serverless AI orchestration platform.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
