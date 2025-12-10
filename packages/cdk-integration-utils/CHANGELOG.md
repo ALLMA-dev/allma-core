@@ -1,5 +1,12 @@
 # @allma/cdk-integration-utils
 
+## 1.0.16
+
+### Patch Changes
+
+- Updated dependencies [7b7f11e]
+  - @allma/core-types@1.0.16
+
 ## 1.0.15
 
 ### Patch Changes

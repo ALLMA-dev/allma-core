@@ -1,5 +1,11 @@
 # @allma/core-types
 
+## 1.0.16
+
+### Patch Changes
+
+- 7b7f11e: Join data step added to Allma
+
 ## 1.0.15
 
 ### Patch Changes

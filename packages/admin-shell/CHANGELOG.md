@@ -1,5 +1,13 @@
 # @allma/admin-shell
 
+## 1.0.19
+
+### Patch Changes
+
+- 7b7f11e: Join data step added to Allma
+- Updated dependencies [7b7f11e]
+  - @allma/core-types@1.0.16
+
 ## 1.0.18
 
 ### Patch Changes
