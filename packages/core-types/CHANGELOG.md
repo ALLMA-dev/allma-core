@@ -1,5 +1,11 @@
 # @allma/core-types
 
+## 1.0.15
+
+### Patch Changes
+
+- 2e86990: Step creation on UI fixed (no StepDefinition for system steps)
+
 ## 1.0.14
 
 ### Patch Changes
