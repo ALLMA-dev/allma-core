@@ -1,5 +1,13 @@
 # @allma/core-cdk
 
+## 1.0.26
+
+### Patch Changes
+
+- 2e86990: Step creation on UI fixed (no StepDefinition for system steps)
+- Updated dependencies [2e86990]
+  - @allma/core-types@1.0.15
+
 ## 1.0.25
 
 ### Patch Changes
