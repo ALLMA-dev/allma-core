@@ -137,9 +137,21 @@ export type StepInstance = z.infer<typeof StepInstanceSchema>;
  * A list of system-provided step definitions for UI and backend reference.
  */
 export const SYSTEM_STEP_DEFINITIONS: Pick<StepDefinition, 'id' | 'name' | 'stepType' | 'moduleIdentifier'>[] = [
-    { id: 'system-mcp-call', name: 'MCP Call', stepType: StepTypeSchema.enum.MCP_CALL, moduleIdentifier: SystemModuleIdentifiers.MCP_CALL },
-    { id: 'system-api-call', name: 'API Call', stepType: StepTypeSchema.enum.API_CALL, moduleIdentifier: SystemModuleIdentifiers.API_CALL },
-    { id: 'system-custom-lambda-invoke', name: 'Custom Lambda Invocation', stepType: StepTypeSchema.enum.CUSTOM_LAMBDA_INVOKE, moduleIdentifier: SystemModuleIdentifiers.CUSTOM_LAMBDA_INVOKE },
+    // System steps with unique StepType (no moduleIdentifier needed for runtime)
+    { id: 'system-mcp-call', name: 'MCP Call', stepType: StepTypeSchema.enum.MCP_CALL },
+    { id: 'system-api-call', name: 'API Call', stepType: StepTypeSchema.enum.API_CALL },
+    { id: 'system-custom-lambda-invoke', name: 'Custom Lambda Invocation', stepType: StepTypeSchema.enum.CUSTOM_LAMBDA_INVOKE },
+    { id: 'system-llm-invocation', name: 'LLM Invocation', stepType: StepTypeSchema.enum.LLM_INVOCATION },
+    { id: 'system-noop', name: 'No-Op', stepType: StepTypeSchema.enum.NO_OP },
+    { id: 'system-parallel-fork-manager', name: 'Parallel Fork Manager', stepType: StepTypeSchema.enum.PARALLEL_FORK_MANAGER },
+    { id: 'system-poll-external-api', name: 'Poll External API', stepType: StepTypeSchema.enum.POLL_EXTERNAL_API },
+    { id: 'system-start-sub-flow', name: 'Start Sub-Flow', stepType: StepTypeSchema.enum.START_SUB_FLOW },
+    { id: 'system-wait-for-external-event', name: 'Wait for External Event', stepType: StepTypeSchema.enum.WAIT_FOR_EXTERNAL_EVENT },
+    { id: 'system-email-start-point', name: 'Email Start Point', stepType: StepTypeSchema.enum.EMAIL_START_POINT },
+    { id: 'system-schedule-start-point', name: 'Schedule Start Point', stepType: StepTypeSchema.enum.SCHEDULE_START_POINT },
+    { id: 'system-email-send', name: 'Send Email', stepType: StepTypeSchema.enum.EMAIL },
+
+    // System steps with a required moduleIdentifier
     { id: 'system-ddb-query-to-s3-manifest', name: 'DDB Query to S3 Manifest', stepType: StepTypeSchema.enum.DATA_LOAD, moduleIdentifier: SystemModuleIdentifiers.DDB_QUERY_TO_S3_MANIFEST },
     { id: 'system-dynamodb-data-loader', name: 'DynamoDB Data Loader', stepType: StepTypeSchema.enum.DATA_LOAD, moduleIdentifier: SystemModuleIdentifiers.DYNAMODB_DATA_LOADER },
     { id: 'system-s3-data-loader', name: 'S3 Data Loader', stepType: StepTypeSchema.enum.DATA_LOAD, moduleIdentifier: SystemModuleIdentifiers.S3_DATA_LOADER },
@@ -151,20 +163,11 @@ export const SYSTEM_STEP_DEFINITIONS: Pick<StepDefinition, 'id' | 'name' | 'step
     { id: 'system-s3-data-saver', name: 'S3 Data Saver', stepType: StepTypeSchema.enum.DATA_SAVE, moduleIdentifier: SystemModuleIdentifiers.S3_DATA_SAVER },
     { id: 'system-sns-publish', name: 'SNS Publish Message', stepType: StepTypeSchema.enum.SNS_PUBLISH, moduleIdentifier: SystemModuleIdentifiers.SNS_PUBLISH },
     { id: 'system-sqs-send', name: 'SQS Send Message', stepType: StepTypeSchema.enum.SQS_SEND, moduleIdentifier: SystemModuleIdentifiers.SQS_SEND },
-    { id: 'system-email-send', name: 'Send Email', stepType: StepTypeSchema.enum.EMAIL, moduleIdentifier: SystemModuleIdentifiers.EMAIL_SEND },
     { id: 'system-start-flow-execution', name: 'Start Flow Execution', stepType: StepTypeSchema.enum.START_FLOW_EXECUTION, moduleIdentifier: SystemModuleIdentifiers.START_FLOW_EXECUTION },
     { id: 'system-array-aggregator', name: 'Array Aggregator', stepType: StepTypeSchema.enum.DATA_TRANSFORMATION, moduleIdentifier: SystemModuleIdentifiers.ARRAY_AGGREGATOR },
     { id: 'system-compose-object-from-input', name: 'Compose Object', stepType: StepTypeSchema.enum.DATA_TRANSFORMATION, moduleIdentifier: SystemModuleIdentifiers.COMPOSE_OBJECT_FROM_INPUT },
     { id: 'system-date-time-calculator', name: 'Date/Time Calculator', stepType: StepTypeSchema.enum.DATA_TRANSFORMATION, moduleIdentifier: SystemModuleIdentifiers.DATE_TIME_CALCULATOR },
     { id: 'system-flatten-array', name: 'Flatten Array', stepType: StepTypeSchema.enum.DATA_TRANSFORMATION, moduleIdentifier: SystemModuleIdentifiers.FLATTEN_ARRAY },
     { id: 'system-generate-array', name: 'Generate Array', stepType: StepTypeSchema.enum.DATA_TRANSFORMATION, moduleIdentifier: SystemModuleIdentifiers.GENERATE_ARRAY },
-    { id: 'system-llm-invocation', name: 'LLM Invocation', stepType: StepTypeSchema.enum.LLM_INVOCATION, moduleIdentifier: SystemModuleIdentifiers.LLM_INVOCATION },
-    { id: 'system-noop', name: 'No-Op', stepType: StepTypeSchema.enum.NO_OP, moduleIdentifier: SystemModuleIdentifiers.NO_OP },
-    { id: 'system-parallel-fork-manager', name: 'Parallel Fork Manager', stepType: StepTypeSchema.enum.PARALLEL_FORK_MANAGER, moduleIdentifier: SystemModuleIdentifiers.PARALLEL_FORK_MANAGER },
-    { id: 'system-poll-external-api', name: 'Poll External API', stepType: StepTypeSchema.enum.POLL_EXTERNAL_API, moduleIdentifier: SystemModuleIdentifiers.POLL_EXTERNAL_API },
-    { id: 'system-start-sub-flow', name: 'Start Sub-Flow', stepType: StepTypeSchema.enum.START_SUB_FLOW, moduleIdentifier: SystemModuleIdentifiers.START_SUB_FLOW },
-    { id: 'system-wait-for-external-event', name: 'Wait for External Event', stepType: StepTypeSchema.enum.WAIT_FOR_EXTERNAL_EVENT, moduleIdentifier: SystemModuleIdentifiers.WAIT_FOR_EXTERNAL_EVENT },
-    { id: 'system-email-start-point', name: 'Email Start Point', stepType: StepTypeSchema.enum.EMAIL_START_POINT, moduleIdentifier: SystemModuleIdentifiers.EMAIL_START_POINT },
-    { id: 'system-schedule-start-point', name: 'Schedule Start Point', stepType: StepTypeSchema.enum.SCHEDULE_START_POINT, moduleIdentifier: SystemModuleIdentifiers.SCHEDULE_START_POINT },
     { id: 'system-file-download', name: 'File Download', stepType: StepTypeSchema.enum.FILE_DOWNLOAD, moduleIdentifier: SystemModuleIdentifiers.FILE_DOWNLOAD },
 ];

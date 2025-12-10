@@ -20,6 +20,7 @@ import { AllmaStepNode } from '../types';
 import { UnifiedStepDefinition } from '../../../../api/stepDefinitionService';
 import { IconPlayerPlay, IconTrash } from '@tabler/icons-react';
 import { calculateSmartEdgeConnection } from './custom-nodes/hooks/useSmartEdge';
+import { StepInstance } from '@allma/core-types';
 
 const nodeTypes = { stepNode: BaseStepNode };
 const edgeTypes = { conditionalEdge: ConditionalEdge };
@@ -81,16 +82,36 @@ export function FlowCanvas({ onNodeClick, onEdgeClick, onPaneClick, onNodeDouble
       if (!dataString) return;
 
       const stepDefinition = JSON.parse(dataString) as UnifiedStepDefinition;
-      const { stepType, name: label } = stepDefinition;
+      const { stepType, name: label, source, moduleIdentifier, id: defId, defaultConfig } = stepDefinition;
       
       const position = reactFlowInstance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+
+      // This object will be passed to the store's `addNode` function.
+      // It only contains properties that define the step's identity and default configuration.
+      const configForStore: Partial<StepInstance> = { ...defaultConfig };
+
+      if (source === 'system') {
+          // For system steps, the type is the primary identifier.
+          // They should NOT have a stepDefinitionId.
+          // A moduleIdentifier is only added if it's explicitly defined for that system step.
+          if (moduleIdentifier) {
+              configForStore.moduleIdentifier = moduleIdentifier;
+          }
+      } else { // 'user' or 'external'
+          // For user-created or external steps, the stepDefinitionId is the primary identifier.
+          configForStore.stepDefinitionId = defId;
+          // Also include moduleIdentifier if present (mainly for external steps).
+          if (moduleIdentifier) {
+            configForStore.moduleIdentifier = moduleIdentifier;
+          }
+      }
 
       const newNode: Omit<AllmaStepNode, 'id' | 'position'> = {
         type: 'stepNode',
         data: {
           label: label,
           stepType: stepType,
-          config: { stepType: stepType, displayName: label, stepDefinitionId: stepDefinition.id } as any,
+          config: configForStore as any,
           isStartNode: false,
         },
       };

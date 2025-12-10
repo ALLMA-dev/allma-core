@@ -339,17 +339,21 @@ const useFlowEditorStore = create<RFState>((set, get) => ({
     addNode: (node: Omit<AllmaStepNode, 'id' | 'position'>, position: { x: number, y: number }) => {
         const { flowDefinition, nodes } = get();
         if (!flowDefinition) return;
-
+    
         const newId = `${node.data.stepType.toLowerCase()}_${uuidv4().substring(0, 8)}`;
-
-        const newStepConfig: any = {
-            ...node.data.config,
+    
+        // Constructs the full StepInstance object for the flow definition.
+        const newStepConfig: StepInstance = {
+            // Start with the config from the palette drop (e.g., stepDefinitionId, moduleIdentifier, defaultConfig values).
+            ...(node.data.config as Partial<StepInstance>),
+    
+            // Add/overwrite with instance-specific properties required for a valid StepInstance.
             stepInstanceId: newId,
             stepType: node.data.stepType,
             displayName: node.data.label,
             position: position,
-        };
-
+        } as StepInstance; // Cast is safe as we are constructing the full object.
+    
         const newNode: AllmaStepNode = {
             id: newId,
             position: position,
