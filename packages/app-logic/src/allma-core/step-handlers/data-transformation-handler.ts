@@ -13,6 +13,7 @@ import { executeGenerateArrayTransformer } from '../data-transformers/generate-a
 import { executeArrayAggregatorTransformer } from '../data-transformers/array-aggregator-transformer.js';
 import { executeFlattenArrayTransformer } from '../data-transformers/flatten-array-transformer.js';
 import { executeDateTimeCalculator } from '../data-transformers/date-time-calculator.js';
+import { executeJoinDataTransformer } from '../data-transformers/join-data-transformer.js';
 
 const dataTransformationModuleRegistry = SYSTEM_STEP_DEFINITIONS
   .filter(def => def.stepType === StepType.DATA_TRANSFORMATION)
@@ -32,6 +33,9 @@ const dataTransformationModuleRegistry = SYSTEM_STEP_DEFINITIONS
         break;
       case SystemModuleIdentifiers.DATE_TIME_CALCULATOR:
         acc[def.moduleIdentifier] = executeDateTimeCalculator;
+        break;
+      case SystemModuleIdentifiers.JOIN_DATA:
+        acc[def.moduleIdentifier] = executeJoinDataTransformer;
         break;
     }
     return acc;

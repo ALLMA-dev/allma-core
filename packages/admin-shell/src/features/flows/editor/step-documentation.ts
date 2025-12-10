@@ -355,12 +355,47 @@ Defines the parameters for the selected module. Fields here can use Handlebars t
         },
     },
     [StepType.DATA_TRANSFORMATION]: {
-        general: 'Performs common data manipulation tasks within the flow, such as creating objects, calculating dates, or aggregating arrays.',
+        general: 'Performs common data manipulation tasks within the flow, such as creating objects, calculating dates, aggregating arrays, or joining datasets.',
         fields: {
-            moduleIdentifier: `Specifies which transformation module to use.`,
+            moduleIdentifier: `Specifies which transformation module to use (e.g., \`system-join-data\`, \`system-compose-object-from-input\`).`,
             customConfig: `
 #### Module Configuration
-This step type generally receives its configuration directly from **Input Mappings** rather than this field. For example, the \`date-time-calculator\` expects \`baseTime\`, \`offsetSeconds\`, and \`operation\` to be mapped via inputs. This field is reserved for modules that require static configuration.
+This field contains the static configuration for the selected module. Dynamic data (like datasets to be transformed) should be passed via **Input Mappings**.
+
+---
+
+### Example: \`system-join-data\`
+This module performs a join operation (like in SQL) on two datasets.
+
+**Input Mappings:**
+You must map the two datasets to be joined into the step's input:
+\`\`\`json
+{
+  "left_source": "$.steps_output.get_users.data",
+  "right_source": "$.steps_output.get_orders.data"
+}
+\`\`\`
+
+**Custom Config:**
+Configure the join operation itself in this field:
+\`\`\`json
+{
+  "left_format": "json",
+  "right_format": "json",
+  "join_type": "left",
+  "join_keys": ["user_id"],
+  "right_select_columns": ["order_id", "order_date", "total_price"],
+  "output_format": "json"
+}
+\`\`\`
+
+#### Configuration Fields:
+- \`left_source\`, \`right_source\`: The datasets to join. These are almost always provided via **Input Mappings**. Can be a JSON array or a CSV string.
+- \`left_format\`, \`right_format\`: (\`"json"\` or \`"csv"\`) The format of the corresponding source data.
+- \`join_type\`: The type of join to perform: \`"inner"\`, \`"left"\`, \`"right"\`, or \`"outer"\`.
+- \`join_keys\`: An array of one or more column names (strings) to join the datasets on.
+- \`right_select_columns\`: (Optional) An array of column names from the right dataset to include in the output. If omitted or null, all non-key columns from the right dataset are included.
+- \`output_format\`: The format of the final joined data: \`"json"\` (array of objects) or \`"csv"\` (string).
 `,
         },
     },

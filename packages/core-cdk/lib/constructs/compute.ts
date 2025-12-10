@@ -104,17 +104,17 @@ export class AllmaCompute extends Construct {
     }));
 
     if (stageConfig.ses?.fromEmailAddress) {
-        this.orchestrationLambdaRole.addToPolicy(new iam.PolicyStatement({
-            effect: iam.Effect.ALLOW,
-            actions: [
-                'ses:SendEmail',
-                'ses:SendRawEmail'
-            ],
-            resources: [
-                `arn:aws:ses:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:identity/*`,
-                `arn:aws:ses:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:configuration-set/*`
-            ],
-        }));
+      this.orchestrationLambdaRole.addToPolicy(new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          'ses:SendEmail',
+          'ses:SendRawEmail'
+        ],
+        resources: [
+          `arn:aws:ses:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:identity/*`,
+          `arn:aws:ses:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:configuration-set/*`
+        ],
+      }));
     }
 
     configTable.grantReadData(this.orchestrationLambdaRole);
@@ -158,23 +158,23 @@ export class AllmaCompute extends Construct {
     // --- IterativeStepProcessorLambda ---
     const iterativeStepProcessorMemory = stageConfig.lambdaMemorySizes.iterativeStepProcessor;
     const iterativeStepProcessorTimeout = cdk.Duration.minutes(stageConfig.lambdaTimeouts.iterativeStepProcessorMinutes);
-    
+
     this.iterativeStepProcessorLambda = this.createNodejsLambda(
-        'IterativeStepProcessorLambda', 
-        `AllmaIterativeStepProcessor-${stageConfig.stage}`, 
-        'allma-flows/iterative-step-processor/index.js', 
-        this.orchestrationLambdaRole, 
-        iterativeStepProcessorTimeout, 
-        iterativeStepProcessorMemory, 
-        {
-            ...commonEnvVars,
-            [ENV_VAR_NAMES.AI_API_KEY_SECRET_ARN!]: stageConfig.aiApiKeySecretArn || '',
-            [ENV_VAR_NAMES.ALLMA_FLOW_START_REQUEST_QUEUE_URL!]: props.flowStartRequestQueue?.queueUrl || '',
-            [ENV_VAR_NAMES.MAX_CONCURRENT_STEP_EXECUTIONS]: stageConfig.orchestratorConcurrency ? String(stageConfig.orchestratorConcurrency) : '',
-        },
-        undefined,
-        undefined,
-        stageConfig.orchestratorConcurrency 
+      'IterativeStepProcessorLambda',
+      `AllmaIterativeStepProcessor-${stageConfig.stage}`,
+      'allma-flows/iterative-step-processor/index.js',
+      this.orchestrationLambdaRole,
+      iterativeStepProcessorTimeout,
+      iterativeStepProcessorMemory,
+      {
+        ...commonEnvVars,
+        [ENV_VAR_NAMES.AI_API_KEY_SECRET_ARN!]: stageConfig.aiApiKeySecretArn || '',
+        [ENV_VAR_NAMES.ALLMA_FLOW_START_REQUEST_QUEUE_URL!]: props.flowStartRequestQueue?.queueUrl || '',
+        [ENV_VAR_NAMES.MAX_CONCURRENT_STEP_EXECUTIONS]: stageConfig.orchestratorConcurrency ? String(stageConfig.orchestratorConcurrency) : '',
+      },
+      undefined,
+      undefined,
+      stageConfig.orchestratorConcurrency
     );
 
     // --- FinalizeFlowExecutionLambda ---
@@ -230,14 +230,14 @@ export class AllmaCompute extends Construct {
         [ENV_VAR_NAMES.ALLMA_FLOW_START_REQUEST_QUEUE_URL]: flowStartRequestQueue.queueUrl,
       });
     }
-    
+
     // --- FlowTriggerApiLambda ---
     const flowTriggerApiLambdaRole = new iam.Role(this, 'AllmaFlowTriggerApiLambdaRole', {
-        assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
-        managedPolicies: [iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole')],
+      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+      managedPolicies: [iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole')],
     });
     if (props.flowStartRequestQueue) {
-        props.flowStartRequestQueue.grantSendMessages(flowTriggerApiLambdaRole);
+      props.flowStartRequestQueue.grantSendMessages(flowTriggerApiLambdaRole);
     }
     this.flowTriggerApiLambda = this.createNodejsLambda('FlowTriggerApiLambda', `AllmaFlowTriggerApi-${stageConfig.stage}`, 'allma-admin/flow-trigger.js', flowTriggerApiLambdaRole, defaultLambdaTimeout, defaultLambdaMemory, {
       ...commonEnvVars,
@@ -247,7 +247,7 @@ export class AllmaCompute extends Construct {
     const loggerArn = this.executionLoggerLambda.functionArn;
     const lambdasToUpdate = [this.initializeFlowLambda, this.finalizeFlowLambda, this.iterativeStepProcessorLambda];
     for (const lambdaFunc of lambdasToUpdate) {
-        lambdaFunc.addEnvironment('EXECUTION_LOGGER_LAMBDA_ARN', loggerArn);
+      lambdaFunc.addEnvironment('EXECUTION_LOGGER_LAMBDA_ARN', loggerArn);
     }
 
     this.orchestrationLambdaRole.addToPolicy(new iam.PolicyStatement({
@@ -259,9 +259,9 @@ export class AllmaCompute extends Construct {
     }));
 
     this.orchestrationLambdaRole.addToPolicy(new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ['bedrock:InvokeModel'],
-        resources: [`arn:aws:bedrock:${cdk.Aws.REGION}::foundation-model/*`],
+      effect: iam.Effect.ALLOW,
+      actions: ['bedrock:InvokeModel'],
+      resources: [`arn:aws:bedrock:${cdk.Aws.REGION}::foundation-model/*`],
     }));
 
     this.orchestrationLambdaRole.addToPolicy(new iam.PolicyStatement({
@@ -283,12 +283,12 @@ export class AllmaCompute extends Construct {
 
     // Grant EventBridge Scheduler permissions
     configImporterLambdaRole.addToPolicy(new iam.PolicyStatement({
-        actions: ['scheduler:CreateSchedule', 'scheduler:UpdateSchedule', 'scheduler:DeleteSchedule', 'scheduler:GetSchedule'],
-        resources: [`arn:aws:scheduler:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:schedule/default/*`],
+      actions: ['scheduler:CreateSchedule', 'scheduler:UpdateSchedule', 'scheduler:DeleteSchedule', 'scheduler:GetSchedule'],
+      resources: [`arn:aws:scheduler:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:schedule/default/*`],
     }));
     configImporterLambdaRole.addToPolicy(new iam.PolicyStatement({
-        actions: ['iam:PassRole'],
-        resources: [eventBridgeSchedulerRoleArn],
+      actions: ['iam:PassRole'],
+      resources: [eventBridgeSchedulerRoleArn],
     }));
 
     this.configImporterLambda = this.createNodejsLambda('ConfigImporterLambda', `AllmaConfigImporter-${stageConfig.stage}`, 'allma-cdk/config-importer.js', configImporterLambdaRole, cdk.Duration.minutes(5), 256, {
@@ -304,7 +304,7 @@ export class AllmaCompute extends Construct {
     id: string, functionName: string, entry: string, role: iam.IRole,
     timeout: cdk.Duration, memorySize: number, environment: { [key: string]: string },
     bundlingOptions?: lambdaNodejs.BundlingOptions, layers?: lambda.ILayerVersion[],
-    reservedConcurrentExecutions?: number, 
+    reservedConcurrentExecutions?: number,
   ): lambdaNodejs.NodejsFunction {
     const architecture =
       this.stageConfig.lambdaArchitecture === LambdaArchitectureType.ARM_64
@@ -325,11 +325,24 @@ export class AllmaCompute extends Construct {
       bundling: {
         minify: true,
         sourceMap: true,
-        externalModules: ['aws-sdk', '@aws-sdk/*', '@smithy/*'],
+        externalModules: [
+          'aws-sdk',
+          '@aws-sdk/*',
+          '@smithy/*',
+          'plotly.js-dist-min',
+          'mock-aws-s3',
+          'nock',
+          '@mapbox/node-pre-gyp',
+        ],
+
+        loader: {
+          '.html': 'file',
+        },
+
         forceDockerBundling: false,
-        ...bundlingOptions,
+        ...(bundlingOptions ?? {}),
       },
-      architecture: architecture,
+      architecture,
     });
   }
 }

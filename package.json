@@ -26,6 +26,7 @@
   ],
   "dependencies": {
     "@aws-sdk/client-lambda": "^3.913.0",
+    "@tensorflow/tfjs": "^4.22.0",
     "fs": "0.0.1-security",
     "path": "^0.12.7"
   },

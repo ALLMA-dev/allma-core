@@ -29,4 +29,5 @@ export const SystemModuleIdentifiers = {
     EMAIL_START_POINT: 'system/email-start-point',
     SCHEDULE_START_POINT: 'system/schedule-start-point',
     FILE_DOWNLOAD: 'system/file-download',
+    JOIN_DATA: 'system/join-data',
 } as const;
