@@ -1,5 +1,15 @@
 # @allma/core-cdk
 
+## 1.0.27
+
+### Patch Changes
+
+- e4301e0: Flow variables functionality has been added
+- 7b7f11e: Join data step added to Allma
+- Updated dependencies [e4301e0]
+- Updated dependencies [7b7f11e]
+  - @allma/core-types@1.0.16
+
 ## 1.0.26
 
 ### Patch Changes

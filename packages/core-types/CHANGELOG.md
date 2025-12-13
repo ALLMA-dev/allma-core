@@ -1,5 +1,12 @@
 # @allma/core-types
 
+## 1.0.16
+
+### Patch Changes
+
+- e4301e0: Flow variables functionality has been added
+- 7b7f11e: Join data step added to Allma
+
 ## 1.0.15
 
 ### Patch Changes
