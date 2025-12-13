@@ -1,9 +1,10 @@
 import { useEffect } from 'react';
-import { Paper, TextInput, Textarea, TagsInput, Group, Button, LoadingOverlay, Alert, Stack } from '@mantine/core';
+import { TextInput, Textarea, TagsInput, Group, Button, LoadingOverlay, Alert, Stack, Accordion } from '@mantine/core';
 import { useForm, zodResolver } from '@mantine/form';
 import { IconDeviceFloppy } from '@tabler/icons-react';
 import { UpdateFlowConfigInput, UpdateFlowConfigInputSchema, FlowMetadataStorageItem } from '@allma/core-types';
 import { useUpdateFlowConfig, useGetAllFlowTags } from '../../../api/flowService';
+import { FlowVariablesEditor } from './FlowVariablesEditor';
 
 interface FlowSettingsFormProps {
   flowId: string;
@@ -15,8 +16,8 @@ export function FlowSettingsForm({ flowId, flowConfig, isLoading }: FlowSettings
   const { data: allTags, isLoading: isLoadingTags } = useGetAllFlowTags();
   const updateConfigMutation = useUpdateFlowConfig();
 
-  const form = useForm<Omit<UpdateFlowConfigInput, 'emailTriggerAddress'>>({
-    initialValues: { name: '', description: '', tags: [] },
+  const form = useForm<UpdateFlowConfigInput>({
+    initialValues: { name: '', description: '', tags: [], flowVariables: {} },
     validate: zodResolver(UpdateFlowConfigInputSchema),
   });
 
@@ -26,10 +27,11 @@ export function FlowSettingsForm({ flowId, flowConfig, isLoading }: FlowSettings
         name: flowConfig.name,
         description: flowConfig.description || '',
         tags: flowConfig.tags || [],
+        flowVariables: flowConfig.flowVariables || {},
       });
       form.resetDirty();
     }
-  }, [flowConfig?.name, flowConfig?.description, JSON.stringify(flowConfig?.tags), form.setValues, form.resetDirty]);
+  }, [flowConfig]);
 
   if (isLoading) {
     return <LoadingOverlay visible />;
@@ -46,7 +48,6 @@ export function FlowSettingsForm({ flowId, flowConfig, isLoading }: FlowSettings
   };
 
   return (
-    <Paper withBorder p="lg" mb="xl" shadow="sm">
       <form onSubmit={form.onSubmit(handleSubmit)}>
         <Stack>
           <TextInput label="Flow Name" withAsterisk {...form.getInputProps('name')} />
@@ -58,7 +59,17 @@ export function FlowSettingsForm({ flowId, flowConfig, isLoading }: FlowSettings
             {...form.getInputProps('tags')}
             disabled={isLoadingTags}
           />
-          <Group justify="flex-end">
+          
+          <Accordion variant="contained" radius="md">
+            <Accordion.Item value="flow-variables">
+                <Accordion.Control>Flow Variables</Accordion.Control>
+                <Accordion.Panel>
+                    <FlowVariablesEditor form={form as any} readOnly={isLoading} />
+                </Accordion.Panel>
+            </Accordion.Item>
+          </Accordion>
+
+          <Group justify="flex-end" mt="md">
             <Button
               type="submit"
               disabled={!form.isDirty()}
@@ -70,6 +81,5 @@ export function FlowSettingsForm({ flowId, flowConfig, isLoading }: FlowSettings
           </Group>
         </Stack>
       </form>
-    </Paper>
   );
 }

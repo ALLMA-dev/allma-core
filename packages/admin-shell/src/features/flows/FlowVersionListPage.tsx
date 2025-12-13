@@ -1,11 +1,12 @@
 import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Alert, Accordion, Stack, Title } from '@mantine/core';
+import { Alert, Accordion, Stack, Title, Text, Group } from '@mantine/core';
 import { PageContainer, CopyableText } from '@allma/ui-components';
 import { useGetFlowConfig } from '../../api/flowService';
 import { FlowsBreadcrumbs } from './FlowsBreadcrumbs';
 import { FlowSettingsForm } from './components/FlowSettingsForm';
 import { FlowVersionList } from './components/FlowVersionList';
+import { IconSettings } from '@tabler/icons-react';
 
 export function FlowVersionListPage() {
   const { flowId } = useParams<{ flowId: string }>();
@@ -26,14 +27,19 @@ export function FlowVersionListPage() {
   ), [flowId, flowConfig?.name]);
 
   if (!flowId) {
-    return <PageContainer title="Error"><Alert color="red">Flow ID is missing.</Alert></PageContainer>
+    return <PageContainer title="Error"><Alert color="red">Flow ID is missing.</Alert></PageContainer>;
   }
 
   return (
     <PageContainer title={titleComponent} breadcrumb={breadcrumbComponent}>
-      <Accordion mb="xl">
+      <Accordion variant="separated" mb="xl">
         <Accordion.Item value="settings">
-          <Accordion.Control>Flow Settings</Accordion.Control>
+            <Accordion.Control icon={<IconSettings size="1.2rem" />}>
+                <Stack gap={0}>
+                    <Text fw={500} size="md">Flow Settings</Text>
+                    <Text size="xs" c="dimmed">Edit the name, description, tags, and shared variables for this flow.</Text>
+                </Stack>
+            </Accordion.Control>
           <Accordion.Panel>
             <FlowSettingsForm flowId={flowId} flowConfig={flowConfig} isLoading={isConfigLoading} />
           </Accordion.Panel>

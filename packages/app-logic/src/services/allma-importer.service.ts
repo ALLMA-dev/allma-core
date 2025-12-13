@@ -209,6 +209,7 @@ export class AllmaImporterService {
                     name,
                     description,
                     tags,
+                    flowVariables: flow.flowVariables,
                 });
 
                 const existingVersion = await FlowDefinitionService.getVersion(flow.id, flow.version);

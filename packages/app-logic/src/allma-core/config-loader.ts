@@ -10,6 +10,8 @@ import {
     PermanentStepError,
     SYSTEM_STEP_DEFINITIONS,
     StepInstance,
+    FlowMetadataStorageItem,
+    FlowMetadataStorageItemSchema,
 } from '@allma/core-types';
 import { log_error, log_info, deepMerge } from '@allma/core-sdk';
 
@@ -45,6 +47,26 @@ async function getPublishedVersion(itemId: string, itemType: 'FLOW_DEF' | 'PROMP
     }
 }
 
+export async function loadFlowMetadata(flowId: string, correlationId?: string): Promise<FlowMetadataStorageItem> {
+    log_info('Loading Flow Metadata', { flowId, tableName: CONFIG_TABLE_NAME }, correlationId);
+    const getParams = {
+        TableName: CONFIG_TABLE_NAME,
+        Key: { PK: `FLOW_DEF#${flowId}`, SK: 'METADATA' },
+    };
+    try {
+        const { Item } = await ddbDocClient.send(new GetCommand(getParams));
+        if (!Item) {
+            throw new PermanentStepError(`Flow Metadata not found for id: ${flowId}`);
+        }
+        return FlowMetadataStorageItemSchema.parse(Item);
+    } catch (e: any) {
+        if (e instanceof PermanentStepError) throw e;
+        log_error('Failed to load or parse Flow Metadata from DynamoDB', { error: e.message, params: getParams }, correlationId);
+        throw e;
+    }
+}
+
+
 export async function loadFlowDefinition(
   flowDefinitionId: string,
   version: string | number,
@@ -68,7 +90,7 @@ export async function loadFlowDefinition(
       throw new PermanentStepError(`Flow Definition not found for id: ${flowDefinitionId}, version: ${versionToFetch}`);
     }
 
-    // NEW HYDRATION LOGIC STARTS HERE
+    // HYDRATION LOGIC STARTS HERE
     const rawFlowDef = Item as FlowDefinition; // Cast to work with it
 
     for (const stepId in rawFlowDef.steps) {
@@ -82,7 +104,7 @@ export async function loadFlowDefinition(
     }
     // HYDRATION LOGIC ENDS
 
-    // Now, parse the FULLY HYDRATED flow definition
+    // parse the FULLY HYDRATED flow definition
     return FlowDefinitionSchema.parse(rawFlowDef);
 
   } catch (e: any) {

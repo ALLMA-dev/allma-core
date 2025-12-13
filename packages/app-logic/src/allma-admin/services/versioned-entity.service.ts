@@ -228,6 +228,7 @@ export class VersionedEntityManager<TMaster extends MasterItem, TVersion extends
             createdAt: now,
             updatedAt: now,
             tags: (validatedInitialVersion as any).tags ?? [],
+            flowVariables: (validatedInitialVersion as any).flowVariables ?? {},
         };
 
         if ((validatedInitialVersion as any).emailTriggerAddress) {
@@ -399,6 +400,11 @@ export class VersionedEntityManager<TMaster extends MasterItem, TVersion extends
                 updateExpressionParts.push('#tags = :tags');
                 expressionAttributeNamesForUpdate['#tags'] = 'tags';
                 expressionAttributeValuesForUpdate[':tags'] = dataAsAny.tags;
+            }
+            if ('flowVariables' in dataAsAny && typeof dataAsAny.flowVariables === 'object') {
+                updateExpressionParts.push('#flowVariables = :flowVariables');
+                expressionAttributeNamesForUpdate['#flowVariables'] = 'flowVariables';
+                expressionAttributeValuesForUpdate[':flowVariables'] = dataAsAny.flowVariables;
             }
             
             if (updateExpressionParts.length > 1) {

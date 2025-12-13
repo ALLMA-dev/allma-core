@@ -332,9 +332,7 @@ export class AllmaCompute extends Construct {
           'plotly.js-dist-min',
           'mock-aws-s3',
           'nock',
-          '@mapbox/node-pre-gyp',
         ],
-
         loader: {
           '.html': 'file',
         },

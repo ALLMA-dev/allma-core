@@ -36,6 +36,7 @@ export const FlowMetadataStorageItemSchema = z.object({
   name: z.string(),
   description: z.string().optional().nullable(),
   tags: z.array(z.string()).optional().default([]),
+  flowVariables: z.record(z.any()).optional().default({}),
   latestVersion: z.number().int().positive(),
   publishedVersion: z.number().int().positive().optional(),
   createdAt: z.string().datetime(),

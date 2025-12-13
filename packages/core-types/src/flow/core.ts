@@ -47,6 +47,7 @@ export const FlowDefinitionSchema = z.object({
   startStepInstanceId: z.string().min(1, "Start step instance ID is required."),
   enableExecutionLogs: z.boolean().optional().default(false),
   description: z.string().optional().nullable(),
+  flowVariables: z.record(z.any()).optional().default({}),
   defaultStepConfig: z.object({
     defaultInferenceParameters: LlmParametersSchema.optional(),
     defaultCustomConfig: z.record(z.any()).optional(),

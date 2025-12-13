@@ -16,7 +16,7 @@ import {
   log_info,
   resolveS3Pointer,
 } from '@allma/core-sdk';
-import { loadFlowDefinition } from '../allma-core/config-loader.js';
+import { loadFlowDefinition, loadFlowMetadata } from '../allma-core/config-loader.js';
 import { executionLoggerClient } from '../allma-core/execution-logger-client.js';
 
 
@@ -78,12 +78,15 @@ export const handler: Handler<StartFlowExecutionInput, ProcessorOutput> = async 
     // Use provided or generated flowExecutionId
     const effectiveFlowExecutionId = startInput.flowExecutionId || correlationId;
 
-    // 2. Load the FlowDefinition
-    const flowDefinition = await loadFlowDefinition(
-      startInput.flowDefinitionId,
-      startInput.flowVersion,
-      effectiveFlowExecutionId
-    );
+    // 2. Load the FlowDefinition and its metadata
+    const [flowDefinition, flowMetadata] = await Promise.all([
+      loadFlowDefinition(
+        startInput.flowDefinitionId,
+        startInput.flowVersion,
+        effectiveFlowExecutionId
+      ),
+      loadFlowMetadata(startInput.flowDefinitionId, effectiveFlowExecutionId)
+    ]);
 
     // 3. Resolve initial context data, which may have been offloaded to S3 by the calling service.
     let initialContextData = startInput.initialContextData || {};
@@ -106,12 +109,13 @@ export const handler: Handler<StartFlowExecutionInput, ProcessorOutput> = async 
     // Inject system-provided values into the context.
     // This makes flowExecutionId and executionOverrides available from the first step.
     const initialContextWithSystemValues = {
-        steps_output: {}, // Ensure standard keys always exist
-        flow_variables: {
-          flowExecutionId: effectiveFlowExecutionId
-        },
         ...initialContextData,
-        // Merge executionOverrides into the flow's context so it can be accessed via JSONPath
+        steps_output: {},
+        flow_variables: {
+            ...(flowMetadata.flowVariables || {}),
+            ...(initialContextData.flow_variables || {}),
+            flowExecutionId: effectiveFlowExecutionId,
+        },
         ...(startInput.executionOverrides && { executionOverrides: startInput.executionOverrides })
     };
 

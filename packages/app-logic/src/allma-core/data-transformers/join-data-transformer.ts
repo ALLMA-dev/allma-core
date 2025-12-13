@@ -1,6 +1,4 @@
 import { z } from 'zod';
-import * as dfd from 'danfojs-node';
-import { DataFrame } from 'danfojs-node';
 import {
   FlowRuntimeState,
   PermanentStepError,
@@ -10,10 +8,6 @@ import {
 } from '@allma/core-types';
 import { log_error, log_info, log_debug } from '@allma/core-sdk';
 
-/**
- * Zod schema for validating the input to the join-data module.
- * It ensures the data types match the specified format.
- */
 const JoinDataInputSchema = z
   .object({
     left_source: z.any().describe('The first dataset to join. Provided via Input Mappings. Can be a JSON array or a raw CSV string.'),
@@ -49,121 +43,174 @@ const JoinDataInputSchema = z
   );
 
 /**
- * Loads data into a Danfo.js DataFrame from either a CSV string or a JSON array.
+ * Parses a single line of a CSV file, handling quoted fields.
  */
-const loadDataFrame = async (
-  data: any,
-  format: 'csv' | 'json',
-  correlationId?: string,
-): Promise<DataFrame> => {
-  try {
-    if (format === 'csv') {
-      const df = await dfd.readCSV(Buffer.from(data as string));
-      return new DataFrame(df);
-    } else {
-      // Assumes JSON is in "records" orientation (array of objects)
-      return new DataFrame(data);
+function parseCsvLine(line: string): string[] {
+    const values: string[] = [];
+    let current = '';
+    let inQuote = false;
+    for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') {
+            if (inQuote && line[i + 1] === '"') { // Escaped quote
+                current += '"';
+                i++;
+            } else {
+                inQuote = !inQuote;
+            }
+        } else if (char === ',' && !inQuote) {
+            values.push(current);
+            current = '';
+        } else {
+            current += char;
+        }
     }
-  } catch (error: any) {
-    log_error('Failed to load data into DataFrame.', { format, error: error.message }, correlationId);
-    throw new PermanentStepError(`Failed to parse ${format.toUpperCase()} data: ${error.message}`);
-  }
-};
+    values.push(current);
+    return values;
+}
 
 /**
- * A data transformation module that performs a join operation on two datasets.
+ * Parses a CSV string into an array of objects.
  */
+function parseCsv(csv: string): Record<string, any>[] {
+    const lines = csv.trim().split(/\r?\n/);
+    if (lines.length < 2) return [];
+
+    const headers = parseCsvLine(lines[0]);
+    const data = [];
+
+    for (let i = 1; i < lines.length; i++) {
+        if (lines[i].trim() === '') continue;
+        const values = parseCsvLine(lines[i]);
+        if (values.length === headers.length) {
+            const obj: Record<string, any> = {};
+            headers.forEach((header, j) => {
+                obj[header] = values[j];
+            });
+            data.push(obj);
+        }
+    }
+    return data;
+}
+
+/**
+ * Converts an array of objects into a CSV string.
+ */
+function toCsv(data: Record<string, any>[]): string {
+    if (data.length === 0) return '';
+    const headers = Object.keys(data[0]);
+    const headerRow = headers.join(',');
+    const rows = data.map(obj => {
+        return headers.map(header => {
+            const value = obj[header];
+            if (value === null || value === undefined) return '';
+            let strValue = String(value);
+            if (/[",\n]/.test(strValue)) {
+                strValue = `"${strValue.replace(/"/g, '""')}"`;
+            }
+            return strValue;
+        }).join(',');
+    });
+    return [headerRow, ...rows].join('\n');
+}
+
 export const executeJoinDataTransformer: StepHandler = async (
   stepDefinition: StepDefinition,
   stepInput: Record<string, any>,
   runtimeState: FlowRuntimeState,
 ): Promise<StepHandlerOutput> => {
-  const correlationId = runtimeState.flowExecutionId;
+    const correlationId = runtimeState.flowExecutionId;
 
-  log_info('Executing join-data transformer.', {}, correlationId);
-  log_debug('Received step input for join-data', { stepInput }, correlationId);
+    log_info('Executing join-data transformer.', {}, correlationId);
+    log_debug('Received step input for join-data', { stepInput }, correlationId);
 
-  const validation = JoinDataInputSchema.safeParse(stepInput);
-  if (!validation.success) {
-    log_error('Invalid input for system/join-data.', { errors: validation.error.flatten() }, correlationId);
-    throw new PermanentStepError(`Invalid input for join-data: ${validation.error.message}`);
-  }
-  const config = validation.data;
-
-  // 1. Load Data
-  log_info('Loading left and right data sources into DataFrames.', {}, correlationId);
-  const [df_left, df_right] = await Promise.all([
-    loadDataFrame(config.left_source, config.left_format, correlationId),
-    loadDataFrame(config.right_source, config.right_format, correlationId),
-  ]);
-  log_debug('DataFrames loaded.', { left_cols: df_left.columns, right_cols: df_right.columns }, correlationId);
-
-  // 2. Validation
-  for (const key of config.join_keys) {
-    if (!df_left.columns.includes(key)) {
-      throw new PermanentStepError(`Join key '${key}' not found in left data source columns.`);
+    const validation = JoinDataInputSchema.safeParse(stepInput);
+    if (!validation.success) {
+        log_error('Invalid input for system/join-data.', { errors: validation.error.flatten() }, correlationId);
+        throw new PermanentStepError(`Invalid input for join-data: ${validation.error.message}`);
     }
-    if (!df_right.columns.includes(key)) {
-      throw new PermanentStepError(`Join key '${key}' not found in right data source columns.`);
+    const config = validation.data;
+    const { join_keys, join_type, right_select_columns } = config;
+
+    const leftData = config.left_format === 'csv' ? parseCsv(config.left_source) : config.left_source;
+    const rightData = config.right_format === 'csv' ? parseCsv(config.right_source) : config.right_source;
+
+    if (leftData.length === 0 && (join_type === 'inner' || join_type === 'left')) {
+        return { outputData: { result: config.output_format === 'csv' ? '' : [], rowCount: 0 } };
     }
-  }
-
-  if (config.right_select_columns) {
-    for (const col of config.right_select_columns) {
-      if (!df_right.columns.includes(col)) {
-        throw new PermanentStepError(
-          `Selected right column '${col}' not found in right data source columns.`,
-        );
-      }
+    if (rightData.length === 0 && (join_type === 'inner' || join_type === 'right')) {
+        return { outputData: { result: config.output_format === 'csv' ? '' : [], rowCount: 0 } };
     }
-  }
-  log_info('All join keys and selection columns are valid.', {}, correlationId);
 
-  // 3. Join
-  log_info(`Performing '${config.join_type}' join.`, { on: config.join_keys }, correlationId);
-  const common_non_key_cols = df_left.columns.filter(
-    (c: string) => df_right.columns.includes(c) && !config.join_keys.includes(c),
-  );
-  const merged_df = dfd.merge({
-    left: df_left,
-    right: df_right,
-    on: config.join_keys,
-    how: config.join_type,
-    suffixes: ['_left', '_right'],
-  });
+    const leftCols = Object.keys(leftData[0] || {});
+    const rightCols = Object.keys(rightData[0] || {});
 
-  // 4. Column Selection
-  const left_cols_final = df_left.columns.map((c: string) =>
-    common_non_key_cols.includes(c) ? `${c}_left` : c,
-  );
+    for (const key of join_keys) {
+        if (!leftCols.includes(key)) throw new PermanentStepError(`Join key '${key}' not found in left data source columns.`);
+        if (!rightCols.includes(key)) throw new PermanentStepError(`Join key '${key}' not found in right data source columns.`);
+    }
 
-  const right_selectable =
-    config.right_select_columns === null || config.right_select_columns === undefined
-      ? df_right.columns
-      : config.right_select_columns;
+    const commonNonKeyCols = leftCols.filter(c => rightCols.includes(c) && !join_keys.includes(c));
+    const rightColsToSelect = (right_select_columns ?? rightCols).filter(c => !join_keys.includes(c));
 
-  const right_cols_final = right_selectable
-    .filter((c: string) => !config.join_keys.includes(c))
-    .map((c: string) => (common_non_key_cols.includes(c) ? `${c}_right` : c));
+    const createKey = (row: Record<string, any>) => join_keys.map(k => row[k]).join(' | ');
+    const rightMap = new Map<string, Record<string, any>[]>();
+    for (const row of rightData) {
+        const key = createKey(row);
+        if (!rightMap.has(key)) rightMap.set(key, []);
+        rightMap.get(key)!.push(row);
+    }
 
-  const final_column_list = [...new Set([...left_cols_final, ...right_cols_final])];
-  log_debug('Final columns to select after join.', { columns: final_column_list }, correlationId);
+    const joinedData: Record<string, any>[] = [];
+    const matchedRightKeys = new Set<string>();
 
-  const final_df = merged_df.loc({ columns: final_column_list });
+    for (const leftRow of leftData) {
+        const key = createKey(leftRow);
+        const rightMatches = rightMap.get(key);
 
-  // 5. Format Output
-  log_info(`Formatting output as ${config.output_format}.`, { rows: final_df.shape[0] }, correlationId);
-  let result: string | Array<any>;
-  if (config.output_format === 'csv') {
-    result = dfd.toCSV(final_df, { header: true, index: false });
-  } else {
-    result = dfd.toJSON(final_df, { format: 'row' });
-  }
+        if (rightMatches) {
+            if (join_type !== 'right') matchedRightKeys.add(key);
+            for (const rightRow of rightMatches) {
+                const mergedRow: Record<string, any> = {};
+                for (const col of leftCols) mergedRow[commonNonKeyCols.includes(col) ? `${col}_left` : col] = leftRow[col];
+                for (const col of rightColsToSelect) mergedRow[commonNonKeyCols.includes(col) ? `${col}_right` : col] = rightRow[col];
+                joinedData.push(mergedRow);
+            }
+        } else if (join_type === 'left' || join_type === 'outer') {
+            const mergedRow: Record<string, any> = {};
+            for (const col of leftCols) mergedRow[commonNonKeyCols.includes(col) ? `${col}_left` : col] = leftRow[col];
+            for (const col of rightColsToSelect) mergedRow[commonNonKeyCols.includes(col) ? `${col}_right` : col] = null;
+            joinedData.push(mergedRow);
+        }
+    }
 
-  return {
-    outputData: {
-      result: result,
-      rowCount: final_df.shape[0],
-    },
-  };
+    if (join_type === 'right' || join_type === 'outer') {
+        for (const [key, rightRows] of rightMap.entries()) {
+            if (!matchedRightKeys.has(key)) {
+                for (const rightRow of rightRows) {
+                    const mergedRow: Record<string, any> = {};
+                    for (const col of leftCols) {
+                        mergedRow[commonNonKeyCols.includes(col) ? `${col}_left` : col] = null;
+                        if (join_keys.includes(col)) mergedRow[col] = rightRow[col];
+                    }
+                    for (const col of rightColsToSelect) mergedRow[commonNonKeyCols.includes(col) ? `${col}_right` : col] = rightRow[col];
+                    joinedData.push(mergedRow);
+                }
+            }
+        }
+    }
+
+    let result: string | Record<string, any>[];
+    if (config.output_format === 'csv') {
+        result = toCsv(joinedData);
+    } else {
+        result = joinedData;
+    }
+
+    return {
+        outputData: {
+            result: result,
+            rowCount: joinedData.length,
+        },
+    };
 };

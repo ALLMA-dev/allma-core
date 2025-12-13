@@ -78,6 +78,7 @@ const initialVersionFactory = (id: string, now: string, input: CreateFlowInput):
         updatedAt: now,
         publishedAt: null,
         description: input.description,
+        flowVariables: {},
     };
 };
 
@@ -139,8 +140,33 @@ export const FlowDefinitionService = {
     getAllTags: entityManager.getAllTags.bind(entityManager),
     getMaster: entityManager.getMaster.bind(entityManager),
     listVersions: entityManager.listVersions.bind(entityManager),
-    getVersion: entityManager.getVersion.bind(entityManager),
     createVersion: entityManager.createVersion.bind(entityManager),
+
+    /**
+     * Retrieves a specific version of a flow, hydrated with its step definitions and flow variables.
+     * This is used for API responses and exports.
+     * @param id The ID of the flow.
+     * @param version The version number or a string like 'latest'.
+     * @returns A promise resolving to the fully hydrated FlowDefinition or null.
+     */
+    async getVersion(id: string, version: string | number): Promise<FlowDefinition | null> {
+        const [versionData, masterData] = await Promise.all([
+            entityManager.getVersion(id, version),
+            entityManager.getMaster(id),
+        ]);
+
+        if (!versionData) {
+            return null;
+        }
+
+        const versionWithVars: FlowDefinition = {
+            ...versionData,
+            flowVariables: masterData?.flowVariables || {},
+        };
+
+        const hydrated = await hydrateFlow(versionWithVars);
+        return hydrated ?? null;
+    },
 
     async publishVersion(id: string, version: number): Promise<FlowDefinition> {
         const master = await entityManager.getMaster(id);

@@ -72,6 +72,7 @@ export const UpdateFlowConfigInputSchema = z.object({
     name: z.string().min(1, "Flow name is required."),
     description: z.string().optional().nullable(),
     tags: z.array(z.string()).optional().default([]),
+    flowVariables: z.record(z.any()).optional().default({}),
 });
 export type UpdateFlowConfigInput = z.infer<typeof UpdateFlowConfigInputSchema>;
 
