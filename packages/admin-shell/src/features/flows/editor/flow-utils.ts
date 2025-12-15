@@ -2,7 +2,7 @@ import { type FlowDefinition, type StepInstance, StepType, BranchDefinition } fr
 import { Position, type XYPosition } from 'reactflow';
 import Dagre from 'dagre';
 import { LARGE_ARROW_MARKER } from './constants.js';
-import { AllmaStepNode, AllmaTransitionEdge } from './types';
+import { AllmaStepNode, AllmaTransitionEdge } from './types.js';
 
 const dagreGraph = new Dagre.graphlib.Graph();
 dagreGraph.setDefaultEdgeLabel(() => ({}));
@@ -63,11 +63,17 @@ export const flowDefinitionToElements = (flow: FlowDefinition): { flow: FlowDefi
   const edges: AllmaTransitionEdge[] = [];
   
   const allStepEntries = Object.entries(flow.steps);
-  const allNodesHavePosition = allStepEntries.length > 0 && allStepEntries.every(([, step]) => !!step.position);
+  
+  // Determine if we should run auto-layout. We only do this if NO nodes have valid position data.
+  // This preserves user-arranged layouts if they exist, treating auto-layout as a one-time setup.
+  const hasAnyPositionData = allStepEntries.some(
+    ([, step]) => step.position && typeof step.position.x === 'number' && typeof step.position.y === 'number'
+  );
+  const shouldAutoLayout = !hasAnyPositionData && allStepEntries.length > 0;
 
   const branchStepsMap = findBranchSteps(flow.steps);
 
-  // Create nodes
+  // Create nodes, respecting saved positions if they exist.
   allStepEntries.forEach(([stepKey, step]) => {
     let position: XYPosition = { x: 0, y: 0 };
     if (step.position && typeof step.position.x === 'number' && typeof step.position.y === 'number') {
@@ -156,12 +162,12 @@ export const flowDefinitionToElements = (flow: FlowDefinition): { flow: FlowDefi
     }
   });
 
-  // If all nodes already have a position, we're done. Return the original flow.
-  if (allNodesHavePosition) {
+  // If we don't need to auto-layout, return the elements with their saved positions.
+  if (!shouldAutoLayout) {
     return { flow, nodes, edges };
   }
   
-  // If positions are missing, calculate them and update the flow definition.
+  // If no positions exist, calculate them once and update the flow definition.
   const { nodes: layoutedNodes } = getLayoutedElements(nodes, edges);
   
   // Create a new flow definition object to avoid mutation

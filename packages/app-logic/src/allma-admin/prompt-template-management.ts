@@ -6,7 +6,7 @@ import { PromptTemplateService } from './services/prompt-template.service.js';
 import { createCrudHandler } from './utils/create-crud-handler.js';
 import z from 'zod';
 
-// NEW: Schema for updating the master (metadata) record of a prompt.
+// Schema for updating the master (metadata) record of a prompt.
 const UpdatePromptMasterInputSchema = z.object({
     name: z.string().min(1, "Prompt name is required."),
     description: z.string().optional().nullable(),

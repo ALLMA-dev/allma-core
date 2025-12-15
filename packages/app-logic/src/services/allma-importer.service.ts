@@ -1,4 +1,4 @@
-import { AllmaExportFormat, AllmaExportFormatSchema, ImportApiResponse, StepDefinitionSchema, FlowDefinitionSchema, PromptTemplateSchema, McpConnectionSchema, StepDefinition } from '@allma/core-types';
+import { AllmaExportFormat, AllmaExportFormatSchema, ImportApiResponse, StepDefinitionSchema, FlowDefinitionSchema, PromptTemplateSchema, McpConnectionSchema, StepDefinition, FlowDefinition } from '@allma/core-types';
 import { FlowDefinitionService } from '../allma-admin/services/flow-definition.service.js';
 import { StepDefinitionService } from '../allma-admin/services/step-definition.service.js';
 import { PromptTemplateService } from '../allma-admin/services/prompt-template.service.js';
@@ -197,38 +197,41 @@ export class AllmaImporterService {
     if (data.flows) {
         for (const flow of data.flows) {
           try {
-            // The `FlowDefinitionService` now handles the hydration and validation internally.
-            // We pass the raw, un-hydrated flow object directly to the service.
-            const existingMaster = await FlowDefinitionService.getMaster(flow.id);
+            // Re-parse the flow object.
+            // It ensures that optional fields with defaults (like `flowVariables`) are
+            // correctly initialized on the object before it's passed to any service.
+            const parsedFlow = FlowDefinitionSchema.parse(flow) as FlowDefinition;
+
+            const existingMaster = await FlowDefinitionService.getMaster(parsedFlow.id);
             if (existingMaster) {
               if (options.overwrite) {
-                const name = flow.name as string;
-                const description = flow.description as string;
-                const tags = flow.tags as string[];
-                await FlowDefinitionService.updateMaster(flow.id, {
+                const name = parsedFlow.name as string;
+                const description = parsedFlow.description as string;
+                const tags = parsedFlow.tags as string[];
+                await FlowDefinitionService.updateMaster(parsedFlow.id, {
                     name,
                     description,
                     tags,
-                    flowVariables: flow.flowVariables,
+                    flowVariables: parsedFlow.flowVariables,
                 });
 
-                const existingVersion = await FlowDefinitionService.getVersion(flow.id, flow.version);
+                const existingVersion = await FlowDefinitionService.getVersion(parsedFlow.id, parsedFlow.version);
                 if (existingVersion) {
-                  // The updateVersion service handles hydration, validation, and persistence correctly.
-                  await FlowDefinitionService.updateVersion(flow.id, flow.version, flow, { ignorePublishedStatus: true });
-                  if (flow.isPublished) {
-                      await FlowDefinitionService.publishVersion(flow.id, flow.version);
+                  // The updateVersion service handles hydration, validation, and persistence.
+                  await FlowDefinitionService.updateVersion(parsedFlow.id, parsedFlow.version, parsedFlow, { ignorePublishedStatus: true });
+                  if (parsedFlow.isPublished) {
+                      await FlowDefinitionService.publishVersion(parsedFlow.id, parsedFlow.version);
                   }
                   result.updated.flows++;
                 } else {
-                  result.errors.push({ id: flow.id, type: 'flow', message: `Cannot overwrite flow: version ${flow.version} does not exist. Creating new versions for existing flows on import is not supported.` });
+                  result.errors.push({ id: parsedFlow.id, type: 'flow', message: `Cannot overwrite flow: version ${parsedFlow.version} does not exist. Creating new versions for existing flows on import is not supported.` });
                 }
               } else {
                 result.skipped.flows++;
               }
             } else {
               // The create service also handles hydration and validation.
-              await FlowDefinitionService.createFlowFromImport(flow);
+              await FlowDefinitionService.createFlowFromImport(parsedFlow);
               result.created.flows++;
             }
           } catch (error: any) {

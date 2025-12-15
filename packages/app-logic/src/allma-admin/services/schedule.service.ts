@@ -2,6 +2,8 @@ import { SchedulerClient, CreateScheduleCommand, DeleteScheduleCommand, UpdateSc
 import { FlowDefinition, StepInstance, StartFlowExecutionInput, StepType, ENV_VAR_NAMES } from '@allma/core-types';
 import { log_info, log_error, log_warn } from '@allma/core-sdk';
 import { createHash } from 'crypto';
+import { TemplateService } from '../../allma-core/template-service.js';
+import { renderNestedTemplates } from '../../allma-core/utils/template-renderer.js';
 
 const schedulerClient = new SchedulerClient({});
 
@@ -33,11 +35,11 @@ export const ScheduleService = {
     }
 
     for (const step of schedulesToCreate) {
-      await this._createSchedule(flowId, newVersion!.version, step, newVersion!.isPublished);
+      await this._createSchedule(flowId, newVersion!.version, step, newVersion!);
     }
 
     for (const step of schedulesToUpdate) {
-      await this._updateSchedule(flowId, newVersion!.version, step, newVersion!.isPublished);
+      await this._updateSchedule(flowId, newVersion!.version, step, newVersion!);
     }
   },
 
@@ -54,22 +56,28 @@ export const ScheduleService = {
   /**
    * Creates a new schedule in EventBridge Scheduler.
    */
-  async _createSchedule(flowId: string, version: number, step: StepInstance, isPublished: boolean) {
+  async _createSchedule(flowId: string, version: number, step: StepInstance, flowDef: FlowDefinition) {
     const scheduleName = this._generateScheduleName(flowId, version, step.stepInstanceId);
     const { scheduleExpression, timezone, enabled, payloadTemplate } = step as any;
+
+    const templateService = TemplateService.getInstance();
+    const templateContext = { flow_variables: flowDef.flowVariables };
+
+    const renderedScheduleExpression = templateService.render(scheduleExpression, templateContext);
+    const renderedPayloadTemplate = await renderNestedTemplates(payloadTemplate, templateContext, flowId);
 
     const targetInput: StartFlowExecutionInput = {
       flowDefinitionId: flowId,
       flowVersion: String(version),
       triggerSource: `ScheduleTrigger:${step.stepInstanceId}`,
-      initialContextData: payloadTemplate ?? {},
+      initialContextData: renderedPayloadTemplate ?? {},
     };
 
     const command = new CreateScheduleCommand({
       Name: scheduleName,
-      ScheduleExpression: scheduleExpression,
+      ScheduleExpression: renderedScheduleExpression,
       ScheduleExpressionTimezone: timezone ?? 'UTC',
-      State: isPublished && enabled ? 'ENABLED' : 'DISABLED',
+      State: flowDef.isPublished && enabled ? 'ENABLED' : 'DISABLED',
       Target: {
         Arn: process.env[ENV_VAR_NAMES.ALLMA_FLOW_START_REQUEST_QUEUE_ARN],
         RoleArn: process.env[ENV_VAR_NAMES.EVENTBRIDGE_SCHEDULER_ROLE_ARN],
@@ -90,22 +98,28 @@ export const ScheduleService = {
   /**
    * Updates an existing schedule in EventBridge Scheduler.
    */
-  async _updateSchedule(flowId: string, version: number, step: StepInstance, isPublished: boolean) {
+  async _updateSchedule(flowId: string, version: number, step: StepInstance, flowDef: FlowDefinition) {
     const scheduleName = this._generateScheduleName(flowId, version, step.stepInstanceId);
     const { scheduleExpression, timezone, enabled, payloadTemplate } = step as any;
+
+    const templateService = TemplateService.getInstance();
+    const templateContext = { flow_variables: flowDef.flowVariables };
+
+    const renderedScheduleExpression = templateService.render(scheduleExpression, templateContext);
+    const renderedPayloadTemplate = await renderNestedTemplates(payloadTemplate, templateContext, flowId);
 
     const targetInput: StartFlowExecutionInput = {
       flowDefinitionId: flowId,
       flowVersion: String(version),
       triggerSource: `ScheduleTrigger:${step.stepInstanceId}`,
-      initialContextData: payloadTemplate ?? {},
+      initialContextData: renderedPayloadTemplate ?? {},
     };
 
     const command = new UpdateScheduleCommand({
       Name: scheduleName,
-      ScheduleExpression: scheduleExpression,
+      ScheduleExpression: renderedScheduleExpression,
       ScheduleExpressionTimezone: timezone ?? 'UTC',
-      State: isPublished && enabled ? 'ENABLED' : 'DISABLED',
+      State: flowDef.isPublished && enabled ? 'ENABLED' : 'DISABLED',
       Target: {
         Arn: process.env[ENV_VAR_NAMES.ALLMA_FLOW_START_REQUEST_QUEUE_ARN],
         RoleArn: process.env[ENV_VAR_NAMES.EVENTBRIDGE_SCHEDULER_ROLE_ARN],
@@ -121,7 +135,7 @@ export const ScheduleService = {
       // If the schedule doesn't exist, create it instead. This can happen if a previous deletion failed.
       if (error.name === 'ResourceNotFoundException') {
         log_warn(`Schedule ${scheduleName} not found for update, creating it instead.`);
-        await this._createSchedule(flowId, version, step, isPublished);
+        await this._createSchedule(flowId, version, step, flowDef);
       } else {
         log_error(`Error updating schedule ${scheduleName}: ${error.name} - ${error.message}`);
         throw error;

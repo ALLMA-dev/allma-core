@@ -99,8 +99,15 @@ const entityManager = new VersionedEntityManager<FlowMetadataStorageItem, FlowDe
 const customUpdateVersion = async (id: string, version: number, data: FlowDefinition,
     options?: { skipValidation?: boolean, ignorePublishedStatus?: boolean }
 ): Promise<FlowDefinition> => {
-    const oldVersionResult = await entityManager.getVersion(id, version);
+    const [oldVersionResult, master] = await Promise.all([
+        entityManager.getVersion(id, version),
+        entityManager.getMaster(id),
+    ]);
     const oldVersion = oldVersionResult === null ? undefined : oldVersionResult;
+    // Add flow variables to the old version object before hydrating and diffing.
+    if (oldVersion && master) {
+        oldVersion.flowVariables = master.flowVariables;
+    }
 
     const hydratedNewVersion = await hydrateFlow(data);
     if (!hydratedNewVersion) {
@@ -170,11 +177,18 @@ export const FlowDefinitionService = {
 
     async publishVersion(id: string, version: number): Promise<FlowDefinition> {
         const master = await entityManager.getMaster(id);
+        
         const oldPublishedVersionResult = master?.publishedVersion ? await entityManager.getVersion(id, master.publishedVersion) : null;
-        const oldPublishedVersion = oldPublishedVersionResult === null ? undefined : oldPublishedVersionResult;
+        let oldPublishedVersion = oldPublishedVersionResult === null ? undefined : oldPublishedVersionResult;
+        if (oldPublishedVersion && master) {
+            oldPublishedVersion.flowVariables = master.flowVariables;
+        }
 
-        const newPublishedVersion = await entityManager.publishVersion(id, version);
-
+        let newPublishedVersion = await entityManager.publishVersion(id, version);
+        if (newPublishedVersion && master) {
+            newPublishedVersion.flowVariables = master.flowVariables;
+        }
+        
         const hydratedOld = await hydrateFlow(oldPublishedVersion);
         const hydratedNew = await hydrateFlow(newPublishedVersion);
 
@@ -190,7 +204,10 @@ export const FlowDefinitionService = {
             throw new Error(`Flow ${id} is not published or does not exist.`);
         }
         const oldPublishedVersionResult = await entityManager.getVersion(id, master.publishedVersion);
-        const oldPublishedVersion = oldPublishedVersionResult === null ? undefined : oldPublishedVersionResult;
+        let oldPublishedVersion = oldPublishedVersionResult === null ? undefined : oldPublishedVersionResult;
+        if (oldPublishedVersion && master) {
+            oldPublishedVersion.flowVariables = master.flowVariables;
+        }
 
         const unpublishedVersion = await entityManager.unpublishVersion(id, master.publishedVersion);
 
@@ -204,9 +221,14 @@ export const FlowDefinitionService = {
     },
 
     async deleteVersion(id: string, version: number): Promise<void> {
+        const master = await entityManager.getMaster(id);
         const versionToDeleteResult = await entityManager.getVersion(id, version);
-        const versionToDelete = versionToDeleteResult === null ? undefined : versionToDeleteResult;
+        let versionToDelete = versionToDeleteResult === null ? undefined : versionToDeleteResult;
         
+        if (versionToDelete && master) {
+            versionToDelete.flowVariables = master.flowVariables;
+        }
+
         const hydratedToDelete = await hydrateFlow(versionToDelete);
         if (hydratedToDelete) {
             await EmailMappingService.syncMappingsForFlowVersion(id, hydratedToDelete, undefined);

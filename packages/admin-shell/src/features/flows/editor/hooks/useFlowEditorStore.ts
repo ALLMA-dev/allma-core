@@ -10,15 +10,18 @@ import {
     applyNodeChanges,
     applyEdgeChanges,
     EdgeRemoveChange,
+    XYPosition,
 } from 'reactflow';
 import { v4 as uuidv4 } from 'uuid';
-import { LARGE_ARROW_MARKER } from '../constants';
+import { LARGE_ARROW_MARKER } from '../constants.js';
 import { type FlowDefinition, StepInstance } from '@allma/core-types';
-import { AllmaStepNode, AllmaTransitionEdge, StepNodeData } from '../types';
+import { AllmaStepNode, AllmaTransitionEdge, StepNodeData } from '../types.js';
 
 // The type for the flow definition stored in the editor state.
 // It includes the `name` and `description` from the metadata record for UI purposes.
 type FlowEditorDefinition = FlowDefinition & { name: string; description?: string };
+
+type PositionChange = { type: 'position'; id: string; position?: XYPosition };
 
 export type RFState = {
     flowDefinition: FlowEditorDefinition | null;
@@ -48,48 +51,60 @@ const useFlowEditorStore = create<RFState>((set, get) => ({
     isDirty: false,
     onNodesChange: (changes: NodeChange[]) => {
         set(state => {
-            const { flowDefinition, nodes } = state;
-            if (!flowDefinition) {
-                // Should not happen if a flow is loaded, but a good guard.
-                return { ...state, nodes: applyNodeChanges(changes, nodes) };
+            const { flowDefinition, nodes: originalNodes } = state;
+    
+            // Apply changes from React Flow to get the new visual state of nodes.
+            const updatedNodes = applyNodeChanges(changes, originalNodes);
+    
+            // We only need to update the canonical `flowDefinition` if a node's position changed.
+            const positionChanges = changes.filter(
+                (change): change is PositionChange & { position: XYPosition } =>
+                    change.type === 'position' && !!change.position
+            );
+    
+            if (positionChanges.length === 0 || !flowDefinition) {
+                // For non-position changes (like selection), just update the visual `nodes` array.
+                return { nodes: updatedNodes };
             }
     
-            // First, apply the changes to the nodes array for React Flow's internal state
-            const updatedNodes = applyNodeChanges(changes, nodes);
+            // A position change occurred, so we must update our source of truth.
+            const newSteps = { ...flowDefinition.steps };
+            let wasStateModified = false;
     
-            const updatedSteps = { ...flowDefinition.steps };
-            let wasPositionUpdated = false;
-    
-            // Now, iterate through the changes to update our canonical flowDefinition state
-            changes.forEach(change => {
-                // We are interested in any position change, not just at the end of a drag.
-                // This makes the logic simpler and more robust, at a slight performance cost during drag.
-                // This is the key fix to ensure all position changes are captured.
-                if (change.type === 'position' && change.position) {
-                    const stepToUpdate = updatedSteps[change.id];
-                    if (stepToUpdate) {
-                        // Create a new step object with the updated position.
-                        updatedSteps[change.id] = {
-                            ...stepToUpdate,
-                            position: change.position,
-                        };
-                        wasPositionUpdated = true;
-                    }
+            for (const change of positionChanges) {
+                const stepToUpdate = newSteps[change.id];
+                if (stepToUpdate && (stepToUpdate.position?.x !== change.position.x || stepToUpdate.position?.y !== change.position.y)) {
+                    newSteps[change.id] = {
+                        ...stepToUpdate,
+                        position: change.position,
+                    };
+                    wasStateModified = true;
                 }
-            });
+            }
     
-            // If any position was updated, create a new flow definition object and mark as dirty.
-            if (wasPositionUpdated) {
-                const newFlowDef = { ...flowDefinition, steps: updatedSteps };
+            if (wasStateModified) {
+                const newFlowDef = { ...flowDefinition, steps: newSteps };
+    
+                // Ensure the `node.data.config` for each node is the same object reference
+                // as the step in our new canonical `flowDefinition`. This keeps everything in sync.
+                const finalNodes = updatedNodes.map(node => {
+                    const canonicalStep = newSteps[node.id];
+                    if (canonicalStep && node.data.config !== canonicalStep) {
+                        return { ...node, data: { ...node.data, config: canonicalStep } };
+                    }
+                    return node;
+                });
+    
                 return {
-                    nodes: updatedNodes,
+                    nodes: finalNodes,
                     flowDefinition: newFlowDef,
                     isDirty: true,
                 };
             }
     
-            // If no positions were updated (e.g., selection change), just return the updated nodes array.
-            return { ...state, nodes: updatedNodes };
+            // If for some reason a 'position' change didn't modify our state,
+            // still return the updated visual nodes.
+            return { nodes: updatedNodes };
         });
     },
     onEdgesChange: (changes: EdgeChange[]) => {
