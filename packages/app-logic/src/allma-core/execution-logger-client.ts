@@ -7,8 +7,9 @@ import {
     AllmaFlowExecutionRecord,
     type LogStepExecutionRecord,
     type MinimalLogStepExecutionRecord,
+    isS3OutputPointerWrapper,
 } from '@allma/core-types';
-import { log_error, log_debug } from '@allma/core-sdk';
+import { log_error, log_debug, recursivelyOffloadLargeFields } from '@allma/core-sdk';
 
 const lambdaClient = new LambdaClient({});
 const s3Client = new S3Client({});
@@ -16,6 +17,7 @@ const s3Client = new S3Client({});
 const EXECUTION_LOGGER_LAMBDA_ARN = process.env.EXECUTION_LOGGER_LAMBDA_ARN!;
 const EXECUTION_TRACES_BUCKET_NAME = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME]!;
 const LAMBDA_PAYLOAD_LIMIT_BYTES = 240 * 1024;
+const LOG_FIELD_OFFLOAD_THRESHOLD = 50 * 1024; // 50KB
 
 class ExecutionLoggerClient {
     private async invokeLogger(payload: ExecutionLoggerPayload, correlationId: string): Promise<void> {
@@ -83,8 +85,35 @@ class ExecutionLoggerClient {
         log_debug(`[execution-logger-client] Logging step execution for '${fullRecordData.stepInstanceId}' using hybrid storage model.`, {}, correlationId);
 
         try {
-            // Step 1: ALWAYS upload the full, detailed record to S3.
-            const fullRecordString = JSON.stringify(fullRecordData);
+            // Create a mutable copy to process for logging.
+            const recordToLog = { ...fullRecordData };
+            
+            // Proactively and recursively offload heavy fields within the log record.
+            const logArtifactPrefix = `log_artifacts/${correlationId}/${s3Identifier}`;
+            
+            const fieldsToProcess: (keyof LogStepExecutionRecord)[] = [
+                'inputMappingResult',
+                'outputData',
+                'inputMappingContext',
+                'outputMappingContext',
+                'templateContextMappingContext',
+                'logDetails',
+            ];
+
+            for (const field of fieldsToProcess) {
+                if (recordToLog[field]) {
+                    (recordToLog as any)[field] = await recursivelyOffloadLargeFields(
+                        recordToLog[field],
+                        EXECUTION_TRACES_BUCKET_NAME,
+                        `${logArtifactPrefix}/${field}`, // e.g., log_artifacts/.../inputMappingResult
+                        correlationId,
+                        LOG_FIELD_OFFLOAD_THRESHOLD
+                    );
+                }
+            }
+            
+            // ALWAYS upload the (now potentially modified) full record to S3.
+            const fullRecordString = JSON.stringify(recordToLog);
             const s3Key = `full_step_records/${correlationId}/${s3Identifier}_${new Date().toISOString()}.json`;
             
             await s3Client.send(new PutObjectCommand({
@@ -96,7 +125,7 @@ class ExecutionLoggerClient {
 
             const s3Pointer: S3Pointer = { bucket: EXECUTION_TRACES_BUCKET_NAME, key: s3Key };
             
-            // Step 2: Construct the minimal record for DynamoDB.
+            // Construct the minimal record for DynamoDB.
             const minimalRecordForDb: MinimalLogStepExecutionRecord = {
                 flowExecutionId: fullRecordData.flowExecutionId,
                 branchId: fullRecordData.branchId,
@@ -120,13 +149,13 @@ class ExecutionLoggerClient {
                 fullRecordS3Pointer: s3Pointer,
             };
 
-            // Step 3: Create the payload for the logger Lambda. This payload is now always small.
+            // Create the payload for the logger Lambda. This payload is now always small.
             const payload: ExecutionLoggerPayload = {
                 action: 'LOG_STEP_EXECUTION',
                 record: minimalRecordForDb,
             };
 
-            // Step 4: Invoke the logger.
+            // Invoke the logger.
             await this.invokeLogger(payload, correlationId);
 
             return s3Pointer;

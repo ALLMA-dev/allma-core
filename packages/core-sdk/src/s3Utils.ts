@@ -1,7 +1,8 @@
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import type { S3OutputPointerWrapper, S3Pointer } from '@allma/core-types';
-import { ENV_VAR_NAMES } from '@allma/core-types';
+import { ENV_VAR_NAMES, isS3OutputPointerWrapper } from '@allma/core-types';
 import { log_info, log_error, log_warn, log_debug } from "./logger.js";
+import { isObject } from './objectUtils.js';
 
 const s3Client = new S3Client({});
 
@@ -91,4 +92,103 @@ export async function offloadIfLarge(
         log_error(`Failed to offload payload to S3 for key prefix '${keyPrefix}'`, { error: e.message }, correlationId);
         throw new Error(`Failed during S3 offload attempt: ${e.message}`);
     }
+}
+
+
+/**
+ * Recursively traverses a data structure (object or array) and offloads any field
+ * whose value exceeds a size threshold to S3, replacing it with an S3 pointer.
+ *
+ * @param data The data structure to process.
+ * @param bucketName The S3 bucket to upload large fields to.
+ * @param keyPrefix A prefix for generating S3 keys (e.g., 'log_artifacts/exec-id/step-id').
+ * @param correlationId For logging.
+ * @param thresholdBytes The size in bytes above which a field's value is offloaded.
+ * @returns A new data structure with large fields replaced by S3 pointers.
+ */
+export async function recursivelyOffloadLargeFields(
+    data: any,
+    bucketName: string,
+    keyPrefix: string,
+    correlationId: string,
+    thresholdBytes: number
+): Promise<any> {
+    if (Array.isArray(data)) {
+        // Process each item in the array recursively.
+        return Promise.all(
+            data.map((item, index) => 
+                recursivelyOffloadLargeFields(item, bucketName, `${keyPrefix}/${index}`, correlationId, thresholdBytes)
+            )
+        );
+    }
+
+    if (isObject(data)) {
+        // Do not process S3 pointers themselves.
+        if (isS3OutputPointerWrapper(data)) {
+            return data;
+        }
+
+        const newObject: Record<string, any> = {};
+        for (const key in data) {
+            if (Object.prototype.hasOwnProperty.call(data, key)) {
+                const value = data[key];
+                
+                try {
+                    // First, check the size of the value.
+                    const valueString = (typeof value === 'string') ? value : JSON.stringify(value);
+                    const valueSize = Buffer.byteLength(valueString, 'utf-8');
+
+                    if (valueSize > thresholdBytes) {
+                        // Value is large, offload it.
+                        log_warn(`Field '${key}' in '${keyPrefix}' is large (${valueSize} bytes), offloading to S3.`, { }, correlationId);
+                        
+                        const isString = typeof value === 'string';
+                        const s3Key = `${keyPrefix}/${key}_${new Date().toISOString()}.${isString ? 'txt' : 'json'}`;
+                        await s3Client.send(new PutObjectCommand({
+                            Bucket: bucketName,
+                            Key: s3Key,
+                            Body: valueString,
+                            ContentType: isString ? 'text/plain' : 'application/json',
+                        }));
+                        
+                        const s3Pointer: S3Pointer = { bucket: bucketName, key: s3Key };
+                        newObject[key] = { _s3_output_pointer: s3Pointer };
+
+                    } else {
+                        // Value is small enough, recurse into it in case it contains large nested fields.
+                        newObject[key] = await recursivelyOffloadLargeFields(
+                            value,
+                            bucketName,
+                            `${keyPrefix}/${key}`, // a more descriptive path for nested objects
+                            correlationId,
+                            thresholdBytes
+                        );
+                    }
+                } catch(e: any) {
+                    log_error(`Error processing field '${key}' during recursive offload. Replacing with error message.`, { error: e.message }, correlationId);
+                    newObject[key] = { _offload_error: `Failed to process or serialize field: ${e.message}`};
+                }
+            }
+        }
+        return newObject;
+    }
+
+    // It's a primitive (string, number, boolean, null)
+    if (typeof data === 'string') {
+        const valueSize = Buffer.byteLength(data, 'utf-8');
+        if (valueSize > thresholdBytes) {
+             log_warn(`String value at path '${keyPrefix}' is large (${valueSize} bytes), offloading to S3.`, {}, correlationId);
+             const s3Key = `${keyPrefix}_${new Date().toISOString()}.txt`;
+             await s3Client.send(new PutObjectCommand({
+                 Bucket: bucketName,
+                 Key: s3Key,
+                 Body: data,
+                 ContentType: 'text/plain',
+             }));
+             const s3Pointer: S3Pointer = { bucket: bucketName, key: s3Key };
+             return { _s3_output_pointer: s3Pointer };
+        }
+    }
+
+    return data; // Return other primitives as-is
 }

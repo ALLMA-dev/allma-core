@@ -406,7 +406,7 @@ export const executeStandardStep = async (
             durationMs: stepDurationMs,
             logDetails: logDetailsForRecord,
             inputMappingResult: finalStepInput,
-            outputData: outputDataForMapping, // Pass the raw output data (or error object)
+            outputData: finalOutputForMapping, // Pass the OFF-LOADED output data (or error object)
             mappingEvents: allMappingEvents,
             inputMappingContext: inputContext,
             outputMappingContext: runtimeState.currentContextData,
