@@ -1,5 +1,11 @@
 # @allma/admin-shell
 
+## 1.0.20
+
+### Patch Changes
+
+- 7dd4f00: Fixes in Importer, UI, schedule service
+
 ## 1.0.19
 
 ### Patch Changes
