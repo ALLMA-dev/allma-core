@@ -4,7 +4,7 @@ import { useForm, zodResolver } from '@mantine/form';
 import { IconDeviceFloppy } from '@tabler/icons-react';
 import { UpdateFlowConfigInput, UpdateFlowConfigInputSchema, FlowMetadataStorageItem } from '@allma/core-types';
 import { useUpdateFlowConfig, useGetAllFlowTags } from '../../../api/flowService';
-import { FlowVariablesEditor } from './FlowVariablesEditor';
+import { FlowVariablesEditor } from './FlowVariablesEditor.js';
 
 interface FlowSettingsFormProps {
   flowId: string;

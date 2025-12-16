@@ -2,11 +2,12 @@ import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { Alert, Accordion, Stack, Title, Text, Group } from '@mantine/core';
 import { PageContainer, CopyableText } from '@allma/ui-components';
+import { IconSettings } from '@tabler/icons-react';
 import { useGetFlowConfig } from '../../api/flowService';
 import { FlowsBreadcrumbs } from './FlowsBreadcrumbs';
 import { FlowSettingsForm } from './components/FlowSettingsForm';
 import { FlowVersionList } from './components/FlowVersionList';
-import { IconSettings } from '@tabler/icons-react';
+import { FlowExecutionsList } from './../executions/components/FlowExecutionsList';
 
 export function FlowVersionListPage() {
   const { flowId } = useParams<{ flowId: string }>();
@@ -45,8 +46,11 @@ export function FlowVersionListPage() {
           </Accordion.Panel>
         </Accordion.Item>
       </Accordion>
+      
       <Title order={3} mb="md">Versions</Title>
       <FlowVersionList flowId={flowId} />
+
+      <FlowExecutionsList flowId={flowId} />
     </PageContainer>
   );
 }
