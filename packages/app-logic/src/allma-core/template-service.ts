@@ -1,9 +1,7 @@
-// packages/allma-app-logic/src/allma-core/template-service.ts
-
 import Handlebars from 'handlebars';
 import { JSONPath } from 'jsonpath-plus';
-import { MappingEvent, MappingEventStatus, MappingEventType, TemplateContextMappingItem } from '@allma/core-types';
-import { log_debug, log_warn } from '@allma/core-sdk';
+import { MappingEvent, MappingEventStatus, MappingEventType, TemplateContextMappingItem, isS3OutputPointerWrapper } from '@allma/core-types';
+import { log_debug, log_warn, resolveS3Pointer } from '@allma/core-sdk';
 import { getSmartValueByJsonPath } from './data-mapper.js'; // Import the smart resolver
 
 /**
@@ -119,8 +117,8 @@ export class TemplateService {
       let value: any;
       let resolutionEvents: MappingEvent[] = [];
       try {
-        // Use the smart, S3-aware path resolver
-        const result = await getSmartValueByJsonPath(mapping.sourceJsonPath, contextData, correlationId);
+        // Use the smart, S3-aware path resolver. Hydration must be true for templating.
+        const result = await getSmartValueByJsonPath(mapping.sourceJsonPath, contextData, true, correlationId);
         value = result.value;
         resolutionEvents = result.events;
         events.push(...resolutionEvents);
@@ -156,7 +154,6 @@ export class TemplateService {
       let processedValue = value;
       if (mapping.selectFields && mapping.selectFields.length > 0) {
         let valueToProcess = processedValue;
-        // NEW: Attempt to parse if the value is a JSON string before selecting fields.
         if (typeof valueToProcess === 'string') {
             const trimmed = valueToProcess.trim();
             if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
@@ -164,7 +161,6 @@ export class TemplateService {
                     valueToProcess = JSON.parse(valueToProcess);
                 } catch (e) {
                     log_warn(`Value for key '${key}' could not be parsed as JSON for selectFields. Proceeding with raw string.`, { path: mapping.sourceJsonPath }, correlationId);
-                    // If parsing fails, valueToProcess remains the original string, and selectFields will likely do nothing, which is safe.
                 }
             }
         }
@@ -202,7 +198,30 @@ export class TemplateService {
         case 'CUSTOM_STRING':
           if (Array.isArray(processedValue)) {
               if (mapping.itemTemplate) {
-                  const formattedItems = processedValue.map(item => this.render(mapping.itemTemplate!, item));
+                  const formattedItems = await Promise.all(processedValue.map(async (item) => {
+                      // ** S3-AWARE HYDRATION LOGIC **
+                      // Before rendering, inspect the item for S3 pointers and resolve them.
+                      let contextForItem = item;
+                      if (typeof item === 'object' && item !== null) {
+                          const hydratedItem = { ...item };
+                          for (const prop in hydratedItem) {
+                              if (Object.prototype.hasOwnProperty.call(hydratedItem, prop) && isS3OutputPointerWrapper(hydratedItem[prop])) {
+                                  log_debug(`Hydrating S3 pointer for item property '${prop}' in CUSTOM_STRING template`, { key }, correlationId);
+                                  hydratedItem[prop] = await resolveS3Pointer(hydratedItem[prop]._s3_output_pointer, correlationId);
+                                  log_debug(`hydratedItem[prop] is ${ JSON.stringify(hydratedItem[prop]) }`, {}, correlationId);
+                              }
+                          }
+                          contextForItem = hydratedItem;
+                          log_debug(`contextForItem ${ JSON.stringify(contextForItem) }`, {}, correlationId);
+                      }
+                      const renderedPart = this.render(mapping.itemTemplate!, contextForItem);
+
+                      // ** Intelligently stringify if the template resolved to an object **
+                      if (typeof renderedPart === 'object' && renderedPart !== null) {
+                          return JSON.stringify(renderedPart);
+                      }
+                      return String(renderedPart);
+                  }));
                   context[key] = formattedItems.join(mapping.joinSeparator);
               } else {
                    log_warn(`formatAs is 'CUSTOM_STRING' for key '${key}' but itemTemplate is missing. Using raw value.`, { path: mapping.sourceJsonPath }, correlationId);

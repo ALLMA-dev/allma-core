@@ -8,9 +8,10 @@ interface TestExecutionModalProps {
     onClose: () => void;
     flowId: string | null;
     version: number | string | null;
+    onExecutionSuccess: () => void;
 }
 
-export function TestExecutionModal({ opened, onClose, flowId, version }: TestExecutionModalProps) {
+export function TestExecutionModal({ opened, onClose, flowId, version, onExecutionSuccess }: TestExecutionModalProps) {
     const [initialContextData, setInitialContextData] = useState<Record<string, any>>({});
     const executeMutation = useExecuteFlowVersion();
 
@@ -20,7 +21,7 @@ export function TestExecutionModal({ opened, onClose, flowId, version }: TestExe
                 { flowId, version, initialContextData },
                 {
                     onSuccess: () => {
-                        onClose();
+                        onExecutionSuccess();
                     },
                 }
             );

@@ -3,13 +3,10 @@ import { IconEye, IconAlertCircle, IconPlayerPlay } from '@tabler/icons-react';
 import { format } from 'date-fns';
 import { Link, useNavigate } from 'react-router-dom';
 import { FlowExecutionSummary } from '@allma/core-types';
-import { useQueryClient } from '@tanstack/react-query';
 import { modals } from '@mantine/modals';
-import { notifications } from '@mantine/notifications';
 import { useFlowRedrive } from '../../../api/flowService';
 import { formatFuzzyDurationWithDetail } from '../../../utils/formatters';
 import { getStatusColor } from '../utils';
-import { EXECUTIONS_LIST_QUERY_KEY } from '../constants';
 
 interface ExecutionsTableProps {
     executions: FlowExecutionSummary[];
@@ -21,7 +18,6 @@ interface ExecutionsTableProps {
 }
 
 export function ExecutionsTable({ executions, isLoading, isRefetching, flowId, error, onRedriveSuccess }: ExecutionsTableProps) {
-    const queryClient = useQueryClient();
     const navigate = useNavigate();
     const flowRedriveMutation = useFlowRedrive();
 
@@ -39,13 +35,6 @@ export function ExecutionsTable({ executions, isLoading, isRefetching, flowId, e
             onConfirm: () => {
                 flowRedriveMutation.mutate({ executionId: exec.flowExecutionId }, {
                     onSuccess: (data) => {
-                        queryClient.invalidateQueries({ queryKey: [EXECUTIONS_LIST_QUERY_KEY, { flowId }] });
-                        notifications.show({
-                            title: 'Redrive Initiated',
-                            message: `Redirecting to new execution: ${data.newFlowExecutionId.substring(0, 8)}...`,
-                            color: 'green',
-                            icon: <IconPlayerPlay size="1.1rem" />,
-                        });
                         if (onRedriveSuccess) {
                             onRedriveSuccess(data.newFlowExecutionId);
                         } else {

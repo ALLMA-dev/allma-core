@@ -26,7 +26,8 @@ const evaluateSingleCondition = async (
     if (match) {
         const [, jsonPath, operator, literalValueStr] = match;
         // Resolve the value from the context using the smart getter.
-        const { value: pathValue, events } = await getSmartValueByJsonPath(jsonPath, context, correlationId);
+        // Conditions MUST operate on real data, so hydration is always enabled.
+        const { value: pathValue, events } = await getSmartValueByJsonPath(jsonPath, context, true, correlationId);
         resolvedValue = pathValue;
         allEvents.push(...events);
 
@@ -55,7 +56,8 @@ const evaluateSingleCondition = async (
         }
     } else {
         // If it's not a simple expression, treat it as a JSONPath to be checked for truthiness.
-        const { value, events } = await getSmartValueByJsonPath(condition, context, correlationId);
+        // Conditions MUST operate on real data, so hydration is always enabled.
+        const { value, events } = await getSmartValueByJsonPath(condition, context, true, correlationId);
         resolvedValue = value;
         allEvents.push(...events);
 

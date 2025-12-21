@@ -46,8 +46,8 @@ async function renderValue(value: any, contextData: Record<string, any>, correla
     // or the original value was a pure JSONPath. The regex `^\$\..*$` is a simple but effective check.
     if (/^\$\..*$/.test(processedValue)) {
         try {
-            // Use the smart resolver which handles S3 pointers and logs events
-            const { value: resolved } = await getSmartValueByJsonPath(processedValue, contextData, correlationId);
+            // Use the smart resolver which handles S3 pointers and logs events. Hydration must be true for rendering.
+            const { value: resolved } = await getSmartValueByJsonPath(processedValue, contextData, true, correlationId);
             
             if (resolved === undefined) {
                 log_warn(`JSONPath '${processedValue}' (from original value: '${value}') resolved to undefined.`, {}, correlationId);

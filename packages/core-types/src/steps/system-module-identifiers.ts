@@ -30,4 +30,5 @@ export const SystemModuleIdentifiers = {
     SCHEDULE_START_POINT: 'system/schedule-start-point',
     FILE_DOWNLOAD: 'system/file-download',
     JOIN_DATA: 'system/join-data',
+    GENERATE_UUID: 'system/generate-uuid',
 } as const;

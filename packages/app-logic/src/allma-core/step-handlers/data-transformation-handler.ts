@@ -14,6 +14,7 @@ import { executeArrayAggregatorTransformer } from '../data-transformers/array-ag
 import { executeFlattenArrayTransformer } from '../data-transformers/flatten-array-transformer.js';
 import { executeDateTimeCalculator } from '../data-transformers/date-time-calculator.js';
 import { executeJoinDataTransformer } from '../data-transformers/join-data-transformer.js';
+import { executeGenerateUuidTransformer } from '../data-transformers/generate-uuid-transformer.js';
 
 const dataTransformationModuleRegistry = SYSTEM_STEP_DEFINITIONS
   .filter(def => def.stepType === StepType.DATA_TRANSFORMATION)
@@ -36,6 +37,9 @@ const dataTransformationModuleRegistry = SYSTEM_STEP_DEFINITIONS
         break;
       case SystemModuleIdentifiers.JOIN_DATA:
         acc[def.moduleIdentifier] = executeJoinDataTransformer;
+        break;
+      case SystemModuleIdentifiers.GENERATE_UUID:
+        acc[def.moduleIdentifier] = executeGenerateUuidTransformer;
         break;
     }
     return acc;

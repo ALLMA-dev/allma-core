@@ -1,3 +1,4 @@
+// In package: allma-app-logic
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, QueryCommand } from '@aws-sdk/lib-dynamodb';
@@ -150,28 +151,46 @@ export const handler = async (event: { Records: SesEventRecord[] }): Promise<voi
                 senderEmailPrefix = parts[0];
             }
 
-            // 3. Construct payload with extended sender info
+            // 3. Detect and Extract trigger pattern using regex
+            let triggerPattern: string | undefined;
+
+            if (targetMapping.triggerMessagePattern) {
+                const regex = new RegExp(targetMapping.triggerMessagePattern);
+                const match = textBody.match(regex);
+                if (match && match[1]) {
+                    triggerPattern = match[1]; // Extracted value
+                    log_info('Trigger pattern extracted from email body.', { triggerPattern }, correlationId);
+                } else {
+                    log_warn('No trigger pattern found in email body.', { triggerMessagePattern: targetMapping.triggerMessagePattern }, correlationId);
+                }
+            }
+            
+            // 4. Construct payload with extended sender info and tracking ID
+            const initialContextData: Record<string, any> = {
+                triggeringEmail: {
+                    from: fromText,
+                    // Expanded sender data
+                    senderName: senderName,
+                    senderFullEmail: senderFullEmail,
+                    senderEmailPrefix: senderEmailPrefix,
+                    // Standard fields
+                    to: recipient,
+                    subject: parsedEmail.subject,
+                    body: textBody,
+                    htmlBody: parsedEmail.html || undefined,
+                    attachments: attachments,
+                    // tracking
+                    triggerPattern: triggerPattern,
+                },
+            };
+
             const startFlowInput: StartFlowExecutionInput = {
                 flowDefinitionId,
                 flowVersion: 'LATEST_PUBLISHED',
                 flowExecutionId: newFlowExecutionId,
                 triggerSource: `EmailTrigger:${recipient}`,
                 enableExecutionLogs: true,
-                initialContextData: {
-                    triggeringEmail: {
-                        from: fromText,
-                        // Expanded sender data
-                        senderName: senderName,
-                        senderFullEmail: senderFullEmail,
-                        senderEmailPrefix: senderEmailPrefix,
-                        // Standard fields
-                        to: recipient,
-                        subject: parsedEmail.subject,
-                        body: textBody,
-                        htmlBody: parsedEmail.html || undefined,
-                        attachments: attachments,
-                    },
-                },
+                initialContextData: initialContextData,
             };
 
             if (stepInstanceId) {

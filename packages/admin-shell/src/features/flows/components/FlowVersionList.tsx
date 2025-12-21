@@ -5,6 +5,8 @@ import { format } from 'date-fns';
 import { useGetFlowConfig, useListFlowVersions, usePublishFlowVersion, useUnpublishFlowVersion, FlowVersionSummary } from '../../../api/flowService';
 import { useDisclosure } from '@mantine/hooks';
 import { TestExecutionModal } from './TestExecutionModal';
+import { useQueryClient } from '@tanstack/react-query';
+import { EXECUTIONS_LIST_QUERY_KEY } from '../../executions/constants';
 
 interface FlowVersionListProps {
   flowId: string;
@@ -15,6 +17,7 @@ export function FlowVersionList({ flowId }: FlowVersionListProps) {
   const [publishModal, { open: openPublishModal, close: closePublishModal }] = useDisclosure(false);
   const [unpublishModal, { open: openUnpublishModal, close: closeUnpublishModal }] = useDisclosure(false);
   const [testModalOpened, { open: openTestModal, close: closeTestModal }] = useDisclosure(false);
+  const queryClient = useQueryClient();
 
   const { data: flowConfig } = useGetFlowConfig(flowId);
   const { data: flowVersions, isLoading, error } = useListFlowVersions(flowId);
@@ -42,6 +45,13 @@ export function FlowVersionList({ flowId }: FlowVersionListProps) {
     if (versionToModify) {
       unpublishMutation.mutate({ flowId: versionToModify.id, version: versionToModify.version }, { onSuccess: closeUnpublishModal });
     }
+  };
+
+  const handleTestExecutionSuccess = () => {
+    closeTestModal();
+    setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: [EXECUTIONS_LIST_QUERY_KEY] });
+    }, 5000);
   };
 
   const sortedVersions = useMemo(() => {
@@ -83,6 +93,7 @@ export function FlowVersionList({ flowId }: FlowVersionListProps) {
         onClose={closeTestModal}
         flowId={versionToModify?.id || null}
         version={versionToModify?.version || null}
+        onExecutionSuccess={handleTestExecutionSuccess}
       />
     </>
   );

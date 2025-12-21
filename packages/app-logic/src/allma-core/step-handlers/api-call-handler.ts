@@ -20,20 +20,20 @@ export const handleApiCall: StepHandler = async (
     throw new Error("Invalid StepDefinition for API_CALL.");
   }
   const { data: apiStepDef } = parsedStepDef;
-  log_info(`Executing API_CALL step: ${apiStepDef.name}`, {}, correlationId);
+  log_info(`Executing API_CALL step: ${apiStepDef.displayName || apiStepDef.stepInstanceId}`, {}, correlationId);
 
-  // The core logic is now delegated to the utility function.
-  // The handler's job is to extract the correct configuration from the step definition
-  // and pass it to the executor.
+  // Build the complete context for templating and pass it to the executor.
+  const templateSourceData = { ...runtimeState.currentContextData, ...runtimeState, ...stepInput };
+
   try {
     const response = await executeConfiguredApiCall(
-        apiStepDef, // The parsed step definition matches the utility's input type
+        apiStepDef,
         runtimeState, 
-        correlationId
+        correlationId,
+        templateSourceData
     );
 
     // The entire response (status, headers, data) is available for output mapping.
-    // This matches the previous behavior.
     return {
       outputData: {
         status: response.status,
@@ -44,7 +44,7 @@ export const handleApiCall: StepHandler = async (
   } catch (error: any) {
     // The utility function already logs the details. We just re-throw the error
     // so the iterative-step-processor can handle retries or fallbacks.
-    log_error(`API_CALL step '${apiStepDef.name}' failed.`, { error: error.message }, correlationId);
+    log_error(`API_CALL step '${apiStepDef.displayName || apiStepDef.stepInstanceId}' failed.`, { error: error.message }, correlationId);
     throw error;
   }
 };

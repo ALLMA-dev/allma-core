@@ -16,7 +16,6 @@ import {
     offloadIfLarge,
     log_warn,
     log_error,
-    hydrateInputFromS3Pointers,
 } from '@allma/core-sdk';
 import { JSONPath } from 'jsonpath-plus'; 
 import { getStepHandler } from '../../allma-core/step-handlers/handler-registry.js';
@@ -87,21 +86,10 @@ export const executeStandardStep = async (
     const currentAttempt = (runtimeState.stepRetryAttempts[currentStepInstanceId] || 0) + 1;
     runtimeState.stepRetryAttempts[currentStepInstanceId] = currentAttempt;
 
-    log_debug(`Preparing input for step '${currentStepInstanceId}' of type '${stepDef.stepType}' with ${Object.keys(stepInput).length} dynamic mappings.`, { stepInput: JSON.stringify(stepInput).substring(0, 1000) }, correlationId);
-
-    let hydratedStepInput: Record<string, any>;
-
-    if (stepInstanceConfig.stepType !== StepType.CUSTOM_LAMBDA_INVOKE || (stepInstanceConfig.customConfig as any)?.hydrateInputFromS3 === true) {
-        log_info(`Hydrating step input for step '${currentStepInstanceId}' from any S3 pointers.`, {}, correlationId);
-        hydratedStepInput = await hydrateInputFromS3Pointers(stepInput, correlationId);
-    } else {
-        log_info(`Skipping input hydration for CUSTOM_LAMBDA_INVOKE step '${currentStepInstanceId}' (hydrateInputFromS3 is not true). Pointers will be passed directly.`, {}, correlationId);
-        hydratedStepInput = stepInput;
-    }
-
-    log_debug(`Prepared step input for '${currentStepInstanceId}':`, { hydratedStepInput }, correlationId);
-
-    const finalStepInput = { ...hydratedStepInput };
+    log_debug(`Executing step '${currentStepInstanceId}' of type '${stepDef.stepType}'. Input is already prepared.`, { stepInput: JSON.stringify(stepInput).substring(0, 1000) }, correlationId);
+    
+    // The `stepInput` has already been prepared (hydrated or not) by the caller.
+    const finalStepInput = { ...stepInput };
 
     if (stepInstanceConfig.literals) {
         for (const [targetPath, literalValue] of Object.entries(stepInstanceConfig.literals)) {

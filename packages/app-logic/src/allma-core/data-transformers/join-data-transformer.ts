@@ -8,17 +8,33 @@ import {
 } from '@allma/core-types';
 import { log_error, log_info, log_debug } from '@allma/core-sdk';
 
+// NEW: Schema for defining a mapping between a left and right key.
+const JoinKeyMappingSchema = z.object({
+  left: z.string().min(1, 'Left key name cannot be empty.'),
+  right: z.string().min(1, 'Right key name cannot be empty.'),
+});
+
+// MODIFIED: The main input schema is updated to support both old and new key definitions.
 const JoinDataInputSchema = z
   .object({
     left_source: z.any().describe('The first dataset to join. Provided via Input Mappings. Can be a JSON array or a raw CSV string.'),
     left_format: z.enum(['csv', 'json']).describe('The format of the left data source.'),
     right_source: z.any().describe('The second dataset to join. Provided via Input Mappings.'),
     right_format: z.enum(['csv', 'json']).describe('The format of the right data source.'),
-    join_keys: z.array(z.string()).min(1, 'At least one join key is required.').describe('An array of column names to join on (e.g., ["user_id", "email"]).'),
+    join_keys: z.array(z.string()).min(1).optional().describe('For simple joins. An array of column names to join on that are IDENTICAL in both datasets (e.g., ["user_id"]).'),
+    key_mappings: z.array(JoinKeyMappingSchema).min(1).optional().describe('For advanced joins. An array of objects for mapping keys with DIFFERENT names (e.g., [{ "left": "manager_id", "right": "id" }]).'),
     join_type: z.enum(['inner', 'left', 'right', 'outer']).describe('The type of join to perform.'),
     right_select_columns: z.array(z.string()).optional().nullable().describe('Optional array of column names from the right dataset to include in the output. If empty, all non-key columns are included.'),
     output_format: z.enum(['csv', 'json']).describe('The desired format for the joined data.'),
   })
+  // NEW: Refinement to ensure either `join_keys` or `key_mappings` is provided, but not both.
+  .refine(
+    (data) => !!data.join_keys !== !!data.key_mappings, // XOR logic
+    {
+      message: 'Exactly one of `join_keys` (for same-name keys) or `key_mappings` (for different-name keys) must be provided.',
+      path: ['join_keys'], // Report error on one of the fields for clarity.
+    },
+  )
   .refine(
     (data) => {
       if (data.left_format === 'csv') return typeof data.left_source === 'string';
@@ -130,7 +146,12 @@ export const executeJoinDataTransformer: StepHandler = async (
         throw new PermanentStepError(`Invalid input for join-data: ${validation.error.message}`);
     }
     const config = validation.data;
-    const { join_keys, join_type, right_select_columns } = config;
+    const { join_type, right_select_columns } = config;
+
+    // NEW: Normalize key configuration into a consistent [{ left, right }] format.
+    const keyMappings: { left: string; right: string }[] = config.key_mappings
+      ? config.key_mappings
+      : config.join_keys!.map(key => ({ left: key, right: key }));
 
     const leftData = config.left_format === 'csv' ? parseCsv(config.left_source) : config.left_source;
     const rightData = config.right_format === 'csv' ? parseCsv(config.right_source) : config.right_source;
@@ -145,18 +166,25 @@ export const executeJoinDataTransformer: StepHandler = async (
     const leftCols = Object.keys(leftData[0] || {});
     const rightCols = Object.keys(rightData[0] || {});
 
-    for (const key of join_keys) {
-        if (!leftCols.includes(key)) throw new PermanentStepError(`Join key '${key}' not found in left data source columns.`);
-        if (!rightCols.includes(key)) throw new PermanentStepError(`Join key '${key}' not found in right data source columns.`);
+    // MODIFIED: Validate using the new keyMappings.
+    for (const mapping of keyMappings) {
+        if (!leftCols.includes(mapping.left)) throw new PermanentStepError(`Join key '${mapping.left}' not found in left data source columns.`);
+        if (!rightCols.includes(mapping.right)) throw new PermanentStepError(`Join key '${mapping.right}' not found in right data source columns.`);
     }
 
-    const commonNonKeyCols = leftCols.filter(c => rightCols.includes(c) && !join_keys.includes(c));
-    const rightColsToSelect = (right_select_columns ?? rightCols).filter(c => !join_keys.includes(c));
+    // MODIFIED: Use key mappings to determine which columns are keys.
+    const leftJoinKeys = keyMappings.map(k => k.left);
+    const rightJoinKeys = keyMappings.map(k => k.right);
+    const allRightSideKeys = new Set(rightJoinKeys);
 
-    const createKey = (row: Record<string, any>) => join_keys.map(k => row[k]).join(' | ');
+    const commonNonKeyCols = leftCols.filter(c => rightCols.includes(c) && !leftJoinKeys.includes(c) && !allRightSideKeys.has(c));
+    const rightColsToSelect = (right_select_columns ?? rightCols).filter(c => !allRightSideKeys.has(c));
+
+    // MODIFIED: Create a composite key for the map using the right-side key names.
+    const createRightKey = (row: Record<string, any>) => rightJoinKeys.map(k => row[k]).join(' | ');
     const rightMap = new Map<string, Record<string, any>[]>();
     for (const row of rightData) {
-        const key = createKey(row);
+        const key = createRightKey(row);
         if (!rightMap.has(key)) rightMap.set(key, []);
         rightMap.get(key)!.push(row);
     }
@@ -164,8 +192,11 @@ export const executeJoinDataTransformer: StepHandler = async (
     const joinedData: Record<string, any>[] = [];
     const matchedRightKeys = new Set<string>();
 
+    // MODIFIED: Create the lookup key using the left-side key names.
+    const createLeftKey = (row: Record<string, any>) => leftJoinKeys.map(k => row[k]).join(' | ');
+
     for (const leftRow of leftData) {
-        const key = createKey(leftRow);
+        const key = createLeftKey(leftRow);
         const rightMatches = rightMap.get(key);
 
         if (rightMatches) {
@@ -184,16 +215,24 @@ export const executeJoinDataTransformer: StepHandler = async (
         }
     }
 
+    // MODIFIED: Logic for unmatched right rows now correctly populates key columns.
     if (join_type === 'right' || join_type === 'outer') {
         for (const [key, rightRows] of rightMap.entries()) {
             if (!matchedRightKeys.has(key)) {
                 for (const rightRow of rightRows) {
                     const mergedRow: Record<string, any> = {};
+                    // Set all left-side columns to null.
                     for (const col of leftCols) {
                         mergedRow[commonNonKeyCols.includes(col) ? `${col}_left` : col] = null;
-                        if (join_keys.includes(col)) mergedRow[col] = rightRow[col];
                     }
-                    for (const col of rightColsToSelect) mergedRow[commonNonKeyCols.includes(col) ? `${col}_right` : col] = rightRow[col];
+                    // Populate the key columns using the right row's values. The left side's key name is the final column name.
+                    keyMappings.forEach(mapping => {
+                        mergedRow[mapping.left] = rightRow[mapping.right];
+                    });
+                    // Populate the selected right-side columns.
+                    for (const col of rightColsToSelect) {
+                        mergedRow[commonNonKeyCols.includes(col) ? `${col}_right` : col] = rightRow[col];
+                    }
                     joinedData.push(mergedRow);
                 }
             }

@@ -31,11 +31,13 @@ export const handler: Handler<PollingLambdaInput, PollingLambdaOutput> = async (
 
   try {
     // 1. Reuse the centralized API execution logic.
-    // We pass flowContext as the runtimeState, which is what the utility expects.
+    // Build and pass the full context for template rendering.
+    const templateSourceData = { ...flowContext.currentContextData, ...flowContext };
     const response = await executeConfiguredApiCall(
         apiCallDefinition,
         flowContext,
-        correlationId
+        correlationId,
+        templateSourceData
     );
 
     // 2. Perform the logic unique to polling: evaluate exit conditions.

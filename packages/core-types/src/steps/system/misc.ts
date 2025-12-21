@@ -88,9 +88,6 @@ export const StartFlowExecutionStepPayloadSchema = z.object({
  */
 export const DataTransformationStepPayloadSchema = z.object({
   stepType: z.literal(StepTypeSchema.enum.DATA_TRANSFORMATION),
-  moduleIdentifier: z.string().optional(),
-  customConfig: z.object({
-    language: z.enum(["javascript", "jsonata", "python_inline"]).optional(),
-    script: z.string().optional(),
-  }).passthrough().optional().describe("Custom Config|json|Module-specific configuration object."),
+  moduleIdentifier: z.string({ required_error: 'moduleIdentifier is required for DATA_TRANSFORMATION steps' }).min(1, 'moduleIdentifier cannot be empty'),
+  customConfig: z.record(z.any()).optional().describe("Custom Config|json|Module-specific configuration object."),
 }).passthrough();

@@ -97,9 +97,6 @@ export const StepDefinitionSchema = BaseStepDefinitionSchema.and(z.object({
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 })).superRefine((data: any, ctx: z.RefinementCtx) => {
-  if (data.stepType === StepTypeSchema.enum.DATA_TRANSFORMATION && !data.customConfig?.script && !data.moduleIdentifier) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Either a script or a moduleIdentifier is required for DATA_TRANSFORMATION steps.", path: ["moduleIdentifier"] });
-  }
   // This validation applies to ANY system-provided step that has a module identifier.
   if (data.id && data.id.startsWith('system') && data.moduleIdentifier) {
     const normalize = (id: string) => id.toLowerCase().replace(/^([a-z]+)[-/](.*)/, '$1/$2');
@@ -170,5 +167,6 @@ export const SYSTEM_STEP_DEFINITIONS: Pick<StepDefinition, 'id' | 'name' | 'step
   { id: 'system-flatten-array', name: 'Flatten Array', stepType: StepTypeSchema.enum.DATA_TRANSFORMATION, moduleIdentifier: SystemModuleIdentifiers.FLATTEN_ARRAY },
   { id: 'system-generate-array', name: 'Generate Array', stepType: StepTypeSchema.enum.DATA_TRANSFORMATION, moduleIdentifier: SystemModuleIdentifiers.GENERATE_ARRAY },
   { id: 'system-file-download', name: 'File Download', stepType: StepTypeSchema.enum.FILE_DOWNLOAD, moduleIdentifier: SystemModuleIdentifiers.FILE_DOWNLOAD },
-  { id: 'system-join-data', name: 'Join Data', stepType: StepTypeSchema.enum.DATA_TRANSFORMATION, moduleIdentifier: SystemModuleIdentifiers.JOIN_DATA }
+  { id: 'system-join-data', name: 'Join Data', stepType: StepTypeSchema.enum.DATA_TRANSFORMATION, moduleIdentifier: SystemModuleIdentifiers.JOIN_DATA },
+  { id: 'system-generate-uuid', name: 'Generate UUID', stepType: StepTypeSchema.enum.DATA_TRANSFORMATION, moduleIdentifier: SystemModuleIdentifiers.GENERATE_UUID },
 ];

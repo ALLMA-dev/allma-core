@@ -330,7 +330,7 @@ export const handleParallelFork = async (
     }
 
     // If it's not a pointer wrapper, proceed with the smart (hydrating) getter for in-memory iteration.
-    const { value: itemsValue, events } = await getSmartValueByJsonPath(itemsPath, runtimeState.currentContextData, correlationId);
+    const { value: itemsValue, events } = await getSmartValueByJsonPath(itemsPath, runtimeState.currentContextData, true, correlationId);
 
     let itemsToProcess: any[] = [];
     if (Array.isArray(itemsValue)) {

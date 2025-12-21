@@ -16,7 +16,7 @@ import { TemplateService } from '../template-service';
  * @param apiCallDefinition The configuration for the API call.
  * @param runtimeState The current flow runtime state.
  * @param correlationId A unique ID for logging and tracing.
- * @param templateSourceData Optional override for the data context used in template rendering. Defaults to `runtimeState.currentContextData`.
+ * @param templateSourceData Optional override for the data context used in template rendering. Defaults to the full runtime state.
  * @returns A promise that resolves to the AxiosResponse.
  * @throws {TransientStepError} for 5xx server errors.
  * @throws {Error} for other axios or configuration errors.
@@ -29,7 +29,7 @@ export const executeConfiguredApiCall = async (
 ): Promise<AxiosResponse> => {
     
     const templateService = TemplateService.getInstance();
-    const sourceData = templateSourceData || runtimeState.currentContextData;
+    const sourceData = templateSourceData || { ...runtimeState.currentContextData, ...runtimeState };
 
     // 1. Render the API URL
     const { context: urlContext } = await templateService.buildContextFromMappings(

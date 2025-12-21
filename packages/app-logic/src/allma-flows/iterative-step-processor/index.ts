@@ -227,9 +227,13 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
 
                 const contextForMappings = isMapContext ? (originalEvent as any) : { ...runtimeState, ...runtimeState.currentContextData };
 
+                // *** Determine hydration strategy BEFORE preparing input ***
+                const shouldHydrateInputPointers = stepInstance.stepType !== StepType.CUSTOM_LAMBDA_INVOKE || (stepInstance.customConfig as any)?.hydrateInputFromS3 === true;
+
                 const { preparedInput, events: inputMappingEvents } = await prepareStepInput(
                     stepInstance.inputMappings || {},
                     contextForMappings,
+                    shouldHydrateInputPointers,
                     correlationId
                 );
 

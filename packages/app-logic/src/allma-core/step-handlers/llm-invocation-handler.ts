@@ -83,7 +83,7 @@ export const handleLlmInvocation: StepHandler = async (
   let mappedContextResult: Record<string, any> | undefined = undefined;
 
   if (llmStepDef.templateContextMappings) {
-    const templateSourceData = { ...runtimeState.currentContextData, ...stepInput };
+    const templateSourceData = { ...runtimeState.currentContextData, ...runtimeState, ...stepInput };
 
     const { context: mappedContext, events } = await templateService.buildContextFromMappings(
       llmStepDef.templateContextMappings,

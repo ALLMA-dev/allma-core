@@ -56,7 +56,8 @@ export const handleCustomLambdaInvoke: StepHandler = async (
   // Prepare the payload for the target Lambda
   let payloadForInvoke: Record<string, any>;
 
-  if (payloadTemplate) {
+  // Check if payloadTemplate exists AND has keys. An empty object should trigger the else block.
+  if (payloadTemplate && Object.keys(payloadTemplate).length > 0) {
     log_info('Constructing payload for custom lambda from payloadTemplate.', {}, correlationId);
     
     // Convert the simple { key: jsonpath } to the format needed by buildContextFromMappings
@@ -82,11 +83,10 @@ export const handleCustomLambdaInvoke: StepHandler = async (
     );
     
     // The final payload is the custom payload constructed from the template.
-    // The user has full control. If they need correlationId, they can map it from `$.flow_variables.flowExecutionId`.
-    payloadForInvoke = context;
+    payloadForInvoke = { correlationId, ...context };
   } else {
-    // Fallback to original behavior if no payloadTemplate is defined.
-    log_info('No payloadTemplate defined. Using default payload structure.', {}, correlationId);
+    // Fallback to default behavior if payloadTemplate is missing or empty.
+    log_info('No payloadTemplate defined or template is empty. Using default payload structure.', {}, correlationId);
     payloadForInvoke = {
       moduleIdentifier,
       stepInput, // Pass the entire prepared step input from inputMappings

@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Pagination, Title } from '@mantine/core';
+import { Pagination, Title, Group, Tooltip, ActionIcon } from '@mantine/core';
+import { useQueryClient } from '@tanstack/react-query';
+import { IconRefresh } from '@tabler/icons-react';
 import { useGetFlowExecutions } from '../../../api/executionService';
 import { ExecutionsTable } from '../../executions/components/ExecutionsTable';
+import { EXECUTIONS_LIST_QUERY_KEY } from '../constants';
 
 interface FlowExecutionsListProps {
     flowId: string;
@@ -10,6 +13,7 @@ interface FlowExecutionsListProps {
 export function FlowExecutionsList({ flowId }: FlowExecutionsListProps) {
     const [currentPage, setCurrentPage] = useState(1);
     const [pageTokens, setPageTokens] = useState<(string | undefined)[]>([undefined]);
+    const queryClient = useQueryClient();
 
     const currentToken = pageTokens[currentPage - 1];
 
@@ -33,6 +37,16 @@ export function FlowExecutionsList({ flowId }: FlowExecutionsListProps) {
         setPageTokens([undefined]);
     }, [flowId]);
 
+    const handleRefresh = () => {
+        queryClient.invalidateQueries({ queryKey: [EXECUTIONS_LIST_QUERY_KEY] });
+    };
+
+    const handleRedriveSuccess = () => {
+        setTimeout(() => {
+            queryClient.invalidateQueries({ queryKey: [EXECUTIONS_LIST_QUERY_KEY] });
+        }, 5000);
+    };
+
     const executions = executionsResponse?.items || [];
     
     const totalPages = Math.max(
@@ -43,13 +57,21 @@ export function FlowExecutionsList({ flowId }: FlowExecutionsListProps) {
 
     return (
         <>
-            <Title order={3} mb="md" mt="xl">Executions</Title>
+            <Group justify="space-between" align="center" mt="xl" mb="md">
+                <Title order={3}>Executions</Title>
+                <Tooltip label="Refresh Executions">
+                    <ActionIcon variant="default" size="lg" onClick={handleRefresh} loading={isRefetching}>
+                        <IconRefresh size="1rem" />
+                    </ActionIcon>
+                </Tooltip>
+            </Group>
             <ExecutionsTable
                 executions={executions}
                 isLoading={isLoading}
                 isRefetching={isRefetching}
                 error={error}
                 flowId={flowId}
+                onRedriveSuccess={handleRedriveSuccess}
             />
             {executions.length > 0 && totalPages > 1 && (
                 <Pagination

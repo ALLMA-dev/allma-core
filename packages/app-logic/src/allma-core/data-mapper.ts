@@ -49,12 +49,14 @@ export function setByDotNotation(obj: Record<string, any>, path: string, value: 
  * This function is called recursively by `getSmartValueByJsonPath` to handle nested dynamic paths.
  * @param path The potentially dynamic JSONPath string.
  * @param data The root object to traverse for resolving the inner paths.
+ * @param shouldHydrate Controls whether S3 pointers encountered during path resolution should be resolved.
  * @param correlationId Optional correlation ID for logging.
  * @returns A promise that resolves to a simple, non-dynamic JSONPath string.
  */
 async function resolveDynamicJsonPathString(
     path: string, 
     data: Record<string, any>, 
+    shouldHydrate: boolean,
     correlationId?: string
 ): Promise<string> {
     // Regex to find segments like [$.path.to.value]
@@ -81,7 +83,7 @@ async function resolveDynamicJsonPathString(
         try {
             // Recursively call the main resolver to get the value of the inner path.
             // This allows the inner path to also be dynamic or resolve S3 pointers.
-            const { value: dynamicKey } = await getSmartValueByJsonPath(innerPath, data, correlationId);
+            const { value: dynamicKey } = await getSmartValueByJsonPath(innerPath, data, shouldHydrate, correlationId);
 
             if (dynamicKey === undefined || dynamicKey === null) {
                 throw new Error(`Dynamic path segment '${innerPath}' in path '${path}' resolved to null or undefined.`);
@@ -121,18 +123,20 @@ async function resolveDynamicJsonPathString(
 *
 * @param path The JSONPath string to evaluate (e.g., '$.steps_output.llm1.relevantTagIds' or '$.config.tags.*').
 * @param data The root object to traverse (e.g., runtimeState.currentContextData).
+* @param shouldHydrate If true, S3 pointers will be resolved. If false, the pointer object is returned.
 * @param correlationId Optional correlation ID for logging.
 * @returns An object containing the resolved `value` and an array of `events`.
 */
 export async function getSmartValueByJsonPath(
     path: string, 
     data: Record<string, any>, 
+    shouldHydrate: boolean,
     correlationId?: string
 ): Promise<{ value: any; events: MappingEvent[] }> {
     const events: MappingEvent[] = [];
 
     // Resolve dynamic parts of the path first.
-    const resolvedPath = await resolveDynamicJsonPathString(path, data, correlationId);
+    const resolvedPath = await resolveDynamicJsonPathString(path, data, shouldHydrate, correlationId);
     if (path !== resolvedPath) {
         events.push({
             type: MappingEventType.DYNAMIC_PATH_RESOLVE,
@@ -151,7 +155,7 @@ export async function getSmartValueByJsonPath(
         try {
             let results = JSONPath({ path: resolvedPath, json: data, wrap: false });
             // The direct evaluation doesn't handle S3 pointers itself, but if the final result is a pointer, we can resolve it.
-            if (isS3OutputPointerWrapper(results)) {
+            if (isS3OutputPointerWrapper(results) && shouldHydrate) {
                 log_debug(`Result of complex JSONPath is an S3 pointer. Resolving...`, { path: resolvedPath }, correlationId);
                 const s3Pointer = results._s3_output_pointer;
                 results = await resolveS3Pointer(s3Pointer, correlationId);
@@ -193,7 +197,7 @@ export async function getSmartValueByJsonPath(
         let nextValue = currentContext[segment];
 
         // Check if this next value is an S3 pointer and resolve it if so.
-        if (isS3OutputPointerWrapper(nextValue)) {
+        if (isS3OutputPointerWrapper(nextValue) && shouldHydrate) {
             const traversedPath = JSONPath.toPathString(pathSegments.slice(0, i + 1));
             log_debug(`Encountered S3 pointer at segment '${String(segment)}'. Resolving...`, { path: traversedPath }, correlationId);
             const s3Pointer = nextValue._s3_output_pointer;
@@ -274,12 +278,14 @@ function setValueByJsonPath(
  * Prepares the input object for a step by applying input mappings.
  * @param mappings The StepInputMapping object.
  * @param contextData The currentContextData from FlowRuntimeState.
+ * @param shouldHydrate Controls whether S3 pointers are resolved during mapping.
  * @param correlationId Optional correlation ID for logging.
  * @returns An object with the prepared input and an array of mapping events.
  */
 export async function prepareStepInput(
   mappings: StepInputMapping,
   contextData: Record<string, any>,
+  shouldHydrate: boolean,
   correlationId?: string
 ): Promise<{ preparedInput: Record<string, any>, events: MappingEvent[] }> {
     const preparedInput: Record<string, any> = {};
@@ -292,7 +298,7 @@ export async function prepareStepInput(
     for (const targetKey of sortedTargetKeys) {
         const sourceJsonPath = mappings[targetKey];
         try {
-            const { value: rawValue, events: resolutionEvents } = await getSmartValueByJsonPath(sourceJsonPath, contextData, correlationId);
+            const { value: rawValue, events: resolutionEvents } = await getSmartValueByJsonPath(sourceJsonPath, contextData, shouldHydrate, correlationId);
             events.push(...resolutionEvents);
 
             const event: MappingEvent = {

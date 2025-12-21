@@ -45,7 +45,7 @@ export const executeS3Saver: StepHandler = async (
 
   // Render the destination URI template
   const templateService = TemplateService.getInstance();
-  const templateContext = { ...runtimeState.currentContextData, ...stepInput };
+  const templateContext = { ...runtimeState.currentContextData, ...runtimeState, ...stepInput };
   const renderedS3Uri = templateService.render(config.destinationS3UriTemplate, templateContext);
 
   const uriMatch = renderedS3Uri.match(/^s3:\/\/([^/]+)\/(.*)$/);
@@ -61,7 +61,18 @@ export const executeS3Saver: StepHandler = async (
   }
 
   // Prepare the body for S3. If the content is an object/array, stringify it.
-  const Body = typeof contentToSave === 'string' ? contentToSave : JSON.stringify(contentToSave, null, 2);
+  // If the content type suggests it's binary and the input is a string, assume it's base64 and decode.
+  let Body: string | Buffer;
+  const isLikelyBinary = !config.contentType.startsWith('text/') && !/json/.test(config.contentType) && !/xml/.test(config.contentType);
+
+  if (typeof contentToSave === 'string' && isLikelyBinary) {
+    log_info('Content is a string and content type is binary; attempting to decode from base64.', { contentType: config.contentType }, correlationId);
+    Body = Buffer.from(contentToSave, 'base64');
+  } else if (typeof contentToSave === 'string') {
+    Body = contentToSave;
+  } else {
+    Body = JSON.stringify(contentToSave, null, 2);
+  }
 
   // Render metadata templates
   const Metadata = config.metadataTemplate
@@ -79,17 +90,36 @@ export const executeS3Saver: StepHandler = async (
   try {
     const result = await s3Client.send(command);
     
-    return {
-      outputData: {
-        s3Uri: renderedS3Uri,
-        eTag: result.ETag,
-        versionId: result.VersionId,
-        _meta: { 
-          status: 'SUCCESS',
-          s3_params: { Bucket, Key, ContentType: config.contentType },
-        },
+    // MODIFIED: Construct outputData by conditionally adding optional properties
+    // to satisfy exactOptionalPropertyTypes: true.
+    const outputData: {
+        s3Uri: string;
+        bucket: string;
+        key: string;
+        eTag?: string;
+        versionId?: string;
+        _meta: Record<string, any>;
+    } = {
+      s3Uri: renderedS3Uri,
+      bucket: Bucket,
+      key: Key,
+      _meta: { 
+        status: 'SUCCESS',
+        s3_params: { Bucket, Key, ContentType: config.contentType },
       },
     };
+
+    // Only add eTag if it's explicitly a string
+    if (result.ETag) {
+        outputData.eTag = result.ETag;
+    }
+    // Only add versionId if it's explicitly a string
+    if (result.VersionId) {
+        outputData.versionId = result.VersionId;
+    }
+
+    return { outputData };
+
   } catch (error: any) {
     log_error(`Failed to put object to S3 at: ${renderedS3Uri}`, { error: error.message, name: error.name }, correlationId);
     if (['ServiceUnavailable', 'ThrottlingException'].includes(error.name)) {

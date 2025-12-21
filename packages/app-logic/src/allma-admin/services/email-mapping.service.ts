@@ -45,15 +45,22 @@ export const EmailMappingService = {
 
     // Find mappings to add/update
     for (const newMapping of newMappings) {
+      // MODIFIED: Construct the item to put, conditionally including the triggerMessagePattern.
+      const itemToPut: { [key: string]: any } = {
+        emailAddress: newMapping.emailAddress,
+        keyword: newMapping.keyword || '#DEFAULT',
+        flowDefinitionId: flowId,
+        stepInstanceId: newMapping.stepInstanceId,
+      };
+
+      if (newMapping.triggerMessagePattern) {
+        itemToPut.triggerMessagePattern = newMapping.triggerMessagePattern;
+      }
+
       transactions.push({
         Put: {
           TableName: EMAIL_MAPPING_TABLE_NAME,
-          Item: {
-            emailAddress: newMapping.emailAddress,
-            keyword: newMapping.keyword || '#DEFAULT',
-            flowDefinitionId: flowId,
-            stepInstanceId: newMapping.stepInstanceId,
-          },
+          Item: itemToPut,
           ConditionExpression: 'attribute_not_exists(emailAddress) OR flowDefinitionId = :flowId',
           ExpressionAttributeValues: {
             ':flowId': flowId,

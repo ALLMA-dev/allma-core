@@ -134,6 +134,12 @@ export async function recursivelyOffloadLargeFields(
                 const value = data[key];
                 
                 try {
+                    // Gracefully skip properties with an 'undefined' value.
+                    // These properties are omitted in JSON.stringify and cause Buffer.byteLength to fail.
+                    if (value === undefined) {
+                        continue;
+                    }
+
                     // First, check the size of the value.
                     const valueString = (typeof value === 'string') ? value : JSON.stringify(value);
                     const valueSize = Buffer.byteLength(valueString, 'utf-8');

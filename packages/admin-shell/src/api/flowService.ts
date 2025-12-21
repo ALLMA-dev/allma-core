@@ -7,7 +7,7 @@ import {
 import axiosInstance from './axiosInstance';
 import axios from 'axios';
 import { notifications } from '@mantine/notifications';
-import { IconCheck, IconX } from '@tabler/icons-react';
+import { IconCheck, IconX, IconPlayerPlay } from '@tabler/icons-react';
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -22,6 +22,7 @@ export interface FlowVersionSummary extends Pick<FlowDefinition, 'id' | 'version
 
 const checkIcon = React.createElement(IconCheck, { size: "1.1rem" });
 const xIcon = React.createElement(IconX, { size: "1.1rem" });
+const playIcon = React.createElement(IconPlayerPlay, { size: "1.1rem" });
 
 async function fetchFlows(params: GetFlowsParams): Promise<FlowMetadataStorageItem[]> {
   const queryParams = new URLSearchParams();
@@ -304,6 +305,14 @@ export const useFlowRedrive = () => {
             }
             throw new Error(response.data.error?.message || 'Failed to redrive flow');
         },
+        onSuccess: (data) => {
+            notifications.show({
+                title: 'Redrive Initiated',
+                message: `New execution started: ${data.newFlowExecutionId.substring(0, 8)}...`,
+                color: 'green',
+                icon: playIcon,
+            });
+        },
         onError: (error: Error) => {
             notifications.show({
                 title: 'Redrive Failed',
@@ -316,8 +325,6 @@ export const useFlowRedrive = () => {
 };
 
 export const useExecuteFlowVersion = () => {
-    const queryClient = useQueryClient();
-    const navigate = useNavigate();
     return useMutation({
         mutationFn: async ({ flowId, version, initialContextData }: { flowId: string, version: string | number, initialContextData: Record<string, any> }): Promise<ExecuteFlowApiOutput> => {
             const payload: ExecuteFlowApiInput = { initialContextData };
@@ -330,15 +337,13 @@ export const useExecuteFlowVersion = () => {
             }
             throw new Error(response.data.error?.message || 'Failed to start test execution');
         },
-        onSuccess: (data, { flowId }) => {
-            queryClient.invalidateQueries({ queryKey: ['executions', { flowId }] });
+        onSuccess: (data) => {
             notifications.show({
                 title: 'Execution Started',
                 message: `Successfully started new execution: ${data.newFlowExecutionId.substring(0, 8)}`,
                 color: 'green',
                 icon: checkIcon,
             });
-            navigate(`/executions?flowId=${flowId}`);
         },
         onError: (error: Error) => {
             notifications.show({
