@@ -1,5 +1,17 @@
 # @allma/core-cdk
 
+## 1.0.29
+
+### Patch Changes
+
+- e9b272a: Fix CDK deployment for prod
+- 131aa94: Small fixes here and there
+- 7e155b6: fix: update execution logic to offload big payloads to S3
+- Updated dependencies [131aa94]
+- Updated dependencies [7e155b6]
+  - @allma/core-types@1.0.17
+  - @allma/core-sdk@1.0.6
+
 ## 1.0.28
 
 ### Patch Changes
