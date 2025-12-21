@@ -175,7 +175,7 @@ export class AllmaDataStores extends Construct {
         expiration: cdk.Duration.days(stageConfig.logging.retentionDays.traces),
         transitions: isProd ? [{
           storageClass: s3.StorageClass.INFREQUENT_ACCESS,
-          transitionAfter: cdk.Duration.days(30),
+          transitionAfter: cdk.Duration.days(stageConfig.logging.retentionDays.traces - 2),
         }] : [],
       }],
     });

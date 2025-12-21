@@ -80,7 +80,7 @@ export const defaultConfig: StageConfig = {
     logLevel: LogLevel.INFO,
     retentionDays: {
       default: 7,
-      traces: 7,
+      traces: 10,
       executionLogs: 30,
       sfn: 7,
     }
