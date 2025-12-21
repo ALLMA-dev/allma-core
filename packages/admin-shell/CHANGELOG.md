@@ -1,5 +1,16 @@
 # @allma/admin-shell
 
+## 1.0.21
+
+### Patch Changes
+
+- 131aa94: Small fixes here and there
+- 5846c7f: Admin UI executions UI update
+- Updated dependencies [131aa94]
+- Updated dependencies [7e155b6]
+  - @allma/core-types@1.0.17
+  - @allma/core-sdk@1.0.6
+
 ## 1.0.20
 
 ### Patch Changes

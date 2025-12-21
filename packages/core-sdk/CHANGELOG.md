@@ -1,5 +1,14 @@
 # @allma/core-sdk
 
+## 1.0.6
+
+### Patch Changes
+
+- 131aa94: Small fixes here and there
+- 7e155b6: fix: update execution logic to offload big payloads to S3
+- Updated dependencies [131aa94]
+  - @allma/core-types@1.0.17
+
 ## 1.0.5
 
 ### Patch Changes

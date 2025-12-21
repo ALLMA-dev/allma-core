@@ -1,5 +1,11 @@
 # @allma/core-types
 
+## 1.0.17
+
+### Patch Changes
+
+- 131aa94: Small fixes here and there
+
 ## 1.0.16
 
 ### Patch Changes
