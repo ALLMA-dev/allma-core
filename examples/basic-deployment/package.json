@@ -25,7 +25,7 @@
     "@typescript-eslint/parser": "^7.13.1"
   },
   "dependencies": {
-    "@allma/core-cdk": "1.0.29",
+    "@allma/core-cdk": "1.0.30",
     "@allma/admin-shell": "1.0.21",
     "aws-cdk-lib": "^2.130.0",
     "constructs": "^10.0.0",
