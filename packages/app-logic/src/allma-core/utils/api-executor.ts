@@ -39,9 +39,10 @@ export const executeConfiguredApiCall = async (
     );
     
     // Render URL with the built context
-    const apiUrl = templateService.render(
+    const apiUrl = await templateService.render(
         apiCallDefinition.apiUrlTemplate.template,
-        urlContext
+        urlContext,
+        correlationId
     );
 
     log_info(`Preparing API call to ${apiUrl}`, { method: apiCallDefinition.apiHttpMethod }, correlationId);

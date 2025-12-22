@@ -38,7 +38,7 @@ async function renderValue(value: any, contextData: Record<string, any>, correla
     // Pass 1: Render any Handlebars templates within the string.
     // This resolves `{{...}}` placeholders.
     if (processedValue.includes('{{')) {
-        processedValue = templateService.render(processedValue, contextData);
+        processedValue = await templateService.render(processedValue, contextData, correlationId);
     }
     
     // Pass 2: Check if the *entire resulting string* is a JSONPath expression.

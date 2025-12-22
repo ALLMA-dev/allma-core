@@ -101,7 +101,7 @@ export const handleWaitForEvent = async (
     const parsedWaitStepDef = WaitForExternalEventStepSchema.parse(stepDef);
 
     const templateService = TemplateService.getInstance();
-    const correlationKey = templateService.render(parsedWaitStepDef.correlationKeyTemplate, runtimeState.currentContextData);
+    const correlationKey = await templateService.render(parsedWaitStepDef.correlationKeyTemplate, runtimeState.currentContextData, correlationId);
     
     // Add a check to prevent saving a bad key which would cause the flow to be un-resumable.
     if (!correlationKey || correlationKey.endsWith(':')) {

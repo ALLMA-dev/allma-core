@@ -26,7 +26,7 @@ export const handleWaitForExternalEvent: StepHandler = async (
     // For a simpler string template directly:
     let messageToSend: string;
     if (typeof waitStepDef.promptUserMessageTemplate === 'string') {
-        messageToSend = templateService.render(waitStepDef.promptUserMessageTemplate, runtimeState.currentContextData);
+        messageToSend = await templateService.render(waitStepDef.promptUserMessageTemplate, runtimeState.currentContextData, correlationId);
     } else { // Assuming it's a more complex template object
         // This part needs more specific schema for promptUserMessageTemplate if it's not just a string.
         // For now, log a warning.

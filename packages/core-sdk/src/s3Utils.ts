@@ -14,8 +14,9 @@ const PAYLOAD_OFFLOAD_THRESHOLD_BYTES = process.env[ENV_VAR_NAMES.MAX_CONTEXT_DA
 
 /**
  * Fetches the actual data from an S3 pointer.
- * Tries to parse the content as JSON. If parsing fails (e.g. for plain text files),
- * returns the raw string content.
+ * It inspects the S3 object's Content-Type to determine how to process the data.
+ * - For text-based content (text/*, application/json), it returns a string or a parsed JSON object.
+ * - For binary content, it returns a Base64 encoded string.
  */
 export async function resolveS3Pointer(s3Pointer: S3Pointer, correlationId?: string): Promise<any> {
     log_info('Resolving S3 data pointer', { s3Pointer }, correlationId);
@@ -24,16 +25,28 @@ export async function resolveS3Pointer(s3Pointer: S3Pointer, correlationId?: str
             Bucket: s3Pointer.bucket,
             Key: s3Pointer.key,
         });
-        const { Body } = await s3Client.send(command);
+        const { Body, ContentType } = await s3Client.send(command);
+        
         if (Body) {
-            const content = await Body.transformToString();
-            try {
-                return JSON.parse(content);
-            } catch (jsonError) {
-                // If the content is not valid JSON, return it as a raw string.
-                // This supports hydration of text files (e.g. from FILE_DOWNLOAD step).
-                log_debug('S3 content is not JSON, returning as raw string.', { key: s3Pointer.key }, correlationId);
-                return content;
+            const contentType = ContentType || 'application/octet-stream';
+            const isTextContent = contentType.startsWith('text/') || contentType.includes('json') || contentType.includes('xml');
+
+            if (isTextContent) {
+                const content = await Body.transformToString();
+                try {
+                    // This handles cases where the S3 object is a JSON document
+                    // (e.g., a large context object, or an offloaded JSON API response)
+                    return JSON.parse(content);
+                } catch (jsonError) {
+                    // This handles plain text files
+                    log_debug('S3 content is text-based but not JSON, returning as raw string.', { key: s3Pointer.key, contentType }, correlationId);
+                    return content;
+                }
+            } else {
+                // This handles binary files (images, PDFs, Excel files, etc.)
+                log_debug('S3 content is binary, returning as base64 encoded string.', { key: s3Pointer.key, contentType }, correlationId);
+                const byteArray = await Body.transformToByteArray();
+                return Buffer.from(byteArray).toString('base64');
             }
         }
         throw new Error('S3 object body for data pointer is empty.');

@@ -7,6 +7,7 @@ import {
   isS3OutputPointerWrapper,
   ENV_VAR_NAMES,
   TemplateContextMappingItem,
+  StepInstance,
 } from '@allma/core-types';
 import { log_error, log_info, offloadIfLarge } from '@allma/core-sdk';
 import { z } from 'zod';
@@ -34,6 +35,7 @@ export const handleCustomLambdaInvoke: StepHandler = async (
   runtimeState: FlowRuntimeState
 ) => {
   const correlationId = runtimeState.flowExecutionId;
+  const stepInstance = stepDefinition as unknown as StepInstance; // MODIFIED: Cast to the actual type being passed
   const parsedStepDef = CustomLambdaInvokeStepSchema.safeParse(stepDefinition);
 
   if (!parsedStepDef.success) {
@@ -51,7 +53,7 @@ export const handleCustomLambdaInvoke: StepHandler = async (
 
   // Render the ARN from the template
   const templateService = TemplateService.getInstance();
-  const lambdaArn = templateService.render(lambdaFunctionArnTemplate, runtimeState.currentContextData);
+  const lambdaArn = await templateService.render(lambdaFunctionArnTemplate, runtimeState.currentContextData, correlationId);
   
   // Prepare the payload for the target Lambda
   let payloadForInvoke: Record<string, any>;
@@ -125,7 +127,7 @@ export const handleCustomLambdaInvoke: StepHandler = async (
 
     // If the payload is not already a pointer, check if it's large and offload it
     // to protect the Step Function state limit (256KB). offloadIfLarge uses a safe threshold.
-    const s3KeyPrefix = `step_outputs/${runtimeState.flowExecutionId}/${stepDefinition.id}`;
+    const s3KeyPrefix = `step_outputs/${runtimeState.flowExecutionId}/${stepInstance.stepInstanceId}`;
     const finalPayloadForSfn = await offloadIfLarge(
         responsePayload,
         EXECUTION_TRACES_BUCKET_NAME,

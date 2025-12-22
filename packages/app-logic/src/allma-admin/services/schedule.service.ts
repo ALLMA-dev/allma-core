@@ -1,3 +1,4 @@
+// allma-core/packages/app-logic/src/allma-admin/services/schedule.service.ts
 import { SchedulerClient, CreateScheduleCommand, DeleteScheduleCommand, UpdateScheduleCommand } from '@aws-sdk/client-scheduler';
 import { FlowDefinition, StepInstance, StartFlowExecutionInput, StepType, ENV_VAR_NAMES } from '@allma/core-types';
 import { log_info, log_error, log_warn } from '@allma/core-sdk';
@@ -63,7 +64,7 @@ export const ScheduleService = {
     const templateService = TemplateService.getInstance();
     const templateContext = { flow_variables: flowDef.flowVariables };
 
-    const renderedScheduleExpression = templateService.render(scheduleExpression, templateContext);
+    const renderedScheduleExpression = await templateService.render(scheduleExpression, templateContext, flowId);
     const renderedPayloadTemplate = await renderNestedTemplates(payloadTemplate, templateContext, flowId);
 
     const targetInput: StartFlowExecutionInput = {
@@ -105,7 +106,7 @@ export const ScheduleService = {
     const templateService = TemplateService.getInstance();
     const templateContext = { flow_variables: flowDef.flowVariables };
 
-    const renderedScheduleExpression = templateService.render(scheduleExpression, templateContext);
+    const renderedScheduleExpression = await templateService.render(scheduleExpression, templateContext, flowId);
     const renderedPayloadTemplate = await renderNestedTemplates(payloadTemplate, templateContext, flowId);
 
     const targetInput: StartFlowExecutionInput = {

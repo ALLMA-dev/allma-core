@@ -97,7 +97,7 @@ export const handleLlmInvocation: StepHandler = async (
   const contextSizes = getObjectSizes(templateContext);
 
   log_debug('Final context keys for prompt template', { keys: Object.keys(templateContext), sizes: contextSizes }, correlationId);
-  const finalPrompt = templateService.render(promptTemplate.content, templateContext);
+  const finalPrompt = await templateService.render(promptTemplate.content, templateContext, correlationId);
 
   // Prepare this now, so it's available in both success and error paths
   const s3KeyPrefix = `step_outputs/${runtimeState.flowExecutionId}/${llmStepDef.id}/template_context`;

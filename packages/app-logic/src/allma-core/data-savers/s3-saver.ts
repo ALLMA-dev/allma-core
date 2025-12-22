@@ -1,3 +1,4 @@
+// allma-core/packages/app-logic/src/allma-core/data-savers/s3-saver.ts
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { z } from 'zod';
 import {
@@ -9,13 +10,12 @@ import {
   StepDefinition
 } from '@allma/core-types';
 import { log_error, log_info } from '@allma/core-sdk';
-import { TemplateService } from '../template-service.js';
-import { renderNestedTemplates } from '../utils/template-renderer.js';
 
 const s3Client = new S3Client({});
 
 // This schema validates the entire *input object* received by the handler,
 // which is a combination of the static customConfig and the dynamic inputMappings.
+// The `step-executor` has already rendered the templates, so we expect the final values.
 const S3SaverInputSchema = S3DataSaverCustomConfigSchema.extend({
   contentToSave: z.any().describe("The content to be saved to S3, provided via inputMappings."),
 });
@@ -23,7 +23,7 @@ const S3SaverInputSchema = S3DataSaverCustomConfigSchema.extend({
 
 /**
  * A generic data-saving module that saves a payload to a specified S3 location.
- * This handler now expects its data via `inputMappings` and its configuration via `customConfig`.
+ * This handler now expects a fully-rendered input object, with all templates resolved.
  */
 export const executeS3Saver: StepHandler = async (
   stepDefinition: StepDefinition,
@@ -32,7 +32,7 @@ export const executeS3Saver: StepHandler = async (
 ): Promise<StepHandlerOutput> => {
   const correlationId = runtimeState.flowExecutionId;
 
-  // The stepInput here is the combined result of customConfig and resolved inputMappings.
+  // The stepInput here is the combined and fully rendered result of customConfig and resolved inputMappings.
   const validationResult = S3SaverInputSchema.safeParse(stepInput);
 
   if (!validationResult.success) {
@@ -43,10 +43,8 @@ export const executeS3Saver: StepHandler = async (
   const config = validationResult.data;
   const { contentToSave } = config;
 
-  // Render the destination URI template
-  const templateService = TemplateService.getInstance();
-  const templateContext = { ...runtimeState.currentContextData, ...runtimeState, ...stepInput };
-  const renderedS3Uri = templateService.render(config.destinationS3UriTemplate, templateContext);
+  // The destination URI is already fully rendered by the step-executor.
+  const renderedS3Uri = config.destinationS3UriTemplate;
 
   const uriMatch = renderedS3Uri.match(/^s3:\/\/([^/]+)\/(.*)$/);
   if (!uriMatch) {
@@ -74,10 +72,8 @@ export const executeS3Saver: StepHandler = async (
     Body = JSON.stringify(contentToSave, null, 2);
   }
 
-  // Render metadata templates
-  const Metadata = config.metadataTemplate
-    ? await renderNestedTemplates(config.metadataTemplate, templateContext, correlationId)
-    : undefined;
+  // The metadata is already rendered by the step-executor.
+  const Metadata = config.metadataTemplate;
   
   const command = new PutObjectCommand({
     Bucket,

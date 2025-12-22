@@ -1,7 +1,7 @@
 import Handlebars from 'handlebars';
 import { JSONPath } from 'jsonpath-plus';
 import { MappingEvent, MappingEventStatus, MappingEventType, TemplateContextMappingItem, isS3OutputPointerWrapper } from '@allma/core-types';
-import { log_debug, log_warn, resolveS3Pointer } from '@allma/core-sdk';
+import { log_debug, log_warn, resolveS3Pointer, hydrateInputFromS3Pointers } from '@allma/core-sdk';
 import { getSmartValueByJsonPath } from './data-mapper.js'; // Import the smart resolver
 
 /**
@@ -29,20 +29,37 @@ export class TemplateService {
 
   /**
    * Renders a template string with the provided context.
+   * This method is now S3-aware, automatically resolving S3 pointers in the context
+   * before passing it to the Handlebars engine. It always returns a string.
    *
    * @param template The Handlebars template string.
    * @param context A pre-built context object with data for the template.
-   * @returns The rendered string.
+   * @param correlationId Optional correlation ID for logging during hydration.
+   * @returns A promise that resolves to the rendered string.
    */
-    public render(
+    public async render(
         template: string,
         context: Record<string, any>,
-    ): string {
+        correlationId?: string,
+    ): Promise<string> {
+        // Hydrate the entire context to resolve any S3 pointers before rendering.
+        const hydratedContext = await hydrateInputFromS3Pointers(context, correlationId);
+        
         const compiledTemplate = this.handlebars.compile(template, {
             noEscape: true, // We are not generating HTML, so we don't need escaping.
             strict: false,  // Be lenient with missing properties, they'll just be empty.
         });
-        return compiledTemplate(context);
+
+        const result = compiledTemplate(hydratedContext);
+
+        // Ensure the final output is always a string. If Handlebars returns an object
+        // (e.g., from a template like `{{myObject}}`), stringify it.
+        if (typeof result === 'object' && result !== null) {
+            return JSON.stringify(result);
+        }
+        
+        // Coerce other types (number, boolean) to string, which is the expected behavior.
+        return String(result ?? '');
     }
 
   /**
@@ -199,28 +216,9 @@ export class TemplateService {
           if (Array.isArray(processedValue)) {
               if (mapping.itemTemplate) {
                   const formattedItems = await Promise.all(processedValue.map(async (item) => {
-                      // ** S3-AWARE HYDRATION LOGIC **
-                      // Before rendering, inspect the item for S3 pointers and resolve them.
-                      let contextForItem = item;
-                      if (typeof item === 'object' && item !== null) {
-                          const hydratedItem = { ...item };
-                          for (const prop in hydratedItem) {
-                              if (Object.prototype.hasOwnProperty.call(hydratedItem, prop) && isS3OutputPointerWrapper(hydratedItem[prop])) {
-                                  log_debug(`Hydrating S3 pointer for item property '${prop}' in CUSTOM_STRING template`, { key }, correlationId);
-                                  hydratedItem[prop] = await resolveS3Pointer(hydratedItem[prop]._s3_output_pointer, correlationId);
-                                  log_debug(`hydratedItem[prop] is ${ JSON.stringify(hydratedItem[prop]) }`, {}, correlationId);
-                              }
-                          }
-                          contextForItem = hydratedItem;
-                          log_debug(`contextForItem ${ JSON.stringify(contextForItem) }`, {}, correlationId);
-                      }
-                      const renderedPart = this.render(mapping.itemTemplate!, contextForItem);
-
-                      // ** Intelligently stringify if the template resolved to an object **
-                      if (typeof renderedPart === 'object' && renderedPart !== null) {
-                          return JSON.stringify(renderedPart);
-                      }
-                      return String(renderedPart);
+                      // The `render` method is now fully S3-aware and handles hydration internally.
+                      // We can simply pass the item (which might contain pointers) as the context.
+                      return this.render(mapping.itemTemplate!, item, correlationId);
                   }));
                   context[key] = formattedItems.join(mapping.joinSeparator);
               } else {

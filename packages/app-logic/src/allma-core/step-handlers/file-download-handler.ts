@@ -44,12 +44,12 @@ export const handleFileDownload: StepHandler = async (
     const templateContext = { ...runtimeState.currentContextData, ...runtimeState, ...stepInput };
 
     // Render URL
-    const sourceUrl = templateService.render(config.sourceUrlTemplate, templateContext);
+    const sourceUrl = await templateService.render(config.sourceUrlTemplate, templateContext, correlationId);
     
     // Render Destination Key
     let destinationKey: string;
     if (config.destinationKeyTemplate) {
-        destinationKey = templateService.render(config.destinationKeyTemplate, templateContext);
+        destinationKey = await templateService.render(config.destinationKeyTemplate, templateContext, correlationId);
     } else {
         destinationKey = `downloads/${runtimeState.flowExecutionId}/${runtimeState.currentStepInstanceId}/${uuidv4()}`;
     }
