@@ -1,5 +1,11 @@
 # @allma/core-sdk
 
+## 1.0.7
+
+### Patch Changes
+
+- 690adc2: Templating fixes
+
 ## 1.0.6
 
 ### Patch Changes
