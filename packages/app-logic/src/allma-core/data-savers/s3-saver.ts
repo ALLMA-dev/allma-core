@@ -1,4 +1,3 @@
-// allma-core/packages/app-logic/src/allma-core/data-savers/s3-saver.ts
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { z } from 'zod';
 import {
@@ -61,14 +60,23 @@ export const executeS3Saver: StepHandler = async (
   // Prepare the body for S3. If the content is an object/array, stringify it.
   // If the content type suggests it's binary and the input is a string, assume it's base64 and decode.
   let Body: string | Buffer;
-  const isLikelyBinary = !config.contentType.startsWith('text/') && !/json/.test(config.contentType) && !/xml/.test(config.contentType);
+  
+  const contentType = config.contentType.toLowerCase();
+  // A type is considered text-based if it starts with 'text/', is a known JSON, XML, or script variant.
+  // This prevents overly broad matches on types like '...openxmlformats...'.
+  const isTextBased = contentType.startsWith('text/') ||
+                      /(application|text)\/(json|javascript|xml)/.test(contentType) ||
+                      /\+(json|xml)$/.test(contentType);
+  
+  const isLikelyBinary = !isTextBased;
 
   if (typeof contentToSave === 'string' && isLikelyBinary) {
-    log_info('Content is a string and content type is binary; attempting to decode from base64.', { contentType: config.contentType }, correlationId);
+    log_info('Content is a string and content type is likely binary; attempting to decode from base64.', { contentType: config.contentType }, correlationId);
     Body = Buffer.from(contentToSave, 'base64');
   } else if (typeof contentToSave === 'string') {
     Body = contentToSave;
   } else {
+    // If content is not a string (e.g., an object or array), it should be saved as JSON text.
     Body = JSON.stringify(contentToSave, null, 2);
   }
 
