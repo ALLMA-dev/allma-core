@@ -1,5 +1,11 @@
 # @allma/core-cdk
 
+## 1.0.31
+
+### Patch Changes
+
+- 86b36ab: binary files processing fix
+
 ## 1.0.30
 
 ### Patch Changes
