@@ -1,5 +1,11 @@
 # @allma/core-cdk
 
+## 1.0.32
+
+### Patch Changes
+
+- 70e7b0c: Flow cloning fixed (flowVariables copied now)
+
 ## 1.0.31
 
 ### Patch Changes
