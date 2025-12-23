@@ -275,7 +275,7 @@ export class VersionedEntityManager<TMaster extends MasterItem, TVersion extends
         };
         const validatedNewVersion = this.config.versionSchema.parse(finalNewVersion);
     
-        const newMetadataInput = {
+        const newMetadataInput: Omit<MasterItem, 'PK'> & { [key: string]: any } = {
             id: newId,
             name: newEntityInput.name,
             description: newEntityInput.description ?? `Cloned from ${sourceMetadata.name}`,
@@ -284,6 +284,12 @@ export class VersionedEntityManager<TMaster extends MasterItem, TVersion extends
             updatedAt: now,
             tags: (newEntityInput as any).tags ?? sourceMetadata.tags ?? [],
         };
+
+        // Also clone flowVariables if they exist on the source metadata.
+        if ('flowVariables' in sourceMetadata && (sourceMetadata as any).flowVariables) {
+            newMetadataInput.flowVariables = (sourceMetadata as any).flowVariables;
+        }
+
         const { pk } = this.getKeys(newId);
         const finalMetadataItem = this.config.masterSchema.parse({
             ...newMetadataInput, PK: pk, SK: 'METADATA', itemType: this.config.itemType
