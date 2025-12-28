@@ -1,5 +1,11 @@
 # @allma/admin-shell
 
+## 1.0.22
+
+### Patch Changes
+
+- 78066da: Error reporting improvement (notifications)
+
 ## 1.0.21
 
 ### Patch Changes

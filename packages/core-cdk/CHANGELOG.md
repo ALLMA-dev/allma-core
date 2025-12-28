@@ -1,5 +1,11 @@
 # @allma/core-cdk
 
+## 1.0.33
+
+### Patch Changes
+
+- 62f37d3: Email trigger manager improved to notify on conflicting email
+
 ## 1.0.32
 
 ### Patch Changes
