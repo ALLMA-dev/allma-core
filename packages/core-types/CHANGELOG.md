@@ -1,5 +1,11 @@
 # @allma/core-types
 
+## 1.1.0
+
+### Minor Changes
+
+- 96b1d0c: Agents feature is added
+
 ## 1.0.17
 
 ### Patch Changes
