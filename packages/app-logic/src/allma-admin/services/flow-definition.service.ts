@@ -6,7 +6,7 @@ import { VersionedEntityManager } from './versioned-entity.service.js';
 import { StepDefinitionService } from './step-definition.service.js';
 import { EmailMappingService } from './email-mapping.service.js';
 import { ScheduleService } from './schedule.service.js';
-import { log_info, deepMerge } from '@allma/core-sdk';
+import { log_info, deepMerge, log_warn, log_error } from '@allma/core-sdk';
 
 /**
  * Hydrates a flow definition by merging properties from referenced step definitions.
@@ -192,23 +192,43 @@ export const FlowDefinitionService = {
         const hydratedOld = await hydrateFlow(oldPublishedVersion);
         const hydratedNew = await hydrateFlow(newPublishedVersion);
 
-        await EmailMappingService.syncMappingsForFlowVersion(id, hydratedOld, hydratedNew);
-        await ScheduleService.syncSchedulesForFlowVersion(id, hydratedOld, hydratedNew);
+        try {
+            await EmailMappingService.syncMappingsForFlowVersion(id, hydratedOld, hydratedNew);
+            await ScheduleService.syncSchedulesForFlowVersion(id, hydratedOld, hydratedNew);
+        } catch (error: any) {
+            if (error.message.startsWith('Email address conflict:')) {
+                log_warn(`Rolling back publish for flow ${id} v${version} due to email mapping conflict.`, {}, id);
+                try {
+                    await entityManager.unpublishVersion(id, version);
+                } catch (rollbackError: any) {
+                    log_error(`CRITICAL: Failed to roll back publish for flow ${id} v${version}. Manual cleanup may be required.`, { rollbackError: rollbackError.message }, id);
+                }
+                throw error;
+            }
+            throw error;
+        }
 
         return newPublishedVersion;
     },
 
-    async unpublishVersion(id: string): Promise<FlowDefinition> {
+    async unpublishVersion(id: string, version: number): Promise<FlowDefinition> {
         const master = await entityManager.getMaster(id);
         if (!master || !master.publishedVersion) {
             throw new Error(`Flow ${id} is not published or does not exist.`);
         }
+
+        // Explicitly check that the version passed from the API matches the source of truth.
+        if (master.publishedVersion !== version) {
+            throw new Error(`Version ${version} is not the currently published version. Published version is ${master.publishedVersion}.`);
+        }
+
         const oldPublishedVersionResult = await entityManager.getVersion(id, master.publishedVersion);
         let oldPublishedVersion = oldPublishedVersionResult === null ? undefined : oldPublishedVersionResult;
         if (oldPublishedVersion && master) {
             oldPublishedVersion.flowVariables = master.flowVariables;
         }
 
+        // Call the entity manager with the confirmed published version.
         const unpublishedVersion = await entityManager.unpublishVersion(id, master.publishedVersion);
 
         const hydratedOld = await hydrateFlow(oldPublishedVersion);

@@ -64,8 +64,8 @@ async function handleServiceCall(serviceCall: () => Promise<any>, correlationId:
             const formattedMessage = formatZodError(e);
             return createApiGatewayResponse(400, buildErrorResponse(`Validation failed on merged data: ${formattedMessage}`, 'VALIDATION_ERROR', e.flatten()), correlationId);
         }
-        if (e.name === 'ConditionalCheckFailedException' || e.message.includes('not the one currently published') || e.message.includes('Cannot delete')) {
-            return createApiGatewayResponse(409, buildErrorResponse(e.message, 'CONFLICT'), correlationId);
+        if (e.name === 'ConditionalCheckFailedException' || e.message.includes('not the one currently published') || e.message.includes('Cannot delete') || e.message.includes('Email address conflict:')) {
+            return createApiGatewayResponse(409, buildErrorResponse(e.message, 'CONFLICT', e.details), correlationId);
         }
         if (e.message.includes('not found')) {
             return createApiGatewayResponse(404, buildErrorResponse(e.message, 'NOT_FOUND'), correlationId);
