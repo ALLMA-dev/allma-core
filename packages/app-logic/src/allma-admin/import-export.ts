@@ -17,11 +17,13 @@ import {
   PromptTemplate,
   McpConnection,
   StepType,
+  Agent, 
 } from '@allma/core-types';
 import { FlowDefinitionService } from './services/flow-definition.service.js';
 import { StepDefinitionService } from './services/step-definition.service.js';
 import { PromptTemplateService } from './services/prompt-template.service.js';
 import { McpConnectionService } from './services/mcp-connection.service.js';
+import { AgentService } from './services/agent.service.js'; 
 import { AllmaImporterService } from '../services/allma-importer.service.js';
 import { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2 } from 'aws-lambda';
 
@@ -49,15 +51,17 @@ async function mainHandler(
         return createApiGatewayResponse(400, buildErrorResponse('Invalid input for export.', 'VALIDATION_ERROR', validation.error.flatten()), correlationId);
       }
       
-      const { flowIds, stepDefinitionIds, promptTemplateIds, mcpConnectionIds } = validation.data;
+      const { flowIds, stepDefinitionIds, promptTemplateIds, mcpConnectionIds, agentIds } = validation.data; // MODIFIED
       const inputFlowIds = flowIds || [];
       const inputStepIds = stepDefinitionIds || [];
       const inputPromptIds = promptTemplateIds || [];
       const inputMcpIds = mcpConnectionIds || [];
+      const inputAgentIds = agentIds || []; 
 
-      const isFullExport = inputFlowIds.length === 0 && inputStepIds.length === 0 && inputPromptIds.length === 0 && inputMcpIds.length === 0;
+      const isFullExport = inputFlowIds.length === 0 && inputStepIds.length === 0 && inputPromptIds.length === 0 && inputMcpIds.length === 0 && inputAgentIds.length === 0;
 
       // Sets to track all IDs we need to fetch
+      const agentsToExport = new Set<string>(inputAgentIds); 
       const flowsToExport = new Set<string>(inputFlowIds);
       const stepsToExport = new Set<string>(inputStepIds);
       const promptsToExport = new Set<string>(inputPromptIds);
@@ -65,6 +69,9 @@ async function mainHandler(
 
       // --- 1. If Full Export, gather ALL IDs from the system first ---
       if (isFullExport) {
+        const allAgents = await AgentService.list(); 
+        allAgents.forEach(a => agentsToExport.add(a.id)); 
+
         const allFlows = await FlowDefinitionService.listMasters();
         allFlows.forEach(f => flowsToExport.add(f.id));
 
@@ -76,6 +83,16 @@ async function mainHandler(
 
         const allMcps = await McpConnectionService.list();
         allMcps.forEach(m => mcpsToExport.add(m.id));
+      }
+      
+      // --- 1.5. Gather flows from agents ---
+      const finalAgents: Agent[] = [];
+      for (const agentId of agentsToExport) {
+          const agent = await AgentService.get(agentId);
+          if (agent) {
+              finalAgents.push(agent);
+              agent.flowIds.forEach(flowId => flowsToExport.add(flowId));
+          }
       }
 
       // --- 2. Recursive Dependency Discovery for Flows ---
@@ -169,6 +186,7 @@ async function mainHandler(
       });
 
       log_info(`Export complete. Found dependencies:`, { 
+          agents: finalAgents.length, 
           flows: finalFlows.length, 
           steps: finalSteps.length, 
           prompts: finalPrompts.length, 
@@ -178,6 +196,7 @@ async function mainHandler(
       const exportData: AllmaExportFormat = {
         formatVersion: '1.0',
         exportedAt: new Date().toISOString(),
+        agents: finalAgents, 
         stepDefinitions: finalSteps,
         flows: finalFlows,
         promptTemplates: finalPrompts,

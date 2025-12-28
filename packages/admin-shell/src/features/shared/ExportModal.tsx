@@ -12,7 +12,7 @@ interface ExportModalProps {
   opened: boolean;
   onClose: () => void;
   items: ExportableItem[];
-  itemType: 'flow' | 'step' | 'prompt';
+  itemType: 'flow' | 'step' | 'prompt' | 'agent';
 }
 
 export function ExportModal({ opened, onClose, items, itemType }: ExportModalProps) {
@@ -21,13 +21,15 @@ export function ExportModal({ opened, onClose, items, itemType }: ExportModalPro
   const exportMutation = useExportMutation();
 
   const handleExport = () => {
-    let exportData: ExportApiInput;
+    let exportData: ExportApiInput = {};
     if (itemType === 'flow') {
       exportData = { flowIds: selectedIds };
     } else if (itemType === 'step') {
       exportData = { stepDefinitionIds: selectedIds };
-    } else { // 'prompt'
+    } else if (itemType === 'prompt') {
       exportData = { promptTemplateIds: selectedIds };
+    } else if (itemType === 'agent') {
+      exportData = { agentIds: selectedIds };
     }
     exportMutation.mutate(exportData);
     onClose();
@@ -41,6 +43,7 @@ export function ExportModal({ opened, onClose, items, itemType }: ExportModalPro
     flow: 'Flows',
     step: 'Step Definitions',
     prompt: 'Prompts',
+    agent: 'Agents',
   };
   const title = `Export ${itemTypeLabels[itemType]}`;
 

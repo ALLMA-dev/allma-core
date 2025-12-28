@@ -1,10 +1,11 @@
-// allma-core/packages/app-logic/src/allma-admin/services/schedule.service.ts
-import { SchedulerClient, CreateScheduleCommand, DeleteScheduleCommand, UpdateScheduleCommand } from '@aws-sdk/client-scheduler';
+import { SchedulerClient, CreateScheduleCommand, DeleteScheduleCommand, UpdateScheduleCommand, GetScheduleCommand } from '@aws-sdk/client-scheduler';
 import { FlowDefinition, StepInstance, StartFlowExecutionInput, StepType, ENV_VAR_NAMES } from '@allma/core-types';
 import { log_info, log_error, log_warn } from '@allma/core-sdk';
 import { createHash } from 'crypto';
 import { TemplateService } from '../../allma-core/template-service.js';
 import { renderNestedTemplates } from '../../allma-core/utils/template-renderer.js';
+import { FlowActivationService } from './flow-activation.service.js'; 
+import { FlowDefinitionService } from './flow-definition.service.js'; 
 
 const schedulerClient = new SchedulerClient({});
 
@@ -32,17 +33,41 @@ export const ScheduleService = {
     const schedulesToUpdate = newSchedules.filter((newStep: StepInstance) => oldSchedules.some((oldStep: StepInstance) => oldStep.stepInstanceId === newStep.stepInstanceId));
 
     for (const step of schedulesToDelete) {
+      // oldVersion is guaranteed to exist if schedulesToDelete has items
       await this._deleteSchedule(this._generateScheduleName(flowId, oldVersion!.version, step.stepInstanceId));
     }
 
     for (const step of schedulesToCreate) {
-      await this._createSchedule(flowId, newVersion!.version, step, newVersion!);
+      // newVersion is guaranteed to exist if schedulesToCreate has items
+      await this._createOrUpdateSchedule(flowId, newVersion!.version, step, newVersion!);
     }
 
     for (const step of schedulesToUpdate) {
-      await this._updateSchedule(flowId, newVersion!.version, step, newVersion!);
+      // newVersion is guaranteed to exist if schedulesToUpdate has items
+      await this._createOrUpdateSchedule(flowId, newVersion!.version, step, newVersion!);
     }
   },
+
+  /**
+   * Re-synchronizes schedules for a list of flows. Useful when agent status changes.
+   */
+  async syncSchedulesForFlows(flowIds: string[]): Promise<void> {
+    for (const flowId of flowIds) {
+      try {
+        const master = await FlowDefinitionService.getMaster(flowId);
+        if (master?.publishedVersion) {
+          const publishedVersion = await FlowDefinitionService.getVersion(flowId, master.publishedVersion);
+          if (publishedVersion) {
+            // Call sync with the same version for old and new to trigger an update-in-place.
+            await this.syncSchedulesForFlowVersion(flowId, publishedVersion, publishedVersion);
+          }
+        }
+      } catch (error) {
+        log_error(`Failed to sync schedules for flow ${flowId} after agent status change.`, { error });
+      }
+    }
+  },
+
 
   /**
    * Generates a deterministic and unique name for a schedule.
@@ -52,6 +77,24 @@ export const ScheduleService = {
     const longName = `${flowId}-v${version}-${stepInstanceId}`;
     const hash = createHash('sha256').update(longName).digest('hex');
     return `allma-${hash.substring(0, 58)}`; // 6 chars for "allma-" + 58 for hash
+  },
+  
+  /**
+   * Creates or updates a schedule. It checks for the schedule's existence first.
+   */
+  async _createOrUpdateSchedule(flowId: string, version: number, step: StepInstance, flowDef: FlowDefinition) {
+    const scheduleName = this._generateScheduleName(flowId, version, step.stepInstanceId);
+    try {
+      await schedulerClient.send(new GetScheduleCommand({ Name: scheduleName }));
+      await this._updateSchedule(flowId, version, step, flowDef);
+    } catch (error: any) {
+      if (error.name === 'ResourceNotFoundException') {
+        await this._createSchedule(flowId, version, step, flowDef);
+      } else {
+        log_error(`Error checking for schedule existence: ${scheduleName}`, { error });
+        throw error;
+      }
+    }
   },
 
   /**
@@ -67,6 +110,9 @@ export const ScheduleService = {
     const renderedScheduleExpression = await templateService.render(scheduleExpression, templateContext, flowId);
     const renderedPayloadTemplate = await renderNestedTemplates(payloadTemplate, templateContext, flowId);
 
+    const isFlowActive = await FlowActivationService.isFlowActive(flowId); 
+    const finalState = flowDef.isPublished && enabled && isFlowActive ? 'ENABLED' : 'DISABLED'; 
+
     const targetInput: StartFlowExecutionInput = {
       flowDefinitionId: flowId,
       flowVersion: String(version),
@@ -78,7 +124,7 @@ export const ScheduleService = {
       Name: scheduleName,
       ScheduleExpression: renderedScheduleExpression,
       ScheduleExpressionTimezone: timezone ?? 'UTC',
-      State: flowDef.isPublished && enabled ? 'ENABLED' : 'DISABLED',
+      State: finalState, // MODIFIED
       Target: {
         Arn: process.env[ENV_VAR_NAMES.ALLMA_FLOW_START_REQUEST_QUEUE_ARN],
         RoleArn: process.env[ENV_VAR_NAMES.EVENTBRIDGE_SCHEDULER_ROLE_ARN],
@@ -89,7 +135,7 @@ export const ScheduleService = {
 
     try {
       await schedulerClient.send(command);
-      log_info(`Successfully created schedule: ${scheduleName}`);
+      log_info(`Successfully created schedule: ${scheduleName} with state: ${finalState}`);
     } catch (error: any) {
       log_error(`Error creating schedule ${scheduleName}: ${error.name} - ${error.message}`);
       throw error;
@@ -108,6 +154,9 @@ export const ScheduleService = {
 
     const renderedScheduleExpression = await templateService.render(scheduleExpression, templateContext, flowId);
     const renderedPayloadTemplate = await renderNestedTemplates(payloadTemplate, templateContext, flowId);
+    
+    const isFlowActive = await FlowActivationService.isFlowActive(flowId); 
+    const finalState = flowDef.isPublished && enabled && isFlowActive ? 'ENABLED' : 'DISABLED'; 
 
     const targetInput: StartFlowExecutionInput = {
       flowDefinitionId: flowId,
@@ -120,7 +169,7 @@ export const ScheduleService = {
       Name: scheduleName,
       ScheduleExpression: renderedScheduleExpression,
       ScheduleExpressionTimezone: timezone ?? 'UTC',
-      State: flowDef.isPublished && enabled ? 'ENABLED' : 'DISABLED',
+      State: finalState,
       Target: {
         Arn: process.env[ENV_VAR_NAMES.ALLMA_FLOW_START_REQUEST_QUEUE_ARN],
         RoleArn: process.env[ENV_VAR_NAMES.EVENTBRIDGE_SCHEDULER_ROLE_ARN],
@@ -131,9 +180,8 @@ export const ScheduleService = {
 
     try {
       await schedulerClient.send(command);
-      log_info(`Successfully updated schedule: ${scheduleName}`);
+      log_info(`Successfully updated schedule: ${scheduleName} to state: ${finalState}`);
     } catch (error: any) {
-      // If the schedule doesn't exist, create it instead. This can happen if a previous deletion failed.
       if (error.name === 'ResourceNotFoundException') {
         log_warn(`Schedule ${scheduleName} not found for update, creating it instead.`);
         await this._createSchedule(flowId, version, step, flowDef);

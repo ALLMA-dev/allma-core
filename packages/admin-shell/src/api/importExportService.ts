@@ -5,6 +5,7 @@ import { ALLMA_ADMIN_API_ROUTES, ExportApiInput, ImportApiResponse, AllmaExportF
 import { saveAs } from 'file-saver';
 import { PROMPT_TEMPLATES_QUERY_KEY } from '../features/prompts/constants.js';
 import { showErrorNotification } from '../utils/notifications.js';
+import { AGENTS_QUERY_KEY } from '../features/agents/constants.js';
 
 /**
  * Mutation to trigger an export of flows and step definitions.
@@ -52,9 +53,10 @@ export function useImportMutation() {
       queryClient.invalidateQueries({ queryKey: ['flows'] });
       queryClient.invalidateQueries({ queryKey: ['step-definitions'] });
       queryClient.invalidateQueries({ queryKey: [PROMPT_TEMPLATES_QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: [AGENTS_QUERY_KEY] });
       notifications.show({
         title: 'Import Successful',
-        message: `Created: ${data.created.flows} flows, ${data.created.steps} steps, ${data.created.prompts} prompts. Updated: ${data.updated.flows} flows, ${data.updated.steps} steps, ${data.updated.prompts} prompts.`,
+        message: `Created: ${data.created.flows} flows, ${data.created.steps} steps, ${data.created.prompts} prompts, ${data.created.agents} agents. Updated: ${data.updated.flows} flows, ${data.updated.steps} steps, ${data.updated.prompts} prompts, ${data.updated.agents} agents.`,
         color: 'green',
       });
     },

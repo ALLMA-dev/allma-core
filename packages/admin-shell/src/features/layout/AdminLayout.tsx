@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import React from 'react';
 import { AppShell, Burger, Group, NavLink, ScrollArea, Title, Text, ActionIcon, useMantineColorScheme, Tooltip, Stack, Image } from '@mantine/core';
-import { IconGauge, IconListDetails, IconLogout, IconSun, IconMoon, IconPrompt, IconActivity, IconLayoutSidebarLeftCollapse, IconLayoutSidebarRightExpand, IconTemplate, IconPlugConnected } from '@tabler/icons-react';
+import { IconGauge, IconListDetails, IconLogout, IconSun, IconMoon, IconPrompt, IconActivity, IconLayoutSidebarLeftCollapse, IconLayoutSidebarRightExpand, IconTemplate, IconPlugConnected, IconUserCog } from '@tabler/icons-react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { useAdminAuth } from '../../hooks/useAdminAuth';
 import { AdminPermission } from '@allma/core-types';
@@ -118,25 +118,23 @@ export function AdminLayout({ navItems, children }: AdminLayoutProps) {
         
         {/* Global Footer */}
         <Group justify="flex-end" mt="xl" pt="lg" pb="sm" px="md">
-             <Group 
-                component="a"
+             <a
                 href="https://allma.dev"
                 target="_blank"
                 rel="noopener noreferrer"
-                gap="xs" 
-                align="center" 
-                opacity={0.6}
                 style={{ textDecoration: 'none', cursor: 'pointer' }}
             >
-                <Text size="xs" c="dimmed" fw={500}>Powered by</Text>
-                <Image
-                    src={poweredByLogo}
-                    h={22}
-                    w="auto"
-                    fit="contain"
-                    alt="Logo"
-                />
-            </Group>
+                <Group gap="xs" align="center" opacity={0.6}>
+                    <Text size="xs" c="dimmed" fw={500}>Powered by</Text>
+                    <Image
+                        src={poweredByLogo}
+                        h={22}
+                        w="auto"
+                        fit="contain"
+                        alt="Logo"
+                    />
+                </Group>
+            </a>
         </Group>
       </AppShell.Main>
     </AppShell>

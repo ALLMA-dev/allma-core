@@ -133,6 +133,8 @@ export class ApiConstruct extends Construct {
         const adminImportExportLambda = this.createNodejsLambda('AdminImportExportLambda', `AllmaAdminImportExport-${stageConfig.stage}`, 'allma-admin/import-export.js', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars);
         const adminMcpConnectionManagementLambda = this.createNodejsLambda('AdminMcpConnectionManagementLambda', `AllmaAdminMcpConnectionMgmt-${stageConfig.stage}`, 'allma-admin/mcp-connection-management.js', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars);
 
+        const adminAgentManagementLambda = this.createNodejsLambda('AdminAgentManagementLambda', `AllmaAdminAgentMgmt-${stageConfig.stage}`, 'allma-admin/agent-management.js', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars);
+
         // --- API Gateway ---
         const adminApi = new AllmaAdminApi(this, 'AllmaAdminApi', {
             stageConfig,
@@ -150,6 +152,7 @@ export class ApiConstruct extends Construct {
             adminDashboardStatsLambda,
             adminImportExportLambda,
             adminMcpConnectionManagementLambda,
+            adminAgentManagementLambda,
         });
         this.httpApi = adminApi.httpApi;
         this.apiStage = new apigwv2.HttpStage(this, 'ApiGatewayStage', {

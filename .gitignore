@@ -57,5 +57,4 @@ cdk.out/
 .nx/
 .turbo/
 
-**/examples/basic-deployment*
-**/examples/amazon_hack*/**
+**/examples/*

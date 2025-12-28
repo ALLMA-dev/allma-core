@@ -1,7 +1,7 @@
 import React from 'react';
 import { useRoutes, Navigate } from 'react-router-dom';
 import { Container, Paper, Title, Button, Loader, Group, Text } from '@mantine/core';
-import { IconAlertCircle, IconGauge, IconListDetails, IconActivity, IconPrompt, IconTemplate, IconPlugConnected } from '@tabler/icons-react';
+import { IconAlertCircle, IconGauge, IconListDetails, IconActivity, IconPrompt, IconTemplate, IconPlugConnected, IconUserCog } from '@tabler/icons-react';
 import { useAuthenticator, Authenticator } from '@aws-amplify/ui-react';
 import { ADMIN_COGNITO_GROUP_NAME } from '@allma/core-sdk';
 import { useAdminAuth } from './hooks/useAdminAuth';
@@ -25,6 +25,9 @@ import { StepDefinitionEditPage } from './features/step-definitions/StepDefiniti
 import { McpConnectionListPage } from './features/mcp-connections/McpConnectionListPage';
 import { McpConnectionCreatePage } from './features/mcp-connections/McpConnectionCreatePage';
 import { McpConnectionEditPage } from './features/mcp-connections/McpConnectionEditPage';
+import { AgentListPage } from './features/agents/AgentListPage.js';
+import { AgentCreatePage } from './features/agents/AgentCreatePage.js';
+import { AgentEditPage } from './features/agents/AgentEditPage.js';
 
 interface AuthenticatedAppProps {
   plugins: AllmaPlugin[];
@@ -75,6 +78,7 @@ function ProtectedApp({ plugins }: AuthenticatedAppProps) {
     { label: 'Step Definitions', path: '/step-definitions', icon: IconTemplate, permission: AdminPermission.DEFINITIONS_READ },
     { label: 'MCP Connections', path: '/mcp-connections', icon: IconPlugConnected, permission: AdminPermission.DEFINITIONS_READ },
     { label: 'Flows', path: '/flows', icon: IconListDetails, permission: AdminPermission.DEFINITIONS_READ },
+    { label: 'Agents', path: '/agents', icon: IconUserCog, permission: AdminPermission.DEFINITIONS_READ },
     { label: 'Executions', path: '/executions', icon: IconActivity, permission: AdminPermission.EXECUTIONS_READ },
     { label: 'Prompts', path: '/prompts', icon: IconPrompt, permission: AdminPermission.DEFINITIONS_READ },
   ];
@@ -102,6 +106,9 @@ function ProtectedApp({ plugins }: AuthenticatedAppProps) {
       { path: '/flows', element: <FlowListPage /> },
       { path: 'flows/versions/:flowId', element: <FlowVersionListPage /> },
       { path: 'flows/edit/:flowId/:version', element: <FlowEditorPage /> },
+      { path: '/agents', element: <AgentListPage /> },
+      { path: '/agents/create', element: <AgentCreatePage /> },
+      { path: '/agents/edit/:agentId', element: <AgentEditPage /> },
       { path: '/executions', element: <ExecutionListPage /> },
       { path: '/executions/:flowExecutionId', element: <ExecutionDetailPage /> },
       { path: '/prompts', element: <PromptListPage /> },

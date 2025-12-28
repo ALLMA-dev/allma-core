@@ -18,7 +18,7 @@ import {
 } from '@allma/core-sdk';
 import { loadFlowDefinition, loadFlowMetadata } from '../allma-core/config-loader.js';
 import { executionLoggerClient } from '../allma-core/execution-logger-client.js';
-
+import { AgentService } from '../allma-admin/services/agent.service.js'; 
 
 /**
  * AWS Lambda handler for the "InitializeFlowExecution" state.
@@ -79,13 +79,14 @@ export const handler: Handler<StartFlowExecutionInput, ProcessorOutput> = async 
     const effectiveFlowExecutionId = startInput.flowExecutionId || correlationId;
 
     // 2. Load the FlowDefinition and its metadata
-    const [flowDefinition, flowMetadata] = await Promise.all([
+    const [flowDefinition, flowMetadata, agentVariables] = await Promise.all([ // MODIFIED
       loadFlowDefinition(
         startInput.flowDefinitionId,
         startInput.flowVersion,
         effectiveFlowExecutionId
       ),
-      loadFlowMetadata(startInput.flowDefinitionId, effectiveFlowExecutionId)
+      loadFlowMetadata(startInput.flowDefinitionId, effectiveFlowExecutionId),
+      AgentService.getAgentVariablesForFlow(startInput.flowDefinitionId), 
     ]);
 
     // 3. Resolve initial context data, which may have been offloaded to S3 by the calling service.
@@ -112,6 +113,7 @@ export const handler: Handler<StartFlowExecutionInput, ProcessorOutput> = async 
         ...initialContextData,
         steps_output: {},
         flow_variables: {
+            ...agentVariables, // Agent variables are the base
             ...(flowMetadata.flowVariables || {}),
             ...(initialContextData.flow_variables || {}),
             flowExecutionId: effectiveFlowExecutionId,

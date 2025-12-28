@@ -36,7 +36,7 @@ export const handler = createCrudHandler({
     },
     schemas: {
         createMaster: CreatePromptTemplateInputSchema,
-        updateMaster: UpdatePromptMasterInputSchema, // FIXED
+        updateMaster: UpdatePromptMasterInputSchema,
         cloneMaster: ClonePromptInputSchema,
         createVersion: CreatePromptVersionInputSchema,
         updateVersion: UpdatePromptTemplateInputSchema,

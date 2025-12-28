@@ -25,6 +25,7 @@ interface AllmaAdminApiProps {
   adminDashboardStatsLambda: lambda.IFunction;
   adminImportExportLambda: lambda.IFunction;
   adminMcpConnectionManagementLambda: lambda.IFunction;
+  adminAgentManagementLambda: lambda.IFunction;
 
   // Role from AllmaCompute to grant API invoke permissions to
   orchestrationLambdaRole: iam.Role;
@@ -46,7 +47,8 @@ export class AllmaAdminApi extends Construct {
       adminFlowControlLambda,
       adminDashboardStatsLambda,
       adminImportExportLambda,
-      adminMcpConnectionManagementLambda
+      adminMcpConnectionManagementLambda,
+      adminAgentManagementLambda
     } = props;
 
     const adminAuthorizer = new HttpUserPoolAuthorizer('AdminCognitoAuthorizer', props.adminUserPool, {
@@ -324,6 +326,22 @@ export class AllmaAdminApi extends Construct {
       path: `${ALLMA_ADMIN_API_ROUTES.MCP_CONNECTIONS}/{connectionId}/discover`,
       methods: [apigwv2.HttpMethod.POST],
       integration: mcpConnectionIntegration,
+      authorizer: adminAuthorizer,
+    });
+
+    const adminAgentManagementIntegration = new HttpLambdaIntegration('AdminAgentManagementIntegration', adminAgentManagementLambda);
+
+    // Agent Routes
+    this.httpApi.addRoutes({
+      path: ALLMA_ADMIN_API_ROUTES.AGENTS,
+      methods: [apigwv2.HttpMethod.GET, apigwv2.HttpMethod.POST],
+      integration: adminAgentManagementIntegration,
+      authorizer: adminAuthorizer,
+    });
+    this.httpApi.addRoutes({
+      path: `${ALLMA_ADMIN_API_ROUTES.AGENTS}/{agentId}`,
+      methods: [apigwv2.HttpMethod.GET, apigwv2.HttpMethod.PUT, apigwv2.HttpMethod.DELETE],
+      integration: adminAgentManagementIntegration,
       authorizer: adminAuthorizer,
     });
 

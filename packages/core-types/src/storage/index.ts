@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { PromptTemplateSchema } from '../prompt/index.js';
-import { ITEM_TYPE_ALLMA_PROMPT_TEMPLATE, ITEM_TYPE_ALLMA_FLOW_DEFINITION, ITEM_TYPE_ALLMA_EXTERNAL_STEP_REGISTRY } from '../common/core.js';
+import { ITEM_TYPE_ALLMA_PROMPT_TEMPLATE, ITEM_TYPE_ALLMA_FLOW_DEFINITION, ITEM_TYPE_ALLMA_EXTERNAL_STEP_REGISTRY, ITEM_TYPE_ALLMA_AGENT } from '../common/core.js'; 
 import { StepTypeSchema } from '../steps/index.js';
+import { AgentSchema } from '../agent/agent.js'; 
 
 // --- Prompt Template Storage Items (Versioned Model) ---
 
@@ -43,6 +44,28 @@ export const FlowMetadataStorageItemSchema = z.object({
   updatedAt: z.string().datetime(),
 });
 export type FlowMetadataStorageItem = z.infer<typeof FlowMetadataStorageItemSchema>;
+
+// --- Agent Storage Items ---
+
+/**
+ * Storage schema for an Agent's metadata record.
+ */
+export const AgentMetadataStorageItemSchema = AgentSchema.extend({
+    PK: z.string().startsWith('AGENT#'),
+    SK: z.literal('METADATA'),
+    itemType: z.literal(ITEM_TYPE_ALLMA_AGENT),
+});
+export type AgentMetadataStorageItem = z.infer<typeof AgentMetadataStorageItemSchema>;
+
+/**
+ * Storage schema for the mapping between a Flow and an Agent.
+ * This allows efficiently finding all agents a flow belongs to.
+ */
+export const FlowAgentMappingStorageItemSchema = z.object({
+    PK: z.string().startsWith('FLOW_DEF#'), // PK is the flow's PK
+    SK: z.string().startsWith('AGENT#'),   // SK is the agent's PK prefix + ID
+});
+export type FlowAgentMappingStorageItem = z.infer<typeof FlowAgentMappingStorageItemSchema>;
 
 // --- External Step Registry Item ---
 

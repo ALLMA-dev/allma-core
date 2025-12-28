@@ -1,4 +1,3 @@
-// In package: allma-app-logic
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, QueryCommand } from '@aws-sdk/lib-dynamodb';
@@ -7,6 +6,7 @@ import PostalMime from 'postal-mime';
 import { v4 as uuidv4 } from 'uuid';
 import { log_info, log_error, log_warn } from '@allma/core-sdk';
 import { ENV_VAR_NAMES, StartFlowExecutionInput, EmailAttachment } from '@allma/core-types';
+import { FlowActivationService } from '../allma-admin/services/flow-activation.service.js'; 
 
 const s3Client = new S3Client({});
 const ddbDocClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -133,6 +133,14 @@ export const handler = async (event: { Records: SesEventRecord[] }): Promise<voi
             }
 
             const { flowDefinitionId, stepInstanceId } = targetMapping;
+            
+            // Check if the flow is active
+            const isActive = await FlowActivationService.isFlowActive(flowDefinitionId);
+            if (!isActive) {
+                log_warn(`Email trigger matched flow '${flowDefinitionId}', but the flow is inactive. Discarding email.`, { recipient }, correlationId);
+                return;
+            }
+
             const newFlowExecutionId = uuidv4();
 
             const fromObj = parsedEmail.from;

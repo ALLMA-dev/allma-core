@@ -14,7 +14,9 @@ import {
     log_error,
     log_info,
     log_debug,
+    log_warn, 
 } from '@allma/core-sdk';
+import { FlowActivationService } from '../allma-admin/services/flow-activation.service.js'; 
 
 const sqsClient = new SQSClient({});
 const FLOW_START_QUEUE_URL = process.env[ENV_VAR_NAMES.ALLMA_FLOW_START_REQUEST_QUEUE_URL];
@@ -36,6 +38,13 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
     const { flowId } = event.pathParameters || {};
     if (!flowId) {
         return createApiGatewayResponse(400, buildErrorResponse('Missing flowId path parameter.', 'VALIDATION_ERROR'), correlationId);
+    }
+
+    // Check if flow is active before proceeding
+    const isActive = await FlowActivationService.isFlowActive(flowId);
+    if (!isActive) {
+        log_warn(`Attempted to trigger inactive flow '${flowId}'. The flow is part of a disabled agent.`, {}, correlationId);
+        return createApiGatewayResponse(403, buildErrorResponse('Flow is currently disabled and cannot be triggered.', 'FORBIDDEN'), correlationId);
     }
 
     try {

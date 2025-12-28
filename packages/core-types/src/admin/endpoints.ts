@@ -9,6 +9,7 @@ export const ARS = {
     PROMPT_TEMPLATES: 'prompt-templates', 
     FLOW_EXECUTIONS: 'flow-executions',
     FLOWS: 'flows',
+    AGENTS: 'agents', 
     DASHBOARD: 'dashboard', 
     STEP_DEFINITIONS: 'step-definitions',
 };
@@ -22,6 +23,10 @@ export const ALLMA_ADMIN_API_ROUTES = {
 
   // Dashboard
   DASHBOARD_STATS: `/allma/${ARS.DASHBOARD}/stats`,
+
+  // Agents
+  AGENTS: `/allma/${ARS.AGENTS}`,
+  AGENT_DETAIL: (agentId: string) => `/allma/${ARS.AGENTS}/${agentId}`,
 
   // Prompt Templates
   PROMPT_TEMPLATES: `/allma/${ARS.PROMPT_TEMPLATES}`,

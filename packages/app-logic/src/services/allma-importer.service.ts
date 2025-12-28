@@ -1,8 +1,9 @@
-import { AllmaExportFormat, AllmaExportFormatSchema, ImportApiResponse, StepDefinitionSchema, FlowDefinitionSchema, PromptTemplateSchema, McpConnectionSchema, StepDefinition, FlowDefinition } from '@allma/core-types';
+import { AllmaExportFormat, AllmaExportFormatSchema, ImportApiResponse, StepDefinitionSchema, FlowDefinitionSchema, PromptTemplateSchema, McpConnectionSchema, StepDefinition, FlowDefinition, AgentSchema, Agent } from '@allma/core-types';
 import { FlowDefinitionService } from '../allma-admin/services/flow-definition.service.js';
 import { StepDefinitionService } from '../allma-admin/services/step-definition.service.js';
 import { PromptTemplateService } from '../allma-admin/services/prompt-template.service.js';
 import { McpConnectionService } from '../allma-admin/services/mcp-connection.service.js';
+import { AgentService } from '../allma-admin/services/agent.service.js'; // NEW
 import { deepMerge } from '@allma/core-sdk';
 import { z } from 'zod';
 
@@ -20,7 +21,7 @@ export class AllmaImporterService {
   public validateImportData(rawData: unknown, sourceFileName?: string): ValidationResult {
     const filePrefix = sourceFileName ? `[${sourceFileName}] ` : '';
     // Omit array fields from top-level check to process them individually later
-    const topLevelSchema = AllmaExportFormatSchema.omit({ flows: true, stepDefinitions: true, promptTemplates: true, mcpConnections: true });
+    const topLevelSchema = AllmaExportFormatSchema.omit({ flows: true, stepDefinitions: true, promptTemplates: true, mcpConnections: true, agents: true }); // MODIFIED
     const topLevelValidation = topLevelSchema.safeParse(rawData);
 
     if (!topLevelValidation.success) {
@@ -32,7 +33,7 @@ export class AllmaImporterService {
     const formErrors: string[] = [];
 
     // Manually iterate through Zod issues to build precise error paths.
-    const processIssues = (issues: z.ZodIssue[], arrayName: 'flows' | 'stepDefinitions' | 'promptTemplates' | 'mcpConnections', itemIndex: number, itemIdentifier: string) => {
+    const processIssues = (issues: z.ZodIssue[], arrayName: 'flows' | 'stepDefinitions' | 'promptTemplates' | 'mcpConnections' | 'agents', itemIndex: number, itemIdentifier: string) => { // MODIFIED
       for (const issue of issues) {
         if (issue.path.length === 0) {
           formErrors.push(`${filePrefix}${itemIdentifier}: ${issue.message}`);
@@ -106,12 +107,22 @@ export class AllmaImporterService {
       });
     }
     
+    // NEW: Validate each agent individually
+    if (data.agents && Array.isArray(data.agents)) {
+        data.agents.forEach((agent, index) => {
+            const agentValidation = AgentSchema.safeParse(agent);
+            if (!agentValidation.success) {
+                const agentIdentifier = (agent as any)?.id ? `Agent '${(agent as any).id}'` : `Agent at index ${index}`;
+                processIssues(agentValidation.error.issues, 'agents', index, agentIdentifier);
+            }
+        });
+    }
+    
     if (formErrors.length > 0 || Object.keys(fieldErrors).length > 0) {
       return { success: false, error: { formErrors, fieldErrors } };
     }
 
     // If all per-item validations have passed, the entire object is considered valid.
-    // The redundant and faulty final validation is removed.
     return { success: true, data: data as AllmaExportFormat };
   }
 
@@ -120,9 +131,9 @@ export class AllmaImporterService {
     options: { overwrite: boolean }
   ): Promise<ImportApiResponse> {
     const result: ImportApiResponse = {
-      created: { flows: 0, steps: 0, prompts: 0, mcpConnections: 0 },
-      updated: { flows: 0, steps: 0, prompts: 0, mcpConnections: 0 },
-      skipped: { flows: 0, steps: 0, prompts: 0, mcpConnections: 0 },
+      created: { flows: 0, steps: 0, prompts: 0, mcpConnections: 0, agents: 0 },
+      updated: { flows: 0, steps: 0, prompts: 0, mcpConnections: 0, agents: 0 },
+      skipped: { flows: 0, steps: 0, prompts: 0, mcpConnections: 0, agents: 0 },
       errors: [],
     };
 
@@ -270,6 +281,34 @@ export class AllmaImporterService {
           });
         }
       }
+    }
+
+    // Step 5: Import Agents
+    if (data.agents) {
+        for (const agent of data.agents) {
+            try {
+                const existing = await AgentService.get(agent.id);
+                if (existing) {
+                    if (options.overwrite) {
+                        const { id, createdAt, updatedAt, ...updateData } = agent;
+                        await AgentService.update(agent.id, updateData);
+                        result.updated.agents++;
+                    } else {
+                        result.skipped.agents++;
+                    }
+                } else {
+                    const { createdAt, updatedAt, ...createData } = agent;
+                    await AgentService.create(createData as Agent);
+                    result.created.agents++;
+                }
+            } catch (error: any) {
+                result.errors.push({
+                    id: agent.id,
+                    type: 'agent',
+                    message: error.message || 'An unknown error occurred during Agent import',
+                });
+            }
+        }
     }
 
     return result;

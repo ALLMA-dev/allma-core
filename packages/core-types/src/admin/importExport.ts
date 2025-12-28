@@ -3,6 +3,7 @@ import { StepDefinitionSchema } from '../steps/definitions.js';
 import { FlowDefinitionSchema } from '../flow/core.js';
 import { PromptTemplateSchema } from '../prompt/index.js';
 import { McpConnectionSchema } from '../mcp/connections.js';
+import { AgentSchema } from '../agent/agent.js'; 
 
 /**
  * Defines the structure of the JSON file used for import/export.
@@ -14,6 +15,7 @@ export const AllmaExportFormatSchema = z.object({
   flows: z.array(FlowDefinitionSchema).optional(),
   promptTemplates: z.array(PromptTemplateSchema).optional(),
   mcpConnections: z.array(McpConnectionSchema).optional(),
+  agents: z.array(AgentSchema).optional(), 
 });
 
 /**
@@ -25,6 +27,7 @@ export const ExportApiInputSchema = z.object({
   stepDefinitionIds: z.array(z.string()).optional(),
   promptTemplateIds: z.array(z.string()).optional(),
   mcpConnectionIds: z.array(z.string()).optional(),
+  agentIds: z.array(z.string()).optional(), 
 });
 
 /**
@@ -45,22 +48,25 @@ export const ImportApiResponseSchema = z.object({
     steps: z.number(),
     prompts: z.number(),
     mcpConnections: z.number(),
+    agents: z.number(), 
   }),
   updated: z.object({
     flows: z.number(),
     steps: z.number(),
     prompts: z.number(),
     mcpConnections: z.number(),
+    agents: z.number(), 
   }),
   skipped: z.object({
     flows: z.number(),
     steps: z.number(),
     prompts: z.number(),
     mcpConnections: z.number(),
+    agents: z.number(),
   }),
   errors: z.array(z.object({
     id: z.string(),
-    type: z.enum(['flow', 'step', 'prompt', 'mcpConnection']), 
+    type: z.enum(['flow', 'step', 'prompt', 'mcpConnection', 'agent']), 
     message: z.string(),
   })),
 });

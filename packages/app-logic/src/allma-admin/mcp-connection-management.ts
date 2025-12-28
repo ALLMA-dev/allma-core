@@ -105,7 +105,7 @@ const mainHandler = async (event: APIGatewayProxyEventV2, authContext: AuthConte
     try {
         return await router.getHandler()(event, authContext);
     } catch (e: any) {
-        // NEW: Add richer debug logging to capture the full error object.
+        // Add richer debug logging to capture the full error object.
         log_error('Full error object in MCP connection management handler', { 
             name: e.name, 
             message: e.message, 
