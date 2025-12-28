@@ -1,9 +1,10 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
-import axiosInstance from './axiosInstance';
+import axiosInstance from './axiosInstance.js';
 import { ALLMA_ADMIN_API_ROUTES, ExportApiInput, ImportApiResponse, AllmaExportFormat, ALLMA_ADMIN_API_VERSION, AdminApiResponse } from '@allma/core-types';
 import { saveAs } from 'file-saver';
-import { PROMPT_TEMPLATES_QUERY_KEY } from '../features/prompts/constants';
+import { PROMPT_TEMPLATES_QUERY_KEY } from '../features/prompts/constants.js';
+import { showErrorNotification } from '../utils/notifications.js';
 
 /**
  * Mutation to trigger an export of flows and step definitions.
@@ -26,12 +27,8 @@ export function useExportMutation() {
         color: 'green',
       });
     },
-    onError: (error: Error) => {
-      notifications.show({
-        title: 'Export Failed',
-        message: error.message || 'An unknown error occurred.',
-        color: 'red',
-      });
+    onError: (error: unknown) => {
+      showErrorNotification('Export Failed', error, 'An unknown error occurred.');
     },
   });
 }
@@ -61,13 +58,8 @@ export function useImportMutation() {
         color: 'green',
       });
     },
-    onError: (error: Error) => {
-      notifications.show({
-        title: 'Import Failed',
-        message: error.message || 'An unknown error occurred.',
-        color: 'red',
-        autoClose: 10000,
-      });
+    onError: (error: unknown) => {
+      showErrorNotification('Import Failed', error, 'An unknown error occurred.');
     },
   });
 }

@@ -4,12 +4,13 @@ import {
     CreateFlowInput, CreateFlowVersionInput, AdminApiErrorResponse, CloneFlowInput, RedriveFlowApiOutput, UpdateFlowConfigInput, FlowMetadataStorageItem,
     ExecuteFlowApiInput, ExecuteFlowApiOutput
 } from '@allma/core-types';
-import axiosInstance from './axiosInstance';
+import axiosInstance from './axiosInstance.js';
 import axios from 'axios';
 import { notifications } from '@mantine/notifications';
 import { IconCheck, IconX, IconPlayerPlay } from '@tabler/icons-react';
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { showErrorNotification } from '../utils/notifications.js';
 
 // Params interface for clarity and type safety.
 interface GetFlowsParams {
@@ -117,8 +118,8 @@ export const useCreateFlow = () => {
             queryClient.invalidateQueries({ queryKey: ['flows'] });
             notifications.show({ title: 'Flow Created', message: `Successfully created flow "${data.name}".`, color: 'green', icon: checkIcon });
         },
-        onError: (error: Error) => {
-            notifications.show({ title: 'Creation Failed', message: error.message, color: 'red', icon: xIcon });
+        onError: (error: unknown) => {
+            showErrorNotification('Creation Failed', error);
         }
     });
 };
@@ -139,8 +140,8 @@ export const useUpdateFlowConfig = () => {
             queryClient.setQueryData(['flowConfig', data.id], data);
             notifications.show({ title: 'Settings Saved', message: `Successfully updated settings for "${data.name}".`, color: 'green', icon: checkIcon });
         },
-        onError: (error: Error) => {
-            notifications.show({ title: 'Save Failed', message: error.message, color: 'red', icon: xIcon });
+        onError: (error: unknown) => {
+            showErrorNotification('Save Failed', error);
         }
     });
 };
@@ -160,8 +161,8 @@ export const useCloneFlow = () => {
             queryClient.invalidateQueries({ queryKey: ['flows'] });
             notifications.show({ title: 'Flow Cloned', message: `Successfully cloned to "${data.name}".`, color: 'green', icon: checkIcon });
         },
-        onError: (error: Error) => {
-            notifications.show({ title: 'Clone Failed', message: error.message, color: 'red', icon: xIcon });
+        onError: (error: unknown) => {
+            showErrorNotification('Clone Failed', error);
         }
     });
 };
@@ -178,8 +179,8 @@ export const useCreateFlowVersion = () => {
             queryClient.invalidateQueries({ queryKey: ['flowVersions', data.id] });
             notifications.show({ title: 'Version Created', message: `Successfully created version ${data.version}.`, color: 'green', icon: checkIcon });
         },
-        onError: (error: Error) => {
-            notifications.show({ title: 'Creation Failed', message: error.message, color: 'red', icon: xIcon });
+        onError: (error: unknown) => {
+            showErrorNotification('Creation Failed', error);
         }
     });
 };
@@ -266,8 +267,8 @@ export const usePublishFlowVersion = () => {
       queryClient.setQueryData(['flowDetail', data.id, String(data.version)], data);
       notifications.show({ title: 'Publish Successful', message: `Flow version ${data.version} has been published.`, color: 'green', icon: checkIcon });
     },
-    onError: (error: Error) => {
-      notifications.show({ title: 'Publish Failed', message: error.message, color: 'red', icon: xIcon });
+    onError: (error: unknown) => {
+      showErrorNotification('Publish Failed', error);
     },
   });
 };
@@ -287,8 +288,8 @@ export const useUnpublishFlowVersion = () => {
         queryClient.invalidateQueries({ queryKey: ['flowDetail', flowId, String(version)] });
         notifications.show({ title: 'Unpublish Successful', message: `Version ${version} has been unpublished.`, color: 'orange', icon: checkIcon });
       },
-      onError: (error: Error) => {
-        notifications.show({ title: 'Unpublish Failed', message: error.message, color: 'red', icon: xIcon });
+      onError: (error: unknown) => {
+        showErrorNotification('Unpublish Failed', error);
       },
     });
 };
@@ -313,13 +314,8 @@ export const useFlowRedrive = () => {
                 icon: playIcon,
             });
         },
-        onError: (error: Error) => {
-            notifications.show({
-                title: 'Redrive Failed',
-                message: error.message,
-                color: 'red',
-                icon: xIcon,
-            });
+        onError: (error: unknown) => {
+            showErrorNotification('Redrive Failed', error);
         }
     });
 };
@@ -345,13 +341,8 @@ export const useExecuteFlowVersion = () => {
                 icon: checkIcon,
             });
         },
-        onError: (error: Error) => {
-            notifications.show({
-                title: 'Execution Failed',
-                message: error.message,
-                color: 'red',
-                icon: xIcon,
-            });
+        onError: (error: unknown) => {
+            showErrorNotification('Execution Failed', error);
         }
     });
 };

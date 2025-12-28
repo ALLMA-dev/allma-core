@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import React from 'react';
 import { notifications } from '@mantine/notifications';
-import { IconCheck, IconX } from '@tabler/icons-react';
+import { IconCheck } from '@tabler/icons-react';
 import {
   type StepDefinition,
   type AdminApiResponse,
@@ -10,13 +10,13 @@ import {
   CreateStepDefinitionInput,
   UpdateStepDefinitionInput,
 } from '@allma/core-types';
-import axiosInstance from './axiosInstance';
+import axiosInstance from './axiosInstance.js';
+import { showErrorNotification } from '../utils/notifications.js';
 
 export const STEP_DEFINITIONS_QUERY_KEY = 'stepDefinitions';
 export const STEP_DEFINITION_DETAIL_QUERY_KEY = 'stepDefinitionDetail';
 
 const checkIcon = React.createElement(IconCheck, { size: "1.1rem" });
-const xIcon = React.createElement(IconX, { size: "1.1rem" });
 
 // --- QUERY HOOKS ---
 
@@ -101,8 +101,8 @@ export const useCreateStepDefinition = () => {
       queryClient.invalidateQueries({ queryKey: [STEP_DEFINITIONS_QUERY_KEY] });
       notifications.show({ title: 'Step Definition Created', message: `Successfully created "${data.name}".`, color: 'green', icon: checkIcon });
     },
-    onError: (error: Error) => {
-      notifications.show({ title: 'Creation Failed', message: error.message, color: 'red', icon: xIcon });
+    onError: (error: unknown) => {
+      showErrorNotification('Creation Failed', error);
     }
   });
 };
@@ -121,8 +121,8 @@ export const useUpdateStepDefinition = () => {
       queryClient.setQueryData([STEP_DEFINITION_DETAIL_QUERY_KEY, data.id], data);
       notifications.show({ title: 'Save Successful', message: `Successfully saved changes to "${data.name}".`, color: 'blue', icon: checkIcon });
     },
-    onError: (error: Error) => {
-      notifications.show({ title: 'Update Failed', message: error.message, color: 'red', icon: xIcon });
+    onError: (error: unknown) => {
+      showErrorNotification('Update Failed', error);
     },
   });
 };
@@ -138,8 +138,8 @@ export const useDeleteStepDefinition = () => {
       queryClient.removeQueries({ queryKey: [STEP_DEFINITION_DETAIL_QUERY_KEY, id] });
       notifications.show({ title: 'Deleted', message: 'Step definition has been deleted.', color: 'orange', icon: checkIcon });
     },
-    onError: (error: Error) => {
-      notifications.show({ title: 'Deletion Failed', message: error.message, color: 'red', icon: xIcon });
+    onError: (error: unknown) => {
+      showErrorNotification('Deletion Failed', error);
     },
   });
 };

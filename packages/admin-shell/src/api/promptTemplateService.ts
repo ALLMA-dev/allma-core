@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import React from 'react';
 import { notifications } from '@mantine/notifications';
-import { IconCheck, IconX } from '@tabler/icons-react';
+import { IconCheck } from '@tabler/icons-react';
 import {
   type PromptTemplate,
   type CreatePromptTemplateInput,
@@ -13,8 +13,9 @@ import {
   ClonePromptInput,
   type PromptTemplateMetadataStorageItem,
 } from '@allma/core-types';
-import axiosInstance from './axiosInstance';
-import { PROMPT_TEMPLATES_QUERY_KEY, PROMPT_TEMPLATE_DETAIL_QUERY_KEY } from '../features/prompts/constants';
+import axiosInstance from './axiosInstance.js';
+import { PROMPT_TEMPLATES_QUERY_KEY, PROMPT_TEMPLATE_DETAIL_QUERY_KEY } from '../features/prompts/constants.js';
+import { showErrorNotification } from '../utils/notifications.js';
 
 // --- TYPES ---
 
@@ -24,7 +25,6 @@ export interface PromptVersionSummary extends Pick<PromptTemplate, 'id' | 'name'
 // --- ICONS ---
 
 const checkIcon = React.createElement(IconCheck, { size: "1.1rem" });
-const xIcon = React.createElement(IconX, { size: "1.1rem" });
 
 // --- QUERY HOOKS (Read operations) ---
 
@@ -100,8 +100,8 @@ export const useCreatePrompt = () => {
       queryClient.invalidateQueries({ queryKey: [PROMPT_TEMPLATES_QUERY_KEY] });
       notifications.show({ title: 'Prompt Created', message: `Successfully created prompt "${data.name}".`, color: 'green', icon: checkIcon });
     },
-    onError: (error: Error) => {
-      notifications.show({ title: 'Creation Failed', message: error.message, color: 'red', icon: xIcon });
+    onError: (error: unknown) => {
+      showErrorNotification('Creation Failed', error);
     }
   });
 };
@@ -124,8 +124,8 @@ export const useClonePrompt = () => {
             queryClient.invalidateQueries({ queryKey: [PROMPT_TEMPLATES_QUERY_KEY] });
             notifications.show({ title: 'Prompt Cloned', message: `Successfully cloned to "${data.name}".`, color: 'green', icon: checkIcon });
         },
-        onError: (error: Error) => {
-            notifications.show({ title: 'Clone Failed', message: error.message, color: 'red', icon: xIcon });
+        onError: (error: unknown) => {
+            showErrorNotification('Clone Failed', error);
         }
     });
 };
@@ -145,8 +145,8 @@ export const useCreatePromptVersion = () => {
             queryClient.invalidateQueries({ queryKey: [PROMPT_TEMPLATES_QUERY_KEY, data.id, 'versions'] });
             notifications.show({ title: 'Version Created', message: `Successfully created version ${data.version} for prompt "${data.name}".`, color: 'green', icon: checkIcon });
         },
-        onError: (error: Error) => {
-            notifications.show({ title: 'Creation Failed', message: error.message, color: 'red', icon: xIcon });
+        onError: (error: unknown) => {
+            showErrorNotification('Creation Failed', error);
         }
     });
 };
@@ -172,8 +172,8 @@ export const useUpdatePromptVersion = () => {
       queryClient.setQueryData([PROMPT_TEMPLATE_DETAIL_QUERY_KEY, data.id, String(data.version)], data);
       notifications.show({ title: 'Draft Saved', message: `Successfully saved changes to version ${data.version}.`, color: 'blue', icon: checkIcon });
     },
-    onError: (error: Error) => {
-      notifications.show({ title: 'Update Failed', message: error.message, color: 'red', icon: xIcon });
+    onError: (error: unknown) => {
+      showErrorNotification('Update Failed', error);
     },
   });
 };
@@ -195,8 +195,8 @@ export const usePublishPromptVersion = () => {
       queryClient.setQueryData([PROMPT_TEMPLATE_DETAIL_QUERY_KEY, data.id, String(data.version)], data);
       notifications.show({ title: 'Publish Successful', message: `Prompt "${data.name}" version ${data.version} has been published.`, color: 'green', icon: checkIcon });
     },
-    onError: (error: Error) => {
-      notifications.show({ title: 'Publish Failed', message: error.message, color: 'red', icon: xIcon });
+    onError: (error: unknown) => {
+      showErrorNotification('Publish Failed', error);
     },
   });
 };
@@ -218,8 +218,8 @@ export const useUnpublishPromptVersion = () => {
         queryClient.invalidateQueries({ queryKey: [PROMPT_TEMPLATE_DETAIL_QUERY_KEY, promptId, String(version)] });
         notifications.show({ title: 'Unpublish Successful', message: `Version ${version} has been unpublished.`, color: 'orange', icon: checkIcon });
       },
-      onError: (error: Error) => {
-        notifications.show({ title: 'Unpublish Failed', message: error.message, color: 'red', icon: xIcon });
+      onError: (error: unknown) => {
+        showErrorNotification('Unpublish Failed', error);
       },
     });
 };
@@ -238,8 +238,8 @@ export const useDeletePromptVersion = () => {
       queryClient.removeQueries({ queryKey: [PROMPT_TEMPLATE_DETAIL_QUERY_KEY, promptId, String(version)] });
       notifications.show({ title: 'Version Deleted', message: `Version ${version} has been deleted.`, color: 'orange', icon: checkIcon });
     },
-    onError: (error: Error) => {
-      notifications.show({ title: 'Deletion Failed', message: error.message, color: 'red', icon: xIcon });
+    onError: (error: unknown) => {
+      showErrorNotification('Deletion Failed', error);
     },
   });
 };

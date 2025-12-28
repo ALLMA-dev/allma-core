@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import axiosInstance from './axiosInstance';
+import axiosInstance from './axiosInstance.js';
 import {
   McpConnection,
   McpConnectionMetadataStorageItem as McpConnectionSummary,
@@ -12,6 +12,7 @@ import {
 } from '@allma/core-types';
 type McpToolDefinition = DiscoverToolResponse[number];
 import { notifications } from '@mantine/notifications';
+import { showErrorNotification } from '../utils/notifications.js';
 
 export const MCP_CONNECTIONS_QUERY_KEY = 'mcp-connections';
 export const MCP_CONNECTION_DETAIL_QUERY_KEY = 'mcp-connection-detail';
@@ -72,12 +73,8 @@ export const useCreateMcpConnection = () => {
                 color: 'green',
             });
         },
-        onError: (error: Error) => {
-            notifications.show({
-                title: 'Creation Failed',
-                message: error.message,
-                color: 'red',
-            });
+        onError: (error: unknown) => {
+            showErrorNotification('Creation Failed', error);
         }
     });
 };
@@ -105,12 +102,8 @@ export const useUpdateMcpConnection = () => {
                 color: 'green',
             });
         },
-        onError: (error: Error) => {
-            notifications.show({
-                title: 'Update Failed',
-                message: error.message,
-                color: 'red',
-            });
+        onError: (error: unknown) => {
+            showErrorNotification('Update Failed', error);
         }
     });
 };
@@ -135,12 +128,8 @@ export const useDeleteMcpConnection = () => {
                 color: 'green',
             });
         },
-        onError: (error: Error) => {
-            notifications.show({
-                title: 'Deletion Failed',
-                message: error.message,
-                color: 'red',
-            });
+        onError: (error: unknown) => {
+            showErrorNotification('Deletion Failed', error);
         }
     });
 };
@@ -157,12 +146,8 @@ export const useDiscoverTools = () => {
             }
             throw new Error(response.data.error?.message || 'Could not fetch tools from the MCP server.');
         },
-        onError: (error) => {
-            notifications.show({
-                title: 'Discovery Failed',
-                message: error.message,
-                color: 'red',
-            });
+        onError: (error: unknown) => {
+            showErrorNotification('Discovery Failed', error);
         }
     });
 };

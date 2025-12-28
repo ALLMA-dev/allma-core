@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import axiosInstance from './axiosInstance';
+import axiosInstance from './axiosInstance.js';
 import { 
     AdminApiResponse, 
     ALLMA_ADMIN_API_ROUTES, 
@@ -9,13 +9,13 @@ import {
     StepExecutionResult 
 } from '@allma/core-types';
 import { notifications } from '@mantine/notifications';
-import { IconCheck, IconX, IconPlayerPlay } from '@tabler/icons-react';
+import { IconCheck, IconPlayerPlay } from '@tabler/icons-react';
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { EXECUTIONS_LIST_QUERY_KEY } from '../features/executions/constants';
+import { EXECUTIONS_LIST_QUERY_KEY } from '../features/executions/constants.js';
+import { showErrorNotification } from '../utils/notifications.js';
 
 const checkIcon = React.createElement(IconCheck, { size: "1.1rem" });
-const xIcon = React.createElement(IconX, { size: "1.1rem" });
 const playIcon = React.createElement(IconPlayerPlay, { size: "1.1rem" });
 
 /**
@@ -47,13 +47,8 @@ export const useStatefulRedrive = () => {
             // Navigate to the new execution's detail page
             navigate(`/executions/${data.newFlowExecutionId}`);
         },
-        onError: (error: Error) => {
-            notifications.show({
-                title: 'Redrive Failed',
-                message: error.message,
-                color: 'red',
-                icon: xIcon
-            });
+        onError: (error: unknown) => {
+            showErrorNotification('Redrive Failed', error);
         }
     });
 };
@@ -81,13 +76,8 @@ export const useSandboxStep = () => {
                 icon: checkIcon
             });
         },
-        onError: (error: Error) => {
-             notifications.show({
-                title: 'Sandbox Run Failed',
-                message: error.message,
-                color: 'red',
-                icon: xIcon
-            });
+        onError: (error: unknown) => {
+             showErrorNotification('Sandbox Run Failed', error);
         }
     });
 };
