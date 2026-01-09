@@ -1,5 +1,18 @@
 # @allma/admin-shell
 
+## 2.0.0
+
+### Minor Changes
+
+- 96b1d0c: Agents feature is added
+
+### Patch Changes
+
+- af39aab: Small changes across the system to improve stability
+- Updated dependencies [96b1d0c]
+- Updated dependencies [af39aab]
+  - @allma/core-types@1.1.0
+
 ## 1.0.22
 
 ### Patch Changes
