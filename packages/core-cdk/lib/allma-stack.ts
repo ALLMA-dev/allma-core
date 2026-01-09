@@ -19,6 +19,7 @@ import { DeepPartial, StageConfig, WebAppConfig } from './config/stack-config.js
 import * as s3_assets from 'aws-cdk-lib/aws-s3-assets';
 
 export * from './config/stack-config.js';
+export * from './config/default-config.js';
 
 // A simple deep merge function for configs
 function deepMerge<T>(target: T, source: DeepPartial<T>): T {
@@ -232,6 +233,7 @@ export class AllmaStack extends cdk.Stack {
     if (stageConfig.ses?.verifiedDomain) {
         new EmailIntegration(this, 'AllmaEmailIntegration', {
             stageConfig,
+            configTable: dataStores.allmaConfigTable,
             emailMappingTable: dataStores.emailToFlowMappingTable,
             flowStartQueue: this.flowStartRequestQueue,
             httpApi: api.httpApi,

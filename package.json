@@ -21,13 +21,15 @@
   "license": "ISC",
   "workspaces": [
     "packages/*",
-    "examples/basic-deployment",
-    "examples/basic-deployment-my"
+    "examples/*"
   ],
   "dependencies": {
     "@aws-sdk/client-lambda": "^3.913.0",
     "@tensorflow/tfjs": "^4.22.0",
+    "arrify": "^3.0.0",
+    "fast-text-encoding": "^1.0.6",
     "fs": "0.0.1-security",
+    "google-p12-pem": "^5.0.0",
     "path": "^0.12.7"
   },
   "devDependencies": {

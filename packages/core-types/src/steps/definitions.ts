@@ -1,3 +1,4 @@
+// In package: @allma/core-types
 import { z } from 'zod';
 import { StepTypeSchema } from '../common/enums.js';
 import * as SystemSteps from './system/index.js';
@@ -126,7 +127,17 @@ export const StepInstanceSchema = BaseStepDefinitionSchema.and(z.object({
   defaultNextStepInstanceId: z.string().min(1).optional(),
   delay: DelayOptionsSchema.optional(),
   disableS3Offload: z.boolean().optional(),
-}).passthrough());
+  forceS3Offload: z.boolean().optional(),
+}).passthrough()).superRefine((data, ctx) => {
+    // validation to ensure flags are mutually exclusive
+    if (data.forceS3Offload && data.disableS3Offload) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "The 'forceS3Offload' and 'disableS3Offload' flags cannot be used at the same time.",
+            path: ["forceS3Offload"],
+        });
+    }
+});
 export type StepInstance = z.infer<typeof StepInstanceSchema>;
 
 

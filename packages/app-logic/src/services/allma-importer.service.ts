@@ -1,4 +1,4 @@
-import { AllmaExportFormat, AllmaExportFormatSchema, ImportApiResponse, StepDefinitionSchema, FlowDefinitionSchema, PromptTemplateSchema, McpConnectionSchema, StepDefinition, FlowDefinition, AgentSchema, Agent } from '@allma/core-types';
+import { AllmaExportFormat, ImportApiResponse, StepDefinitionSchema, FlowDefinitionSchema, PromptTemplateSchema, McpConnectionSchema, StepDefinition, FlowDefinition, AgentSchema, Agent } from '@allma/core-types';
 import { FlowDefinitionService } from '../allma-admin/services/flow-definition.service.js';
 import { StepDefinitionService } from '../allma-admin/services/step-definition.service.js';
 import { PromptTemplateService } from '../allma-admin/services/prompt-template.service.js';
@@ -20,8 +20,13 @@ export class AllmaImporterService {
    */
   public validateImportData(rawData: unknown, sourceFileName?: string): ValidationResult {
     const filePrefix = sourceFileName ? `[${sourceFileName}] ` : '';
-    // Omit array fields from top-level check to process them individually later
-    const topLevelSchema = AllmaExportFormatSchema.omit({ flows: true, stepDefinitions: true, promptTemplates: true, mcpConnections: true, agents: true }); // MODIFIED
+    
+    // CORRECTED: Define a simple schema for top-level validation instead of using .omit()
+    // on the type-asserted AllmaExportFormatSchema.
+    const topLevelSchema = z.object({
+        formatVersion: z.literal('1.0'),
+        exportedAt: z.string().datetime(),
+    });
     const topLevelValidation = topLevelSchema.safeParse(rawData);
 
     if (!topLevelValidation.success) {

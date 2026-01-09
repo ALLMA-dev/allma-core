@@ -24,18 +24,21 @@ const CustomLambdaInvokeStepSchema = z.object({
   lambdaFunctionArnTemplate: z.string(),
   moduleIdentifier: z.string().optional(),
   payloadTemplate: z.record(z.string()).optional(),
-  customConfig: z.object({
-    hydrateInputFromS3: z.boolean().optional(),
-  }).passthrough().optional(),
+  customConfig: z
+    .object({
+      hydrateInputFromS3: z.boolean().optional(),
+    })
+    .passthrough()
+    .optional(),
 });
 
 export const handleCustomLambdaInvoke: StepHandler = async (
   stepDefinition: StepDefinition,
   stepInput: Record<string, any>,
-  runtimeState: FlowRuntimeState
+  runtimeState: FlowRuntimeState,
 ) => {
   const correlationId = runtimeState.flowExecutionId;
-  const stepInstance = stepDefinition as unknown as StepInstance; // MODIFIED: Cast to the actual type being passed
+  const stepInstance = stepDefinition as unknown as StepInstance;
   const parsedStepDef = CustomLambdaInvokeStepSchema.safeParse(stepDefinition);
 
   if (!parsedStepDef.success) {
@@ -44,9 +47,9 @@ export const handleCustomLambdaInvoke: StepHandler = async (
 
   // Check if the bucket name is configured for offloading.
   if (!EXECUTION_TRACES_BUCKET_NAME) {
-    log_error("ALLMA_EXECUTION_TRACES_BUCKET_NAME env var not set. Cannot offload large payloads from custom lambda.", {}, correlationId);
+    log_error('ALLMA_EXECUTION_TRACES_BUCKET_NAME env var not set. Cannot offload large payloads from custom lambda.', {}, correlationId);
     // This is a critical configuration error. We should fail the step.
-    throw new Error("Execution traces bucket is not configured; cannot proceed with custom lambda invocation.");
+    throw new Error('Execution traces bucket is not configured; cannot proceed with custom lambda invocation.');
   }
 
   const { lambdaFunctionArnTemplate, moduleIdentifier, payloadTemplate } = parsedStepDef.data;
@@ -54,36 +57,28 @@ export const handleCustomLambdaInvoke: StepHandler = async (
   // Render the ARN from the template
   const templateService = TemplateService.getInstance();
   const lambdaArn = await templateService.render(lambdaFunctionArnTemplate, runtimeState.currentContextData, correlationId);
-  
+
   // Prepare the payload for the target Lambda
   let payloadForInvoke: Record<string, any>;
 
   // Check if payloadTemplate exists AND has keys. An empty object should trigger the else block.
   if (payloadTemplate && Object.keys(payloadTemplate).length > 0) {
     log_info('Constructing payload for custom lambda from payloadTemplate.', {}, correlationId);
-    
+
     // Convert the simple { key: jsonpath } to the format needed by buildContextFromMappings
-    const payloadTemplateForBuilder: Record<string, TemplateContextMappingItem> = 
-      Object.fromEntries(
-        Object.entries(payloadTemplate).map(([key, jsonPath]) => [
-          key,
-          { 
-            sourceJsonPath: jsonPath, 
-            formatAs: 'RAW',
-            joinSeparator: ""
-          }
-        ])
-      );
-      
+    const payloadTemplateForBuilder: Record<string, TemplateContextMappingItem> = Object.fromEntries(
+      Object.entries(payloadTemplate).map(([key, jsonPath]) => [key, {
+        sourceJsonPath: jsonPath,
+        formatAs: 'RAW',
+        joinSeparator: '',
+      }]),
+    );
+
     // Use a context that includes both the main flow context and the result of inputMappings
     const templateContext = { ...runtimeState.currentContextData, ...stepInput };
-      
-    const { context } = await templateService.buildContextFromMappings(
-      payloadTemplateForBuilder,
-      templateContext,
-      correlationId
-    );
-    
+
+    const { context } = await templateService.buildContextFromMappings(payloadTemplateForBuilder, templateContext, correlationId);
+
     // The final payload is the custom payload constructed from the template.
     payloadForInvoke = { correlationId, ...context };
   } else {
@@ -104,7 +99,7 @@ export const handleCustomLambdaInvoke: StepHandler = async (
       Payload: JSON.stringify(payloadForInvoke),
       InvocationType: InvocationType.RequestResponse, // Synchronous invocation
     });
-    
+
     const result = await lambdaClient.send(command);
 
     if (result.FunctionError) {
@@ -116,35 +111,34 @@ export const handleCustomLambdaInvoke: StepHandler = async (
     const responsePayload = result.Payload ? JSON.parse(new TextDecoder().decode(result.Payload)) : null;
 
     // --- Payload Offloading Logic ---
-    // The invoked lambda might have already offloaded a very large payload. 
-    // If so, responsePayload will be an S3OutputPointerWrapper. We don't want to wrap a wrapper.
     if (isS3OutputPointerWrapper(responsePayload)) {
-        log_info('Invoked custom lambda returned a pre-offloaded S3 pointer. Passing it through.', { s3Pointer: responsePayload._s3_output_pointer }, correlationId);
-        return {
-            outputData: responsePayload,
-        };
+      log_info(
+        'Invoked custom lambda returned a pre-offloaded S3 pointer. Passing it through.',
+        { s3Pointer: responsePayload._s3_output_pointer },
+        correlationId,
+      );
+      return {
+        outputData: responsePayload,
+      };
     }
 
-    // If the payload is not already a pointer, check if it's large and offload it
-    // to protect the Step Function state limit (256KB). offloadIfLarge uses a safe threshold.
     const s3KeyPrefix = `step_outputs/${runtimeState.flowExecutionId}/${stepInstance.stepInstanceId}`;
-    const finalPayloadForSfn = await offloadIfLarge(
-        responsePayload,
-        EXECUTION_TRACES_BUCKET_NAME,
-        s3KeyPrefix,
-        correlationId
-    );
+    const finalPayloadForSfn = await offloadIfLarge(responsePayload, EXECUTION_TRACES_BUCKET_NAME, s3KeyPrefix, correlationId);
     // --- END: Offloading Logic ---
 
     return {
-      outputData: finalPayloadForSfn
+      outputData: finalPayloadForSfn,
     };
-    
   } catch (error: any) {
+    // The generic retry mechanism is in step-executor. Here, we just classify the error.
+    if (error.name === 'TooManyRequestsException') {
+      // Re-throw as a specific, catchable TransientStepError
+      throw new TransientStepError(`Failed to invoke custom logic Lambda '${lambdaArn}': Rate Exceeded.`, error.details, error);
+    }
     if (error.name === 'ResourceNotFoundException' || error.name === 'InvalidRequestContentException') {
       throw error; // Fail fast for configuration errors
     }
     // Assume other errors could be transient
-    throw new TransientStepError(`Failed to invoke custom logic Lambda '${lambdaArn}': ${error.message}`);
+    throw new TransientStepError(`Failed to invoke custom logic Lambda '${lambdaArn}': ${error.message}`, error.details, error);
   }
 };

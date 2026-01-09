@@ -20,6 +20,7 @@ const __dirname_email = dirname(__filename_email);
 
 interface EmailIntegrationProps {
     stageConfig: StageConfig;
+    configTable: dynamodb.Table;
     emailMappingTable: dynamodb.Table;
     flowStartQueue: sqs.IQueue;
     httpApi: apigwv2.HttpApi;
@@ -32,7 +33,7 @@ export class EmailIntegration extends Construct {
     constructor(scope: Construct, id: string, props: EmailIntegrationProps) {
         super(scope, id);
 
-        const { stageConfig, emailMappingTable, flowStartQueue, httpApi } = props;
+        const { stageConfig, configTable, emailMappingTable, flowStartQueue, httpApi } = props;
 
         // 1. S3 Bucket to store incoming emails
         const incomingEmailsBucket = new s3.Bucket(this, 'IncomingEmailsBucket', {
@@ -55,6 +56,7 @@ export class EmailIntegration extends Construct {
         incomingEmailsBucket.grantReadWrite(emailIngressRole);
         emailMappingTable.grantReadData(emailIngressRole);
         flowStartQueue.grantSendMessages(emailIngressRole);
+        configTable.grantReadData(emailIngressRole);
 
         emailIngressRole.addToPolicy(new iam.PolicyStatement({
             effect: iam.Effect.ALLOW,
@@ -84,10 +86,11 @@ export class EmailIntegration extends Construct {
             environment: {
                 [ENV_VAR_NAMES.STAGE_NAME]: stageConfig.stage,
                 [ENV_VAR_NAMES.LOG_LEVEL]: stageConfig.logging.logLevel,
+                // MODIFIED: Add the missing ALLMA_CONFIG_TABLE_NAME environment variable
+                [ENV_VAR_NAMES.ALLMA_CONFIG_TABLE_NAME]: configTable.tableName,
                 [ENV_VAR_NAMES.ALLMA_FLOW_START_REQUEST_QUEUE_URL]: flowStartQueue.queueUrl,
                 [ENV_VAR_NAMES.ALLMA_RESUME_API_URL]: `${httpApi.apiEndpoint}/${stageConfig.adminApi.apiMappingKey}${ALLMA_ADMIN_API_ROUTES.RESUME}`,
                 'EMAIL_TO_FLOW_MAPPING_TABLE_NAME': emailMappingTable.tableName,
-                // NEW: Pass the bucket name to the Lambda
                 'INCOMING_EMAILS_BUCKET_NAME': incomingEmailsBucket.bucketName,
             },
             bundling: {
@@ -110,7 +113,6 @@ export class EmailIntegration extends Construct {
                 // Action 1: Store the email in S3
                 new sesActions.S3({
                     bucket: incomingEmailsBucket,
-                    // FIX: Set the object key prefix. SES will automatically append the message ID.
                     objectKeyPrefix: 'inbound/',
                 }),
                 // Action 2: Trigger our Lambda function

@@ -2,10 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import React from 'react';
 import { AppShell, Burger, Group, NavLink, ScrollArea, Title, Text, ActionIcon, useMantineColorScheme, Tooltip, Stack, Image } from '@mantine/core';
-import { IconGauge, IconListDetails, IconLogout, IconSun, IconMoon, IconPrompt, IconActivity, IconLayoutSidebarLeftCollapse, IconLayoutSidebarRightExpand, IconTemplate, IconPlugConnected, IconUserCog } from '@tabler/icons-react';
+import { IconLogout, IconSun, IconMoon, IconLayoutSidebarLeftCollapse, IconLayoutSidebarRightExpand } from '@tabler/icons-react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import { useAdminAuth } from '../../hooks/useAdminAuth';
-import { AdminPermission } from '@allma/core-types';
 import { useLocalStorage } from '@mantine/hooks';
 import type { PluginNavItem } from '../../types/plugin.ts';
 import poweredByLogo from '../../../assets/powered-by-logo.png';
@@ -23,8 +21,7 @@ export function AdminLayout({ navItems, children }: AdminLayoutProps) {
   });
   const location = useLocation();
   const { signOut, user } = useAuthenticator();
-  const { authContext } = useAdminAuth();
-  const { colorScheme, setColorScheme } = useMantineColorScheme();
+    const { colorScheme, setColorScheme } = useMantineColorScheme();
 
   // State to hold the application title derived from the document <title>
   const [appTitle, setAppTitle] = useState('ALLMA Admin');

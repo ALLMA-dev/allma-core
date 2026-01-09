@@ -75,12 +75,12 @@ function ProtectedApp({ plugins }: AuthenticatedAppProps) {
   // --- Process plugins to build routes, nav items, and widgets ---
   const coreNavLinks: (PluginNavItem & { permission: AdminPermission, icon: React.ComponentType<{ size: string }> })[] = [
     { label: 'Dashboard', path: '/dashboard', icon: IconGauge, permission: AdminPermission.DASHBOARD_VIEW },
+    { label: 'Agents', path: '/agents', icon: IconUserCog, permission: AdminPermission.DEFINITIONS_READ },
+    { label: 'Flows', path: '/flows', icon: IconListDetails, permission: AdminPermission.DEFINITIONS_READ },
+    { label: 'Prompts', path: '/prompts', icon: IconPrompt, permission: AdminPermission.DEFINITIONS_READ },
     { label: 'Step Definitions', path: '/step-definitions', icon: IconTemplate, permission: AdminPermission.DEFINITIONS_READ },
     { label: 'MCP Connections', path: '/mcp-connections', icon: IconPlugConnected, permission: AdminPermission.DEFINITIONS_READ },
-    { label: 'Flows', path: '/flows', icon: IconListDetails, permission: AdminPermission.DEFINITIONS_READ },
-    { label: 'Agents', path: '/agents', icon: IconUserCog, permission: AdminPermission.DEFINITIONS_READ },
     { label: 'Executions', path: '/executions', icon: IconActivity, permission: AdminPermission.EXECUTIONS_READ },
-    { label: 'Prompts', path: '/prompts', icon: IconPrompt, permission: AdminPermission.DEFINITIONS_READ },
   ];
 
   const pluginNavItems = plugins.flatMap(p => p.getNavItems ? p.getNavItems() : []);

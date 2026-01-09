@@ -6,7 +6,7 @@ import PostalMime from 'postal-mime';
 import { v4 as uuidv4 } from 'uuid';
 import { log_info, log_error, log_warn } from '@allma/core-sdk';
 import { ENV_VAR_NAMES, StartFlowExecutionInput, EmailAttachment } from '@allma/core-types';
-import { FlowActivationService } from '../allma-admin/services/flow-activation.service.js'; 
+import { FlowActivationService } from '../allma-admin/services/flow-activation.service.js';
 
 const s3Client = new S3Client({});
 const ddbDocClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -64,19 +64,22 @@ export const handler = async (event: { Records: SesEventRecord[] }): Promise<voi
             const attachments: EmailAttachment[] = [];
             if (parsedEmail.attachments && parsedEmail.attachments.length > 0) {
                 log_info(`Found ${parsedEmail.attachments.length} attachments. Uploading to S3.`, {}, correlationId);
-                
+
                 for (let i = 0; i < parsedEmail.attachments.length; i++) {
                     const att = parsedEmail.attachments[i];
                     const filename = att.filename || `attachment-${i}`;
                     // Sanitize filename for S3 key to avoid directory traversal or weird chars
                     const safeFilename = filename.replace(/[^a-zA-Z0-9.-]/g, '_');
                     const attachmentKey = `attachments/${messageId}/${i}/${safeFilename}`;
-                    
+
                     // Convert content (string | ArrayBuffer) to Buffer for AWS SDK and length check
                     let contentBuffer: Buffer;
                     if (typeof att.content === 'string') {
-                        contentBuffer = Buffer.from(att.content);
+                        contentBuffer = Buffer.from(att.content, 'utf-8');
+                    } else if (att.content instanceof ArrayBuffer) {
+                        contentBuffer = Buffer.from(new Uint8Array(att.content));
                     } else {
+                        // Uint8Array
                         contentBuffer = Buffer.from(att.content);
                     }
 
@@ -133,7 +136,7 @@ export const handler = async (event: { Records: SesEventRecord[] }): Promise<voi
             }
 
             const { flowDefinitionId, stepInstanceId } = targetMapping;
-            
+
             // Check if the flow is active
             const isActive = await FlowActivationService.isFlowActive(flowDefinitionId);
             if (!isActive) {
@@ -172,7 +175,7 @@ export const handler = async (event: { Records: SesEventRecord[] }): Promise<voi
                     log_warn('No trigger pattern found in email body.', { triggerMessagePattern: targetMapping.triggerMessagePattern }, correlationId);
                 }
             }
-            
+
             // 4. Construct payload with extended sender info and tracking ID
             const initialContextData: Record<string, any> = {
                 triggeringEmail: {

@@ -239,6 +239,9 @@ export class AllmaCompute extends Construct {
     if (props.flowStartRequestQueue) {
       props.flowStartRequestQueue.grantSendMessages(flowTriggerApiLambdaRole);
     }
+    // Grant read access to the main config table for FlowActivationService
+    configTable.grantReadData(flowTriggerApiLambdaRole);
+
     this.flowTriggerApiLambda = this.createNodejsLambda('FlowTriggerApiLambda', `AllmaFlowTriggerApi-${stageConfig.stage}`, 'allma-admin/flow-trigger.js', flowTriggerApiLambdaRole, defaultLambdaTimeout, defaultLambdaMemory, {
       ...commonEnvVars,
       [ENV_VAR_NAMES.ALLMA_FLOW_START_REQUEST_QUEUE_URL!]: props.flowStartRequestQueue?.queueUrl || '',

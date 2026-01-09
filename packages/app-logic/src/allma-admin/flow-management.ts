@@ -6,14 +6,15 @@ import {
 } from '@allma/core-types';
 import { FlowDefinitionService } from './services/flow-definition.service.js';
 import { createCrudHandler } from './utils/create-crud-handler.js';
-import { z, ZodDiscriminatedUnion, AnyZodObject, ZodIntersection } from 'zod';
+import { z, ZodDiscriminatedUnion, AnyZodObject, ZodIntersection, ZodEffects } from 'zod';
 
-// --- Start: CORRECT Partial Schema Generation for StepInstance ---
+// --- Start: Partial Schema Generation for StepInstance ---
 // This function correctly creates a partial schema for a complex discriminated union
 // by making each option in the union partial while preserving the discriminator.
 
-// 1. Deconstruct the top-level StepInstanceSchema intersection.
-const stepInstanceIntersection = StepInstanceSchema as ZodIntersection<any, any>;
+// 1. Deconstruct the top-level StepInstanceSchema. It's a ZodEffects wrapper due to `.superRefine()`.
+const stepInstanceEffects = StepInstanceSchema as ZodEffects<any>;
+const stepInstanceIntersection = stepInstanceEffects._def.schema as ZodIntersection<any, any>;
 const baseStepDefSchema = stepInstanceIntersection._def.left as ZodIntersection<ZodDiscriminatedUnion<"stepType", any>, AnyZodObject>;
 const instancePropertiesSchema = stepInstanceIntersection._def.right as AnyZodObject;
 

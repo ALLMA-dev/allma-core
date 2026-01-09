@@ -11,7 +11,6 @@ import {
   AllmaExportFormat,
   AdminPermission,
   ExportApiInputSchema,
-  ImportApiInputSchema,
   FlowDefinition,
   StepDefinition,
   PromptTemplate,
@@ -26,6 +25,7 @@ import { McpConnectionService } from './services/mcp-connection.service.js';
 import { AgentService } from './services/agent.service.js'; 
 import { AllmaImporterService } from '../services/allma-importer.service.js';
 import { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2 } from 'aws-lambda';
+import { z } from 'zod';
 
 /**
  * The inner handler that contains the business logic for import and export operations.
@@ -219,8 +219,13 @@ async function mainHandler(
         return createApiGatewayResponse(400, buildErrorResponse('Invalid input for import.', 'VALIDATION_ERROR', validationResult.error), correlationId);
       }
 
-      // We still need to parse options which are part of the API payload but not the core export format.
-      const optionsValidation = ImportApiInputSchema.pick({ options: true }).safeParse(rawData);
+      // Create a simple schema to parse just the options, avoiding a method call on the type-asserted schema.
+      const ImportOptionsSchema = z.object({
+          options: z.object({
+              overwrite: z.boolean(),
+          }),
+      });
+      const optionsValidation = ImportOptionsSchema.safeParse(rawData);
       if (!optionsValidation.success) {
          return createApiGatewayResponse(400, buildErrorResponse('Invalid import options.', 'VALIDATION_ERROR', optionsValidation.error.flatten()), correlationId);
       }
