@@ -1,7 +1,9 @@
 import * as cdk from 'aws-cdk-lib';
 import * as fs from 'fs';
+import * as path from 'path';
 import { Construct } from 'constructs';
 import { ALLMA_ADMIN_API_ROUTES, ENV_VAR_NAMES } from '@allma/core-types';
+import { validateAllmaConfig } from '@allma/core-sdk';
 import { defaultConfig } from './config/default-config.js';
 import { WebAppDeployment } from './constructs/web-app-deployment.js';
 import { AllmaDataStores } from './constructs/data-stores.js';
@@ -102,6 +104,15 @@ export class AllmaStack extends cdk.Stack {
     }
     if (stageConfig.aiApiKeySecretArn === 'YOUR_AI_API_KEY_SECRET_ARN') {
       throw new Error('The `aiApiKeySecretArn` must be overridden in your stageConfig.');
+    }
+
+    // --- CDK-driven Config Pre-validation ---
+    // This logic runs locally during `cdk deploy` or `cdk synth` to provide immediate
+    // feedback on configuration errors, preventing a slow and costly deployment failure.
+    if (stageConfig.initialAllmaConfigPath) {
+      console.log(`[Allma CDK] Pre-validating initial configuration from: ${stageConfig.initialAllmaConfigPath}`);
+      this._preValidateInitialConfig(stageConfig.initialAllmaConfigPath);
+      console.log(`[Allma CDK] Pre-validation successful. Proceeding with deployment.`);
     }
 
     const stackPrefix = `AllmaPlatform-${stageConfig.stage}`;
@@ -357,6 +368,78 @@ export class AllmaStack extends cdk.Stack {
 
       // Ensure the config table exists before we try to write to it
       customResource.node.addDependency(dataStores.allmaConfigTable);
+    }
+  }
+  
+  /**
+   * Performs local, synchronous pre-validation of the initial Allma configuration files.
+   * This method reads files from the local filesystem, parses them, and runs them
+   * through the same validation logic used by the Admin API and the import Lambda.
+   * If any file is invalid, it throws an error, failing the `cdk deploy` command early.
+   *
+   * @param configPath The local filesystem path to a config file or directory.
+   */
+  private _preValidateInitialConfig(configPath: string): void {
+    if (!fs.existsSync(configPath)) {
+      throw new Error(`[Allma CDK Pre-validation] Error: initialAllmaConfigPath not found at '${configPath}'.`);
+    }
+
+    const stats = fs.statSync(configPath);
+    const filesToValidate: { name: string; content: string }[] = [];
+
+    if (stats.isDirectory()) {
+      const fileNames = fs.readdirSync(configPath);
+      for (const fileName of fileNames) {
+        if (path.extname(fileName).toLowerCase() === '.json') {
+          const filePath = path.join(configPath, fileName);
+          filesToValidate.push({
+            name: fileName,
+            content: fs.readFileSync(filePath, 'utf-8'),
+          });
+        }
+      }
+      if (filesToValidate.length === 0) {
+        console.warn(`[Allma CDK Pre-validation] Warning: Directory '${configPath}' contains no .json files.`);
+        return;
+      }
+    } else if (stats.isFile()) {
+      if (path.extname(configPath).toLowerCase() === '.json') {
+        filesToValidate.push({
+          name: path.basename(configPath),
+          content: fs.readFileSync(configPath, 'utf-8'),
+        });
+      } else {
+        throw new Error(`[Allma CDK Pre-validation] Error: initialAllmaConfigPath points to a non-JSON file: ${configPath}`);
+      }
+    }
+
+    for (const file of filesToValidate) {
+      try {
+        const jsonData = JSON.parse(file.content);
+        const validationResult = validateAllmaConfig(jsonData, file.name);
+
+        if (!validationResult.success) {
+          const errorDetails = validationResult.error;
+          let errorMessage = `[Allma CDK Pre-validation] FAILED for configuration file: ${file.name}\n`;
+          if (errorDetails.formErrors.length > 0) {
+            errorMessage += `\n  - General Errors: \n    - ${errorDetails.formErrors.join('\n    - ')}`;
+          }
+          if (Object.keys(errorDetails.fieldErrors).length > 0) {
+            errorMessage += `\n  - Field-Specific Errors:\n`;
+            for (const [field, errors] of Object.entries(errorDetails.fieldErrors)) {
+              errorMessage += `    - ${field}: ${errors.join(', ')}\n`;
+            }
+          }
+          // Throw a comprehensive error that will stop the CDK process.
+          throw new Error(errorMessage);
+        }
+      } catch (e: any) {
+        if (e instanceof SyntaxError) {
+          throw new Error(`[Allma CDK Pre-validation] Failed to parse JSON from file '${file.name}': ${e.message}`);
+        }
+        // Re-throw formatted validation errors or other unexpected errors.
+        throw e;
+      }
     }
   }
 }
