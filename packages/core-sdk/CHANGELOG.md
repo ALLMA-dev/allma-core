@@ -1,5 +1,11 @@
 # @allma/core-sdk
 
+## 1.0.8
+
+### Patch Changes
+
+- f7b285f: Config validation in SDK implemented
+
 ## 1.0.7
 
 ### Patch Changes
