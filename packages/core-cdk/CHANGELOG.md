@@ -1,5 +1,11 @@
 # @allma/core-cdk
 
+## 1.1.1
+
+### Patch Changes
+
+- ff8e0f2: Minor fixes
+
 ## 1.1.0
 
 ### Minor Changes
