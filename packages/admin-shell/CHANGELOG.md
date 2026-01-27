@@ -1,5 +1,11 @@
 # @allma/admin-shell
 
+## 2.0.1
+
+### Patch Changes
+
+- ff8e0f2: Minor fixes
+
 ## 2.0.0
 
 ### Minor Changes
