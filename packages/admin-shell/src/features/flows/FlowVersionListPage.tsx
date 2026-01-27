@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
-import { useParams } from 'react-router-dom';
-import { Alert, Accordion, Stack, Title, Text, Group } from '@mantine/core';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Alert, Accordion, Stack, Title, Text, Group, Button } from '@mantine/core';
 import { PageContainer, CopyableText } from '@allma/ui-components';
-import { IconSettings } from '@tabler/icons-react';
-import { useGetFlowConfig } from '../../api/flowService';
+import { IconSettings, IconPlus } from '@tabler/icons-react';
+import { useGetFlowConfig, useCreateFlowVersion } from '../../api/flowService';
 import { FlowsBreadcrumbs } from './FlowsBreadcrumbs';
 import { FlowSettingsForm } from './components/FlowSettingsForm';
 import { FlowVersionList } from './components/FlowVersionList';
@@ -11,7 +11,9 @@ import { FlowExecutionsList } from './../executions/components/FlowExecutionsLis
 
 export function FlowVersionListPage() {
   const { flowId } = useParams<{ flowId: string }>();
+  const navigate = useNavigate();
   const { data: flowConfig, isLoading: isConfigLoading } = useGetFlowConfig(flowId);
+  const createVersionMutation = useCreateFlowVersion();
 
   const titleComponent = useMemo(() => (
     <Stack gap={0} align="flex-start">
@@ -27,12 +29,34 @@ export function FlowVersionListPage() {
     <FlowsBreadcrumbs flowId={flowId} flowName={flowConfig?.name} />
   ), [flowId, flowConfig?.name]);
 
+  const handleCreateNewVersion = () => {
+    if (flowId) {
+      createVersionMutation.mutate({ flowId, data: { sourceVersion: 'latest' }}, {
+        onSuccess: (newVersion) => {
+          navigate(`/flows/edit/${newVersion.id}/${newVersion.version}`);
+        }
+      });
+    }
+  };
+
   if (!flowId) {
     return <PageContainer title="Error"><Alert color="red">Flow ID is missing.</Alert></PageContainer>;
   }
 
   return (
-    <PageContainer title={titleComponent} breadcrumb={breadcrumbComponent}>
+    <PageContainer
+      title={titleComponent}
+      breadcrumb={breadcrumbComponent}
+      rightSection={
+        <Button
+          onClick={handleCreateNewVersion}
+          leftSection={<IconPlus size="1rem" />}
+          loading={createVersionMutation.isPending}
+        >
+          Create New Version
+        </Button>
+      }
+    >
       <Accordion variant="separated" mb="xl">
         <Accordion.Item value="settings">
             <Accordion.Control icon={<IconSettings size="1.2rem" />}>
