@@ -1,5 +1,11 @@
 # @allma/core-cdk
 
+## 1.1.2
+
+### Patch Changes
+
+- 9e6b2ad: Branches execution from S3 fix
+
 ## 1.1.1
 
 ### Patch Changes
