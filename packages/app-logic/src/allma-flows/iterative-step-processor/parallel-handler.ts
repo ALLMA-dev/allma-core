@@ -1,3 +1,4 @@
+
 import { JSONPath } from 'jsonpath-plus';
 import { v4 as uuidv4 } from 'uuid';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
@@ -18,7 +19,7 @@ import {
     PermanentStepError,
 } from '@allma/core-types';
 import {
-    log_info, log_error, log_warn, log_debug, resolveS3Pointer, offloadIfLarge,
+    log_info, log_error, log_warn, log_debug, resolveS3Pointer,
 } from '@allma/core-sdk';
 import { processStepOutput, getSmartValueByJsonPath } from '../../allma-core/data-mapper.js';
 import { executionLoggerClient } from '../../allma-core/execution-logger-client.js';
@@ -117,26 +118,18 @@ function aggregateBranchOutputs(
                 log_warn('SUM aggregation strategy encountered non-numeric output from a branch, skipping.', { output }, correlationId);
                 return sum;
             }, 0);
-            // NOTE: If failOnBranchError is false, any errors from failing branches are currently ignored by this strategy.
-            // This is because the result is a primitive number, and cannot have an `_branchErrors` property attached.
-            // For detailed error handling, use COLLECT_ARRAY and perform the sum manually.
             break;
 
         case AggregationStrategy.CUSTOM_MODULE:
             log_error('CUSTOM_MODULE aggregation strategy not yet implemented.', {}, correlationId);
-            // For now, fall back to collecting an array to avoid breaking the flow.
             aggregatedResult = successfulResults;
             break;
 
         case AggregationStrategy.COLLECT_ARRAY:
         default:
             if (aggregationConfig.failOnBranchError) {
-                // Just the successful outputs (extracted data only)
                 aggregatedResult = successfulResults;
             } else {
-                // Include both successful outputs and error information
-                // For successful branches, include just the output data
-                // For failed branches, include error information
                 aggregatedResult = processedOutputs.map(processedOutput => {
                     if (processedOutput.error) {
                         return { branchId: processedOutput.branchId, error: processedOutput.error };
@@ -153,7 +146,6 @@ function aggregateBranchOutputs(
 
 /**
  * Handles the aggregation of results from a parallel step.
- * @returns The updated FlowRuntimeState after aggregation and output mapping.
  */
 export const handleParallelAggregation = async (
     parallelAggregateInput: Exclude<ProcessorInput['parallelAggregateInput'], undefined>,
@@ -173,17 +165,14 @@ export const handleParallelAggregation = async (
         maxConcurrency: 0,
     };
 
-    // Before aggregation, resolve any S3 pointers in the branch outputs.
     const resolutionPromises = parallelAggregateInput.branchOutputs.map(async (branchResult) => {
         if (branchResult.output && isS3OutputPointerWrapper(branchResult.output)) {
             log_info(`Resolving S3 output pointer for branch '${branchResult.branchId}' before aggregation.`, { pointer: branchResult.output._s3_output_pointer }, correlationId);
             try {
                 const resolvedData = await resolveS3Pointer(branchResult.output._s3_output_pointer, correlationId);
-                // Return a new object with the resolved data.
                 return { ...branchResult, output: resolvedData };
             } catch (e: any) {
                 log_error(`Failed to resolve S3 output pointer for branch '${branchResult.branchId}'. Treating as branch error.`, { error: e.message }, correlationId);
-                // If resolution fails, convert it into a branch error so it's handled correctly by aggregation logic.
                 return { 
                     ...branchResult, 
                     output: undefined, 
@@ -195,7 +184,6 @@ export const handleParallelAggregation = async (
                 };
             }
         }
-        // If it's not a pointer, return it as is.
         return branchResult;
     });
 
@@ -208,13 +196,10 @@ export const handleParallelAggregation = async (
         correlationId
     );
 
-    // aggregationResult is null if a branch failed and failOnBranchError is true.
-    // In that case, runtimeState is already updated with FAILED status.
     if (aggregationResult === null) {
         return { updatedRuntimeState: runtimeState, nextStepId: undefined };
     }
 
-    // Apply output mappings *before* resolving the next step, so conditional transitions can see the result.
     if (stepInstanceConfig.outputMappings) {
         processStepOutput(stepInstanceConfig.outputMappings, aggregationResult, runtimeState.currentContextData, correlationId);
     }
@@ -232,7 +217,7 @@ export const handleParallelAggregation = async (
             startTime: runtimeState._internal?.currentStepStartTime || new Date().toISOString(),
             eventTimestamp: eventTimestamp,
             endTime: eventTimestamp,
-            inputMappingResult: parallelAggregateInput.branchOutputs, // Input to aggregation is the array of branch results
+            inputMappingResult: parallelAggregateInput.branchOutputs,
             outputData: aggregationResult,
             logDetails: {
                 transitionEvaluation: transitionDetails,
@@ -245,14 +230,12 @@ export const handleParallelAggregation = async (
 
 /**
  * Handles a parallel fork step by preparing branch payloads.
- * @returns A ProcessorOutput object for the SFN `PARALLEL_FORK` or `PARALLEL_FORK_S3` action, or null if no branches are executed.
  */
 export const handleParallelFork = async (
     stepInstanceConfig: StepInstance,
     runtimeState: FlowRuntimeState,
     correlationId: string
 ): Promise<ProcessorOutput | null> => {
-    // Add a type guard to ensure we are dealing with a parallel fork manager step.
     if (stepInstanceConfig.stepType !== StepType.PARALLEL_FORK_MANAGER) {
         throw new Error(`handleParallelFork called with incorrect step type: ${stepInstanceConfig.stepType}`);
     }
@@ -271,12 +254,8 @@ export const handleParallelFork = async (
         throw new Error(`Parallel fork step '${stepInstanceConfig.stepInstanceId}' must have an 'itemsPath' defined.`);
     }
 
-    // Logic to clamp maxConcurrency based on global limit
     const userMaxConcurrency = aggregationConfig?.maxConcurrency;
-    // Calculate the safe limit (80% of global reserved concurrency) OR default soft limit
     const safeLimit = Math.max(1, Math.floor(GLOBAL_MAX_CONCURRENCY * 0.8));
-    // If no limit set by user, or user set > safeLimit, clamp it.
-    // If user set 0 (unlimited) or undefined, also clamp it to safe limit.
     let effectiveMaxConcurrency = safeLimit;
     if (userMaxConcurrency && userMaxConcurrency > 0) {
         effectiveMaxConcurrency = Math.min(userMaxConcurrency, safeLimit);
@@ -294,42 +273,7 @@ export const handleParallelFork = async (
         maxConcurrency: effectiveMaxConcurrency,
     };
     
-    // Perform a simple, non-hydrating lookup first to check for an S3 pointer wrapper.
-    const itemsValueWrapper = JSONPath({ path: itemsPath, json: runtimeState.currentContextData, wrap: false });
-    
-    if (isS3OutputPointerWrapper(itemsValueWrapper)) {
-        const s3Pointer = itemsValueWrapper._s3_output_pointer;
-        log_info(`Initiating S3-powered distributed map state from pre-existing manifest.`, { s3Pointer, itemsPath }, correlationId);
-        
-        if (runtimeState.enableExecutionLogs) {
-            await executionLoggerClient.logStepExecution({
-                flowExecutionId: correlationId,
-                stepInstanceId: stepInstanceConfig.stepInstanceId,
-                stepDefinitionId: stepInstanceConfig.stepDefinitionId || 'parallel_fork_manager',
-                stepType: 'PARALLEL_FORK_MANAGER_S3',
-                status: 'COMPLETED',
-                startTime: runtimeState._internal?.currentStepStartTime || new Date().toISOString(),
-                eventTimestamp: new Date().toISOString(),
-                endTime: new Date().toISOString(),
-                inputMappingContext: runtimeState.currentContextData,
-                outputData: { s3Manifest: s3Pointer },
-            });
-        }
-
-        return {
-            runtimeState,
-            sfnAction: SfnActionType.PARALLEL_FORK_S3,
-            s3ItemReader: {
-                bucket: s3Pointer.bucket,
-                key: s3Pointer.key,
-                parallelBranches: branchTemplates,
-                aggregationConfig: finalAggregationConfig,
-                originalStepInstanceId: stepInstanceConfig.stepInstanceId,
-            }
-        };
-    }
-
-    // If it's not a pointer wrapper, proceed with the smart (hydrating) getter for in-memory iteration.
+    // ALWAYS resolve the itemsPath first, hydrating from S3 if necessary.
     const { value: itemsValue, events } = await getSmartValueByJsonPath(itemsPath, runtimeState.currentContextData, true, correlationId);
 
     let itemsToProcess: any[] = [];
@@ -339,65 +283,20 @@ export const handleParallelFork = async (
         itemsToProcess = [itemsValue];
     }
     
-        if (!EXECUTION_TRACES_BUCKET_NAME) {
-            throw new PermanentStepError('ALLMA_EXECUTION_TRACES_BUCKET_NAME is not configured.');
-        }
-        const itemsString = JSON.stringify(itemsToProcess);
-        const totalSize = Buffer.byteLength(itemsString, 'utf-8');
-
-        if (totalSize > SFN_INLINE_PAYLOAD_LIMIT_BYTES) {
-            log_warn(`Item array for parallel step is large (${totalSize} bytes). Automatically creating S3 manifest and switching to Distributed Map.`, {}, correlationId);
-            
-            let manifestContent = '';
-            let itemsOffloaded = 0;
-            for (const item of itemsToProcess) {
-                const offloadKeyPrefix = `manifest_items/${correlationId}/${stepInstanceConfig.stepInstanceId}`;
-                const offloadedItemOrPointer = await offloadIfLarge(
-                    item,
-                    EXECUTION_TRACES_BUCKET_NAME,
-                    `${offloadKeyPrefix}/${uuidv4()}`,
-                    correlationId
-                );
-                if (offloadedItemOrPointer && '_s3_output_pointer' in offloadedItemOrPointer) {
-                    itemsOffloaded++;
-                }
-                manifestContent += JSON.stringify(offloadedItemOrPointer) + '\n';
-            }
-            
-            const manifestKey = `manifests/${correlationId}/${stepInstanceConfig.stepInstanceId}-${new Date().toISOString()}.jsonl`;
-            await s3Client.send(new PutObjectCommand({
-                Bucket: EXECUTION_TRACES_BUCKET_NAME,
-                Key: manifestKey,
-                Body: manifestContent,
-                ContentType: 'application/x-jsonlines',
-            }));
-
-            log_info(`Auto-created manifest for Distributed Map with ${itemsToProcess.length} items (${itemsOffloaded} offloaded).`, { manifestKey }, correlationId);
-
-            return {
-                runtimeState,
-                sfnAction: SfnActionType.PARALLEL_FORK_S3,
-                s3ItemReader: {
-                    bucket: EXECUTION_TRACES_BUCKET_NAME,
-                    key: manifestKey,
-                    parallelBranches: branchTemplates,
-                    aggregationConfig: finalAggregationConfig,
-                    originalStepInstanceId: stepInstanceConfig.stepInstanceId,
-                }
-            };
-        }
-    // --- END: AUTO-OFFLOAD LOGIC ---
-
+    if (!EXECUTION_TRACES_BUCKET_NAME) {
+        throw new PermanentStepError('ALLMA_EXECUTION_TRACES_BUCKET_NAME is not configured.');
+    }
+    
+    // ALWAYS construct the full branch payloads first.
     const branchesToExecute: BranchExecutionPayload[] = [];
-
     for (const item of itemsToProcess) {
         const itemContext = { ...runtimeState.currentContextData, currentItem: item };
         
         for (const branchTemplate of branchTemplates) {
             if (branchTemplate.condition) {
-                const conditionMet = !!JSONPath({ path: branchTemplate.condition, json: itemContext, wrap: false });
+                const { value: conditionMet } = await getSmartValueByJsonPath(branchTemplate.condition, itemContext, true, correlationId);
                 if (!conditionMet) {
-                    log_info(`Skipping branch '${branchTemplate.branchId}' for item due to condition not met.`, { condition: branchTemplate.condition }, correlationId);
+                    log_debug(`Skipping branch '${branchTemplate.branchId}' for item due to condition not met.`, { condition: branchTemplate.condition }, correlationId);
                     continue;
                 }
             }
@@ -414,6 +313,37 @@ export const handleParallelFork = async (
         }
     }
     
+    // ONLY NOW, check the size and decide whether to offload.
+    const totalSize = Buffer.byteLength(JSON.stringify(branchesToExecute), 'utf-8');
+
+    if (totalSize > SFN_INLINE_PAYLOAD_LIMIT_BYTES) {
+        log_warn(`Branch payload for parallel step is large (${totalSize} bytes). Automatically creating S3 manifest and switching to Distributed Map.`, {}, correlationId);
+        
+        const manifestContent = branchesToExecute.map(payload => JSON.stringify(payload)).join('\n');
+        
+        const manifestKey = `manifests/${correlationId}/${stepInstanceConfig.stepInstanceId}-${new Date().toISOString()}.jsonl`;
+        await s3Client.send(new PutObjectCommand({
+            Bucket: EXECUTION_TRACES_BUCKET_NAME,
+            Key: manifestKey,
+            Body: manifestContent,
+            ContentType: 'application/x-jsonlines',
+        }));
+
+        log_info(`Auto-created manifest for Distributed Map with ${branchesToExecute.length} branch executions.`, { manifestKey }, correlationId);
+
+        return {
+            runtimeState,
+            sfnAction: SfnActionType.PARALLEL_FORK_S3,
+            s3ItemReader: {
+                bucket: EXECUTION_TRACES_BUCKET_NAME,
+                key: manifestKey,
+                parallelBranches: branchTemplates,
+                aggregationConfig: finalAggregationConfig,
+                originalStepInstanceId: stepInstanceConfig.stepInstanceId,
+            }
+        };
+    }
+
     const eventTimestamp = new Date().toISOString();
     
     if (branchesToExecute.length === 0) {
@@ -428,7 +358,7 @@ export const handleParallelFork = async (
                 startTime: runtimeState._internal?.currentStepStartTime || eventTimestamp,
                 eventTimestamp: eventTimestamp,
                 endTime: eventTimestamp,
-                durationMs: runtimeState._internal?.currentStepStartTime ? (new Date(eventTimestamp).getTime() - new Date(runtimeState._internal.currentStepStartTime).getTime()) : 0,
+                durationMs: 0,
                 inputMappingContext: runtimeState.currentContextData,
                 mappingEvents: events,
                 outputData: {
@@ -453,7 +383,7 @@ export const handleParallelFork = async (
             startTime: runtimeState._internal?.currentStepStartTime || eventTimestamp,
             eventTimestamp: eventTimestamp,
             endTime: eventTimestamp,
-            durationMs: runtimeState._internal?.currentStepStartTime ? (new Date(eventTimestamp).getTime() - new Date(eventTimestamp).getTime()) : 0,
+            durationMs: 0,
             inputMappingContext: runtimeState.currentContextData, 
             mappingEvents: events,
             outputData: { 

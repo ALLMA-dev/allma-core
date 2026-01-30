@@ -163,13 +163,6 @@ export class AllmaOrchestration extends Construct {
     });
     parallelMapState.itemProcessor(this.createBranchProcessorChain('InMemoryMap', branchStateMachine));
 
-    const s3MapItemProcessorTask = new sfnTasks.LambdaInvoke(this, 'S3MapItemProcessorTask', {
-        lambdaFunction: iterativeStepProcessorLambda,
-        payloadResponseOnly: true,
-        resultPath: sfn.JsonPath.DISCARD,
-    });
-    s3MapItemProcessorTask.addRetry(lambdaServiceErrorRetryPolicy);
-
     const parallelMapStateFromS3 = new sfn.DistributedMap(this, 'ExecuteBranchesFromS3', {
         resultPath: '$.mapResultsArray',
         itemReader: new sfn.S3JsonItemReader({
@@ -178,11 +171,34 @@ export class AllmaOrchestration extends Construct {
         }),
         maxConcurrencyPath: sfn.JsonPath.stringAt('$.s3ItemReader.aggregationConfig.maxConcurrency'),
         itemSelector: {
-            'currentItem.$': '$$.Map.Item.Value',
-            'mapContext.$': '$$.ExecutionContext.Input.mapContext',
+            // FIX: This structure now perfectly matches the input expected by the shared
+            // 'createBranchProcessorChain' method, ensuring consistent execution.
+            'mapContext': {
+                'runtimeState.$': '$.runtimeState',
+                'aggregationConfig.$': '$.s3ItemReader.aggregationConfig',
+                'originalStepInstanceId.$': '$.s3ItemReader.originalStepInstanceId',
+            },
+            'branchItem.$': '$$.Map.Item.Value',
+            'uniqueBranchExecutionId.$': 'States.UUID()',
         },
     });
-    parallelMapStateFromS3.itemProcessor(s3MapItemProcessorTask);
+    // FIX: Use the SAME robust item processor chain for both in-memory and S3 maps.
+    // This ensures consistent logging, error handling, and state management for every branch.
+    parallelMapStateFromS3.itemProcessor(this.createBranchProcessorChain('S3Map', branchStateMachine));
+    
+    // This state is now only needed to transform the output from the in-memory map
+    // to match the structure needed for aggregation. The S3 map path will be aligned separately.
+    const transformS3MapOutput = new sfn.Pass(this, 'TransformS3MapOutputToStandard', {
+        parameters: {
+            'mapContext': {
+                'runtimeState.$': '$.runtimeState',
+                'aggregationConfig.$': '$.s3ItemReader.aggregationConfig',
+                'originalStepInstanceId.$': '$.s3ItemReader.originalStepInstanceId'
+            },
+            'mapResultsArray.$': '$.mapResultsArray'
+        },
+        resultPath: '$'
+    });
 
     const prepareForAggregationPassState = new sfn.Pass(this, 'PrepareAggregationInput', {
       inputPath: '$',
@@ -228,7 +244,10 @@ export class AllmaOrchestration extends Construct {
 
     prepareForMapPassState.next(parallelMapState);
     parallelMapState.next(prepareForAggregationPassState);
-    parallelMapStateFromS3.next(prepareForAggregationPassState);
+
+    parallelMapStateFromS3.next(transformS3MapOutput);
+    transformS3MapOutput.next(prepareForAggregationPassState);
+    
     prepareForAggregationPassState.next(iterativeStepTask);
     iterativeStepTask.next(checkISPCompletionChoice);
     processAsyncResultAndContinue.next(checkISPCompletionChoice); 
