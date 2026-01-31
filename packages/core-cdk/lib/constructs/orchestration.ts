@@ -308,6 +308,7 @@ export class AllmaOrchestration extends Construct {
                     sfn.JsonPath.stringAt('$.branchItem.branchId'),
                     sfn.JsonPath.uuid()
                 ),
+                'mergedContextData.$': 'States.JsonMerge($.mapContext.runtimeState.currentContextData, $.branchItem.branchInput, false)',
             },
         });
 
@@ -327,7 +328,7 @@ export class AllmaOrchestration extends Construct {
                     'status': 'RUNNING',
                     'startTime.$': '$$.State.EnteredTime',
                     'stepRetryAttempts': {},
-                    'currentContextData.$': '$.branchItem.branchInput',
+                    'currentContextData.$': '$.mergedContextData',
                     '_internal': {
                         'branchDefinition.$': '$.branchItem.branchDefinition',
                         'currentStepStartTime.$': '$$.State.EnteredTime',
