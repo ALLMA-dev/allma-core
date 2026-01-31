@@ -153,15 +153,11 @@ export class AllmaOrchestration extends Construct {
         parameters: {
             'mapContext.$': '$.mapContext',
             'branchItem.$': '$$.Map.Item.Value',
-            'uniqueBranchExecutionId': sfn.JsonPath.format(
-                '{}-{}-{}',
-                sfn.JsonPath.stringAt('$.mapContext.runtimeState.flowExecutionId'),
-                sfn.JsonPath.stringAt('$$.Map.Item.Value.branchId'), 
-                sfn.JsonPath.uuid()
-            )
         },
     });
     parallelMapState.itemProcessor(this.createBranchProcessorChain('InMemoryMap', branchStateMachine));
+
+    const s3MapProcessorChain = this.createBranchProcessorChain('S3Map', branchStateMachine);
 
     const parallelMapStateFromS3 = new sfn.DistributedMap(this, 'ExecuteBranchesFromS3', {
         resultPath: '$.mapResultsArray',
@@ -171,23 +167,18 @@ export class AllmaOrchestration extends Construct {
         }),
         maxConcurrencyPath: sfn.JsonPath.stringAt('$.s3ItemReader.aggregationConfig.maxConcurrency'),
         itemSelector: {
-            // FIX: This structure now perfectly matches the input expected by the shared
-            // 'createBranchProcessorChain' method, ensuring consistent execution.
             'mapContext': {
                 'runtimeState.$': '$.runtimeState',
                 'aggregationConfig.$': '$.s3ItemReader.aggregationConfig',
                 'originalStepInstanceId.$': '$.s3ItemReader.originalStepInstanceId',
             },
             'branchItem.$': '$$.Map.Item.Value',
-            'uniqueBranchExecutionId.$': 'States.UUID()',
         },
     });
-    // FIX: Use the SAME robust item processor chain for both in-memory and S3 maps.
-    // This ensures consistent logging, error handling, and state management for every branch.
-    parallelMapStateFromS3.itemProcessor(this.createBranchProcessorChain('S3Map', branchStateMachine));
+    parallelMapStateFromS3.itemProcessor(s3MapProcessorChain);
     
-    // This state is now only needed to transform the output from the in-memory map
-    // to match the structure needed for aggregation. The S3 map path will be aligned separately.
+    // This state reshapes the output of the S3 map to match the in-memory map's output structure,
+    // ensuring the aggregation step receives a consistent input.
     const transformS3MapOutput = new sfn.Pass(this, 'TransformS3MapOutputToStandard', {
         parameters: {
             'mapContext': {
@@ -307,12 +298,16 @@ export class AllmaOrchestration extends Construct {
    * @returns An IChainable object representing the processing chain with error handling.
    */
     private createBranchProcessorChain(idPrefix: string, branchStateMachine: sfn.IStateMachine): sfn.IChainable {
-        const passStateToInjectInternal = new sfn.Pass(this, `${idPrefix}InjectInternalContext`, {
-            inputPath: '$',
-            resultPath: '$.branchItem.branchInput._internal', 
+        const prepareBranchInput = new sfn.Pass(this, `${idPrefix}PrepareBranchInput`, {
             parameters: {
-                'currentStepStartTime.$': '$$.State.EnteredTime',
-                'executionName.$': '$.uniqueBranchExecutionId',
+                'mapContext.$': '$.mapContext',
+                'branchItem.$': '$.branchItem',
+                'uniqueBranchExecutionId': sfn.JsonPath.format(
+                    '{}-{}-{}',
+                    sfn.JsonPath.stringAt('$.mapContext.runtimeState.flowExecutionId'),
+                    sfn.JsonPath.stringAt('$.branchItem.branchId'),
+                    sfn.JsonPath.uuid()
+                ),
             },
         });
 
@@ -341,25 +336,18 @@ export class AllmaOrchestration extends Construct {
                 }
             }),
 
-            // The `Output` from the sub-execution is already a JSON object.
-            // We just need to select it directly, not parse it as a string.
-            resultSelector: {
-                'Output.$': '$.Output'
-            },
-
+            resultSelector: { 'Output.$': '$.Output' },
             resultPath: '$.sfnSubExecutionResult',
         });
 
         const parseOutput = new sfn.Pass(this, `${idPrefix}ParseOutput`, {
             parameters: {
                 'branchId.$': '$.branchItem.branchId',
-                // After the ResultSelector, the data is in sfnSubExecutionResult.Output
                 'output.$': '$.sfnSubExecutionResult.Output'
             },
         });
 
         // --- MULTI-STEP ERROR HANDLING CHAIN ---
-
         const formatStringCause = new sfn.Pass(this, `${idPrefix}FormatStringCause`, {
             comment: 'Handles non-JSON error causes (e.g., SFN timeouts) and formats a standard error object.',
             parameters: {
@@ -427,21 +415,21 @@ export class AllmaOrchestration extends Construct {
         const checkJsonCauseType = new sfn.Choice(this, `${idPrefix}CheckJsonCauseType`)
             .when(sfn.Condition.isPresent('$.errorInfo.parsedCause.errorName'), formatLogicalError)
             .when(sfn.Condition.isPresent('$.errorInfo.parsedCause.errorType'), formatLambdaError)
-            .when(sfn.Condition.isPresent('$.errorInfo.parsedCause.error'), formatSfnDataLimitError) // For nested SFN errors
-            .otherwise(formatStringCause); // Fallback if parsed JSON has an unknown structure
+            .when(sfn.Condition.isPresent('$.errorInfo.parsedCause.error'), formatSfnDataLimitError)
+            .otherwise(formatStringCause);
 
         const handleBranchErrorChoice = new sfn.Choice(this, `${idPrefix}IsCauseJsonChoice`)
             .when(sfn.Condition.stringMatches('$.errorInfo.Cause', '{*'), parseJsonCause.next(checkJsonCauseType))
             .otherwise(formatStringCause);
 
-        // Main success path
+        // Chain the states together for the ItemProcessor workflow
+        prepareBranchInput.next(executeBranch);
         executeBranch.next(parseOutput);
 
-        // Attach the catch handler to the Step Functions execution task.
         executeBranch.addCatch(handleBranchErrorChoice, {
             resultPath: '$.errorInfo'
         });
 
-        return passStateToInjectInternal.next(executeBranch);
+        return prepareBranchInput;
     }
 }

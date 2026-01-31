@@ -1,4 +1,3 @@
-
 import { JSONPath } from 'jsonpath-plus';
 import { v4 as uuidv4 } from 'uuid';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
@@ -17,9 +16,10 @@ import {
     StepType,
     ENV_VAR_NAMES,
     PermanentStepError,
+    S3Pointer,
 } from '@allma/core-types';
 import {
-    log_info, log_error, log_warn, log_debug, resolveS3Pointer,
+    log_info, log_error, log_warn, log_debug, resolveS3Pointer, offloadIfLarge,
 } from '@allma/core-sdk';
 import { processStepOutput, getSmartValueByJsonPath } from '../../allma-core/data-mapper.js';
 import { executionLoggerClient } from '../../allma-core/execution-logger-client.js';
@@ -273,7 +273,6 @@ export const handleParallelFork = async (
         maxConcurrency: effectiveMaxConcurrency,
     };
     
-    // ALWAYS resolve the itemsPath first, hydrating from S3 if necessary.
     const { value: itemsValue, events } = await getSmartValueByJsonPath(itemsPath, runtimeState.currentContextData, true, correlationId);
 
     let itemsToProcess: any[] = [];
@@ -287,7 +286,6 @@ export const handleParallelFork = async (
         throw new PermanentStepError('ALLMA_EXECUTION_TRACES_BUCKET_NAME is not configured.');
     }
     
-    // ALWAYS construct the full branch payloads first.
     const branchesToExecute: BranchExecutionPayload[] = [];
     for (const item of itemsToProcess) {
         const itemContext = { ...runtimeState.currentContextData, currentItem: item };
@@ -296,15 +294,22 @@ export const handleParallelFork = async (
             if (branchTemplate.condition) {
                 const { value: conditionMet } = await getSmartValueByJsonPath(branchTemplate.condition, itemContext, true, correlationId);
                 if (!conditionMet) {
-                    log_debug(`Skipping branch '${branchTemplate.branchId}' for item due to condition not met.`, { condition: branchTemplate.condition }, correlationId);
                     continue;
                 }
             }
             
+            //  Offload the `currentItem` if it's large before creating the payload
+            const offloadedItem = await offloadIfLarge(
+                item,
+                EXECUTION_TRACES_BUCKET_NAME,
+                `branch_inputs/${correlationId}/${branchTemplate.branchId}-${uuidv4()}`,
+                correlationId
+            );
+
             branchesToExecute.push({
                 branchId: branchTemplate.branchId,
                 branchDefinition: branchTemplate,
-                branchInput: itemContext,
+                branchInput: { currentItem: offloadedItem }, // Pass the potentially offloaded item
                 parentFlowExecutionId: correlationId,
                 parentFlowDefinitionId: runtimeState.flowDefinitionId,
                 parentFlowDefinitionVersion: runtimeState.flowDefinitionVersion,
@@ -313,20 +318,29 @@ export const handleParallelFork = async (
         }
     }
     
-    // ONLY NOW, check the size and decide whether to offload.
     const totalSize = Buffer.byteLength(JSON.stringify(branchesToExecute), 'utf-8');
 
     if (totalSize > SFN_INLINE_PAYLOAD_LIMIT_BYTES) {
         log_warn(`Branch payload for parallel step is large (${totalSize} bytes). Automatically creating S3 manifest and switching to Distributed Map.`, {}, correlationId);
         
-        const manifestContent = branchesToExecute.map(payload => JSON.stringify(payload)).join('\n');
-        
-        const manifestKey = `manifests/${correlationId}/${stepInstanceConfig.stepInstanceId}-${new Date().toISOString()}.jsonl`;
+        const sharedContextKey = `shared_context/${correlationId}/${stepInstanceConfig.stepInstanceId}-${new Date().toISOString()}.json`;
+        await s3Client.send(new PutObjectCommand({
+            Bucket: EXECUTION_TRACES_BUCKET_NAME,
+            Key: sharedContextKey,
+            Body: JSON.stringify(runtimeState.currentContextData),
+            ContentType: 'application/json',
+        }));
+        const sharedContextPointer: S3Pointer = { bucket: EXECUTION_TRACES_BUCKET_NAME, key: sharedContextKey };
+        runtimeState.currentContextData = { _s3_context_pointer: sharedContextPointer };
+
+        const manifestContent = JSON.stringify(branchesToExecute);
+        const manifestKey = `manifests/${correlationId}/${stepInstanceConfig.stepInstanceId}-${new Date().toISOString()}.json`;
+
         await s3Client.send(new PutObjectCommand({
             Bucket: EXECUTION_TRACES_BUCKET_NAME,
             Key: manifestKey,
             Body: manifestContent,
-            ContentType: 'application/x-jsonlines',
+            ContentType: 'application/json',
         }));
 
         log_info(`Auto-created manifest for Distributed Map with ${branchesToExecute.length} branch executions.`, { manifestKey }, correlationId);
@@ -398,7 +412,7 @@ export const handleParallelFork = async (
         runtimeState,
         sfnAction: SfnActionType.PARALLEL_FORK,
         parallelForkInput: {
-            branchesToExecute,
+            branchesToExecute: branchesToExecute,
             aggregationConfig: finalAggregationConfig,
             originalStepInstanceId: stepInstanceConfig.stepInstanceId,
         }

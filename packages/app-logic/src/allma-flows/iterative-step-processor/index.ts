@@ -12,11 +12,14 @@ import {
     FlowRuntimeState,
     AllmaError,
     ContentBasedRetryableError,
+    isS3Pointer,
+    S3Pointer,
+    isS3OutputPointerWrapper,
 } from '@allma/core-types';
 import {
-    log_info, log_error, log_debug, log_warn, deepMerge, isObject,
+    log_info, log_error, log_debug, log_warn, deepMerge, resolveS3Pointer,
 } from '@allma/core-sdk';
-import { loadFlowDefinition, loadStepDefinition } from '../../allma-core/config-loader.js';
+import { loadFlowDefinition } from '../../allma-core/config-loader.js';
 import { handleTerminalError } from './error-handler.js';
 import { determineNextSfnAction, resolveNextStep } from './transition-resolver.js';
 import { handleAsyncResume, handleWaitForEvent } from './async-handler.js';
@@ -26,51 +29,52 @@ import { prepareStepInput } from '../../allma-core/data-mapper.js';
 import { executionLoggerClient } from '../../allma-core/execution-logger-client.js';
 
 /**
- * Recursively traverses a configuration object and rewrites simple JSONPaths
- * to be relative to the map state's parent context.
- * @param obj The configuration object or array to traverse.
- * @param prefix The prefix to add (e.g., '$.mapContext.runtimeState.currentContextData').
- * @returns The object with rewritten paths.
- */
-function rewriteJsonPathsInConfig(obj: any, prefix: string): any {
-    if (Array.isArray(obj)) {
-        return obj.map(item => rewriteJsonPathsInConfig(item, prefix));
-    }
-    if (isObject(obj)) {
-        const newObj: Record<string, any> = {};
-        for (const key in obj) {
-            if (Object.prototype.hasOwnProperty.call(obj, key)) {
-                newObj[key] = rewriteJsonPathsInConfig(obj[key], prefix);
-            }
-        }
-        return newObj;
-    }
-    if (typeof obj === 'string' && obj.startsWith('$.') && !obj.startsWith('$.currentItem') && !obj.startsWith('$.mapContext')) {
-        // This is a simple root path that needs rewriting.
-        // We remove the '$' from the original path and prepend the prefix.
-        return `${prefix}${obj.substring(1)}`;
-    }
-    // Return primitives and already-correct paths as-is.
-    return obj;
-}
-
-/**
  * AWS Lambda handler for the "IterativeStepProcessor" state.
  * This is the main worker Lambda in the ALLMA orchestration loop.
  * It orchestrates step execution by delegating to specialized modules.
  */
 export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (event, context) => {
+    // Add a debug log at the very top to capture the exact raw input
+    console.log("IterativeStepProcessor RAW_EVENT:", JSON.stringify(event, null, 2));
+
     const isMapContext = Object.prototype.hasOwnProperty.call(event, 'mapContext');
+    
     const originalEvent = event;
     let runtimeState: FlowRuntimeState;
 
     if (isMapContext) {
         const mapEvent = event as any;
         runtimeState = mapEvent.mapContext.runtimeState;
-        runtimeState.currentContextData = {
-            ...mapEvent.mapContext.runtimeState.currentContextData,
-            currentItem: mapEvent.currentItem,
-        };
+        
+        // HYDRATION LOGIC FOR SHARED CONTEXT
+        const sharedContext = runtimeState.currentContextData;
+        const s3ContextPointer = (sharedContext as any)._s3_context_pointer as S3Pointer | undefined;
+        
+        if (s3ContextPointer && isS3Pointer(s3ContextPointer)) {
+            log_info('Branch execution detected shared context pointer. Hydrating...', { pointer: s3ContextPointer }, runtimeState.flowExecutionId);
+            const hydratedSharedContext = await resolveS3Pointer(s3ContextPointer, runtimeState.flowExecutionId);
+
+            // Hydrate the currentItem if it was offloaded
+            const currentItem = mapEvent.branchItem.branchInput.currentItem;
+            const hydratedCurrentItem = isS3OutputPointerWrapper(currentItem)
+                ? await resolveS3Pointer(currentItem._s3_output_pointer, runtimeState.flowExecutionId)
+                : currentItem;
+            
+            runtimeState.currentContextData = { ...hydratedSharedContext, currentItem: hydratedCurrentItem };
+
+        } else {
+            // Hydrate the currentItem if it was offloaded
+            const currentItem = mapEvent.branchItem.branchInput.currentItem;
+            const hydratedCurrentItem = isS3OutputPointerWrapper(currentItem)
+                ? await resolveS3Pointer(currentItem._s3_output_pointer, runtimeState.flowExecutionId)
+                : currentItem;
+            
+            runtimeState.currentContextData = {
+                ...sharedContext,
+                currentItem: hydratedCurrentItem,
+            };
+        }
+        
         event = {
             runtimeState: runtimeState,
             sfnAction: SfnActionType.PROCESS_STEP
@@ -90,7 +94,6 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
             flowDef = await loadFlowDefinition(runtimeState.flowDefinitionId, runtimeState.flowDefinitionVersion, correlationId);
             runtimeState = handleAsyncResume(originalEvent, runtimeState, flowDef);
 
-            // After resuming, the async step has "completed". We must resolve its successor immediately.
             const completedStepConfig = flowDef.steps[runtimeState.currentStepInstanceId!];
             const { nextStepId } = await resolveNextStep(completedStepConfig, runtimeState);
             runtimeState.currentStepInstanceId = nextStepId;
@@ -104,8 +107,6 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
             runtimeState = aggregationResult.updatedRuntimeState;
             runtimeState.currentStepInstanceId = aggregationResult.nextStepId;
 
-            // After aggregation, return to let the next SFN iteration process the next step.
-            // This aligns behavior with other async steps (wait, poll) and simplifies flow logic.
             const nextActionDetails = await determineNextSfnAction(runtimeState, flowDef, correlationId);
 
             const isDirectInvocation = !context.functionName;
@@ -132,17 +133,10 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
                 flowDef = await loadFlowDefinition(runtimeState.flowDefinitionId, runtimeState.flowDefinitionVersion, correlationId);
             }
 
-            const originalStepInstance = flowDef.steps[currentStepInstanceId];
+            stepInstance = flowDef.steps[currentStepInstanceId];
 
-            if (!originalStepInstance) {
+            if (!stepInstance) {
                 throw new Error(`Configuration for step '${currentStepInstanceId}' not found in flow definition.`);
-            }
-
-            if (isMapContext) {
-                log_debug(`Rewriting JSONPaths for map context execution of step '${currentStepInstanceId}'`, {}, correlationId);
-                stepInstance = rewriteJsonPathsInConfig(originalStepInstance, '$.mapContext.runtimeState.currentContextData');
-            } else {
-                stepInstance = originalStepInstance;
             }
 
             const parsedStepInstance = StepInstanceSchema.safeParse(stepInstance);
@@ -225,9 +219,7 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
                     return;
                 }
 
-                const contextForMappings = isMapContext ? (originalEvent as any) : { ...runtimeState, ...runtimeState.currentContextData };
-
-                // *** Determine hydration strategy BEFORE preparing input ***
+                const contextForMappings = runtimeState.currentContextData;
                 const shouldHydrateInputPointers = stepInstance.stepType !== StepType.CUSTOM_LAMBDA_INVOKE || (stepInstance.customConfig as any)?.hydrateInputFromS3 === true;
 
                 const { preparedInput, events: inputMappingEvents } = await prepareStepInput(
@@ -324,7 +316,6 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
         runtimeState.status = 'COMPLETED';
     }
 
-    // This block handles the final cleanup at the very end of a branch's lifecycle.
     if ((isMapContext || runtimeState.branchId) && !runtimeState.currentStepInstanceId) {
         if (runtimeState.currentContextData?.currentItem) {
             log_debug("End of branch reached. Cleaning up 'currentItem' from context.", { branchId: runtimeState.branchId }, correlationId);
