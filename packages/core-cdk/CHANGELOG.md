@@ -1,5 +1,11 @@
 # @allma/core-cdk
 
+## 1.1.3
+
+### Patch Changes
+
+- 16bfcf9: Parallel branch execution fixed (S3)
+
 ## 1.1.2
 
 ### Patch Changes
