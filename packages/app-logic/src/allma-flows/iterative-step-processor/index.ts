@@ -18,7 +18,7 @@ import {
     isS3OutputPointerWrapper,
 } from '@allma/core-types';
 import {
-    log_info, log_error, log_debug, log_warn, deepMerge, resolveS3Pointer,
+    log_info, log_error, log_debug, log_warn, deepMerge, resolveS3Pointer, isObject,
 } from '@allma/core-sdk';
 import { loadFlowDefinition } from '../../allma-core/config-loader.js';
 import { handleTerminalError } from './error-handler.js';
@@ -35,13 +35,9 @@ import { executionLoggerClient } from '../../allma-core/execution-logger-client.
  * It orchestrates step execution by delegating to specialized modules.
  */
 export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (event, context) => {
-    // MODIFIED: Add a debug log at the very top to capture the exact raw input
+    // Add a debug log at the very top to capture the exact raw input
     console.log("IterativeStepProcessor RAW_EVENT:", JSON.stringify(event, null, 2));
 
-    // REMOVED: The special handling for `isMapContext` is removed. The input (`event`) to this lambda
-    // when running in a branch is now a standard `ProcessorInput` object, because the
-    // Step Function definition now constructs the initial `runtimeState` completely, including
-    // the merged context data.
     const originalEvent = event;
     let runtimeState: FlowRuntimeState = event.runtimeState;
     const isBranchExecution = !!runtimeState.branchId;
@@ -92,6 +88,15 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
         const currentStepInstanceId = runtimeState.currentStepInstanceId;
         if (currentStepInstanceId) {
             log_info(`Processing step: '${currentStepInstanceId}'`, { isBranchExecution }, correlationId);
+            
+            // FIX: Ensure _internal object exists and set startTime before any step-specific logic.
+            // This guarantees it's available for duration calculations in all logging scenarios.
+            const stepStartTime = new Date().toISOString();
+            if (!runtimeState._internal) {
+                runtimeState._internal = {};
+            }
+            runtimeState._internal.currentStepStartTime = stepStartTime;
+
             if (!flowDef) {
                 flowDef = await loadFlowDefinition(runtimeState.flowDefinitionId, runtimeState.flowDefinitionVersion, correlationId);
             }
@@ -111,12 +116,6 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
                 log_info(`Applying step overrides for '${currentStepInstanceId}'`, { overrides }, correlationId);
                 stepInstance = deepMerge(stepInstance, overrides) as StepInstance;
             }
-
-            const stepStartTime = new Date().toISOString();
-            if (!runtimeState._internal) {
-                runtimeState._internal = {};
-            }
-            runtimeState._internal.currentStepStartTime = stepStartTime;
 
             const { stepType } = stepInstance;
 
@@ -182,12 +181,35 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
                     return;
                 }
 
-                const contextForMappings = runtimeState.currentContextData;
+                // --- JUST-IN-TIME HYDRATION & CONTEXT MERGING LOGIC ---
+                // Create a comprehensive context for this step's execution by merging the full state with the context data.
+                // This ensures JSONPaths can access both `$.steps_output` and `$.flowExecutionId`.
+                let contextForMappings = { ...runtimeState, ...runtimeState.currentContextData };
+
+                const currentItem = runtimeState.currentContextData?.currentItem;
+                if (isObject(currentItem) && isS3OutputPointerWrapper(currentItem)) {
+                    log_info('Branch step requires hydration. Creating temporary hydrated context.', { keys: Object.keys(currentItem) }, correlationId);
+                    
+                    const { _s3_output_pointer, ...restOfCurrentItem } = currentItem;
+                    const hydratedContent = await resolveS3Pointer(_s3_output_pointer, correlationId);
+
+                    let mergedCurrentItem;
+                    if (isObject(hydratedContent)) {
+                        mergedCurrentItem = { ...hydratedContent, ...restOfCurrentItem };
+                    } else {
+                        mergedCurrentItem = { ...restOfCurrentItem, content: hydratedContent };
+                    }
+                    // Overwrite the `currentItem` property in our temporary context.
+                    contextForMappings.currentItem = mergedCurrentItem;
+                    log_info('Successfully hydrated and merged currentItem for step execution.', { finalKeys: Object.keys(mergedCurrentItem) }, correlationId);
+                }
+                // --- END HYDRATION & CONTEXT MERGING LOGIC ---
+                
                 const shouldHydrateInputPointers = stepInstance.stepType !== StepType.CUSTOM_LAMBDA_INVOKE || (stepInstance.customConfig as any)?.hydrateInputFromS3 === true;
 
                 const { preparedInput, events: inputMappingEvents } = await prepareStepInput(
                     stepInstance.inputMappings || {},
-                    contextForMappings,
+                    contextForMappings, // Use the comprehensive, and potentially temporary, hydrated context
                     shouldHydrateInputPointers,
                     correlationId
                 );
