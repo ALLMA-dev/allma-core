@@ -1,5 +1,11 @@
 # @allma/core-cdk
 
+## 1.1.4
+
+### Patch Changes
+
+- f12a105: Context of branch execution fixed
+
 ## 1.1.3
 
 ### Patch Changes
