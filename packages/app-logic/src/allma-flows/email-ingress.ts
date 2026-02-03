@@ -5,7 +5,7 @@ import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 import PostalMime from 'postal-mime';
 import { v4 as uuidv4 } from 'uuid';
 import { log_info, log_error, log_warn } from '@allma/core-sdk';
-import { ENV_VAR_NAMES, StartFlowExecutionInput, EmailAttachment } from '@allma/core-types';
+import { ENV_VAR_NAMES, StartFlowExecutionInput, EmailAttachment, TriggeringEmailContext } from '@allma/core-types';
 import { FlowActivationService } from '../allma-admin/services/flow-activation.service.js';
 
 const s3Client = new S3Client({});
@@ -177,22 +177,21 @@ export const handler = async (event: { Records: SesEventRecord[] }): Promise<voi
             }
 
             // 4. Construct payload with extended sender info and tracking ID
+            const triggeringEmail: TriggeringEmailContext = {
+                from: fromText,
+                senderName: senderName,
+                senderFullEmail: senderFullEmail,
+                senderEmailPrefix: senderEmailPrefix,
+                to: recipient,
+                subject: parsedEmail.subject,
+                body: textBody,
+                htmlBody: parsedEmail.html || undefined,
+                attachments: attachments,
+                triggerPattern: triggerPattern,
+            };
+
             const initialContextData: Record<string, any> = {
-                triggeringEmail: {
-                    from: fromText,
-                    // Expanded sender data
-                    senderName: senderName,
-                    senderFullEmail: senderFullEmail,
-                    senderEmailPrefix: senderEmailPrefix,
-                    // Standard fields
-                    to: recipient,
-                    subject: parsedEmail.subject,
-                    body: textBody,
-                    htmlBody: parsedEmail.html || undefined,
-                    attachments: attachments,
-                    // tracking
-                    triggerPattern: triggerPattern,
-                },
+                triggeringEmail: triggeringEmail,
             };
 
             const startFlowInput: StartFlowExecutionInput = {
