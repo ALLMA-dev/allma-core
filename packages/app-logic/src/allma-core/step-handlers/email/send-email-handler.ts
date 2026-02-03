@@ -2,6 +2,8 @@ import { SESv2Client, SendEmailCommand, SendEmailCommandOutput } from '@aws-sdk/
 import { SESClient, SendRawEmailCommand, SendRawEmailCommandOutput } from '@aws-sdk/client-ses';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { v4 as uuidv4 } from 'uuid';
+import { z } from 'zod';
+import { JSONPath } from 'jsonpath-plus';
 import {
     FlowRuntimeState,
     StepHandler,
@@ -12,8 +14,9 @@ import {
     RenderedEmailParamsSchema,
     RenderedEmailAttachment,
     PermanentStepError,
+    EmailAttachmentS3PointerSchema,
 } from '@allma/core-types';
-import { log_error, log_info, log_debug } from '@allma/core-sdk';
+import { log_error, log_info, log_debug, log_warn } from '@allma/core-sdk';
 import { renderNestedTemplates } from '../../../allma-core/utils/template-renderer.js';
 
 const sesV2Client = new SESv2Client({});
@@ -38,17 +41,25 @@ function extractEmail(input: string): string {
 async function buildRawEmail(params: {
     from: string;
     to: string | string[];
+    cc?: string | string[];
+    bcc?: string | string[];
     replyTo?: string | string[];
     subject: string;
     body: string;
     attachments: RenderedEmailAttachment[];
     correlationId: string;
 }): Promise<string> {
-    const { from, to, replyTo, subject, body, attachments, correlationId } = params;
+    const { from, to, cc, bcc, replyTo, subject, body, attachments, correlationId } = params;
     const boundary = `----=_Part_${uuidv4().replace(/-/g, '')}`;
 
     let rawMessage = `From: ${from}\r\n`;
     rawMessage += `To: ${Array.isArray(to) ? to.join(', ') : to}\r\n`;
+    if (cc) {
+        rawMessage += `Cc: ${Array.isArray(cc) ? cc.join(', ') : cc}\r\n`;
+    }
+    if (bcc) {
+        rawMessage += `Bcc: ${Array.isArray(bcc) ? bcc.join(', ') : bcc}\r\n`;
+    }
     if (replyTo) {
         rawMessage += `Reply-To: ${Array.isArray(replyTo) ? replyTo.join(', ') : replyTo}\r\n`;
     }
@@ -156,9 +167,34 @@ export const executeSendEmail: StepHandler = async (
       return finalAddresses.length === 1 ? finalAddresses[0] : finalAddresses;
   };
 
-  const { from, to: rawTo, replyTo: rawReplyTo, subject, body, attachments } = structuralValidation.data;
+  const { from, to: rawTo, cc: rawCc, bcc: rawBcc, replyTo: rawReplyTo, subject, body, attachments: staticAttachments, attachmentsPath } = structuralValidation.data;
+
+    let finalAttachments: RenderedEmailAttachment[] | undefined;
+
+    if (staticAttachments) {
+        log_debug('Using static attachments list from step configuration.', { count: staticAttachments.length }, correlationId);
+        finalAttachments = staticAttachments;
+    } else if (attachmentsPath) {
+        log_debug(`Resolving dynamic attachments from path: ${attachmentsPath}`, {}, correlationId);
+        const dynamicAttachmentsValue = JSONPath({ path: attachmentsPath, json: templateContext, wrap: false });
+
+        if (dynamicAttachmentsValue === undefined) {
+            log_warn(`attachmentsPath '${attachmentsPath}' resolved to undefined. No attachments will be sent.`, {}, correlationId);
+            finalAttachments = [];
+        } else {
+            const attachmentsValidation = z.array(EmailAttachmentS3PointerSchema).safeParse(dynamicAttachmentsValue);
+            if (!attachmentsValidation.success) {
+                log_error(`The value at attachmentsPath '${attachmentsPath}' is not a valid array of attachment objects.`, { errors: attachmentsValidation.error.flatten(), valuePreview: JSON.stringify(dynamicAttachmentsValue).substring(0, 500) }, correlationId);
+                throw new PermanentStepError(`The data found at attachmentsPath '${attachmentsPath}' is not a valid array of attachment objects: ${attachmentsValidation.error.message}`);
+            }
+            finalAttachments = attachmentsValidation.data;
+            log_info(`Successfully resolved ${finalAttachments.length} dynamic attachments.`, {}, correlationId);
+        }
+    }
 
   const to = processAddressField(rawTo);
+  const cc = processAddressField(rawCc);
+  const bcc = processAddressField(rawBcc);
   const replyTo = processAddressField(rawReplyTo);
 
   if (!from) throw new Error("The 'from' field is missing or resolved to an empty value after template rendering.");
@@ -168,12 +204,13 @@ export const executeSendEmail: StepHandler = async (
 
   const cleanedParams = {
     from: extractEmail(from),
-    // Use the processed 'to' and 'replyTo' values
     to: Array.isArray(to) ? to.map(extractEmail) : extractEmail(to as string),
+    cc: cc ? (Array.isArray(cc) ? cc.map(extractEmail) : extractEmail(cc as string)) : undefined,
+    bcc: bcc ? (Array.isArray(bcc) ? bcc.map(extractEmail) : extractEmail(bcc as string)) : undefined,
     replyTo: replyTo ? (Array.isArray(replyTo) ? replyTo.map(extractEmail) : extractEmail(replyTo as string)) : undefined,
     subject,
     body,
-    attachments,
+    attachments: finalAttachments,
   };
 
   const runtimeValidation = RenderedEmailParamsSchema.safeParse(cleanedParams);
@@ -182,19 +219,19 @@ export const executeSendEmail: StepHandler = async (
     log_error("Rendered email parameters are invalid. Check that your templates resolve to valid email addresses.", { 
         errors: runtimeValidation.error.flatten(),
         renderedValues: structuralValidation.data,
-        processedValues: { to, replyTo }, 
+        processedValues: { to, cc, bcc, replyTo }, 
         cleanedValues: cleanedParams
     }, correlationId);
     throw new Error(`Invalid rendered parameters for email-send: ${runtimeValidation.error.message}`);
   }
 
   const validatedEmailParams = runtimeValidation.data;
-  const { from: validFrom, to: validTo, replyTo: validReplyTo, subject: validSubject, body: validBody, attachments: validAttachments } = validatedEmailParams;
+  const { from: validFrom, to: validTo, cc: validCc, bcc: validBcc, replyTo: validReplyTo, subject: validSubject, body: validBody, attachments: validAttachments } = validatedEmailParams;
   
   try {
     if (validAttachments && validAttachments.length > 0) {
         // --- Send with Attachments using SendRawEmail ---
-        log_info(`Sending email with ${validAttachments.length} attachments via SES SendRawEmail`, { from: validFrom, to: validTo, subject: validSubject }, correlationId);
+        log_info(`Sending email with ${validAttachments.length} attachments via SES SendRawEmail`, { from: validFrom, to: validTo, cc: validCc, subject: validSubject }, correlationId);
 
        const buildParams = {
             from: validFrom,
@@ -203,6 +240,8 @@ export const executeSendEmail: StepHandler = async (
             body: validBody,
             attachments: validAttachments,
             correlationId,
+            ...(validCc && { cc: validCc }),
+            ...(validBcc && { bcc: validBcc }),
             ...(validReplyTo && { replyTo: validReplyTo })
         };
         const rawMessage = await buildRawEmail(buildParams);
@@ -223,13 +262,19 @@ export const executeSendEmail: StepHandler = async (
     } else {
         // --- Send Simple Email (No Attachments) ---
         const toAddresses = Array.isArray(validTo) ? validTo.map(extractEmail) : [extractEmail(validTo)];
-        const replyToAddresses = validReplyTo ? (Array.isArray(validReplyTo) ? validReplyTo.map(extractEmail) : [extractEmail(validReplyTo)]) : undefined;
+        const ccAddresses = validCc ? (Array.isArray(validCc) ? validCc.map(extractEmail) : [extractEmail(validCc as string)]) : undefined;
+        const bccAddresses = validBcc ? (Array.isArray(validBcc) ? validBcc.map(extractEmail) : [extractEmail(validBcc as string)]) : undefined;
+        const replyToAddresses = validReplyTo ? (Array.isArray(validReplyTo) ? validReplyTo.map(extractEmail) : [extractEmail(validReplyTo as string)]) : undefined;
 
-        log_info(`Sending simple email via SES`, { from: validFrom, to: toAddresses, replyTo: replyToAddresses, subject: validSubject }, correlationId);
+        log_info(`Sending simple email via SES`, { from: validFrom, to: toAddresses, cc: ccAddresses, replyTo: replyToAddresses, subject: validSubject }, correlationId);
 
         const command = new SendEmailCommand({
             FromEmailAddress: extractEmail(validFrom),
-            Destination: { ToAddresses: toAddresses },
+            Destination: { 
+                ToAddresses: toAddresses,
+                CcAddresses: ccAddresses,
+                BccAddresses: bccAddresses,
+             },
             ReplyToAddresses: replyToAddresses,
             Content: {
                 Simple: {

@@ -1,6 +1,5 @@
-// In package: @allma/core-types
 import { z } from 'zod';
-import { StepTypeSchema } from '../common/enums.js';
+import { StepType, StepTypeSchema } from '../common/enums.js';
 import * as SystemSteps from './system/index.js';
 import { StepInputMappingSchema, StepOutputMappingSchema, StepErrorHandlerSchema, StepDefinitionIdSchema } from './common.js';
 import { SystemModuleIdentifiers } from './system-module-identifiers.js';
@@ -36,27 +35,27 @@ export type DelayOptions = z.infer<typeof DelayOptionsSchema>;
 // --- Full Step Definition Schemas (Base + Specific Payload) ---
 export const SqsSendStepSchema = SystemSteps.SqsSendStepPayloadSchema;
 export const SnsPublishStepSchema = SystemSteps.SnsPublishStepPayloadSchema;
-export const EmailStartPointStepSchema = z.object({}).merge(SystemSteps.EmailStartPointStepPayloadSchema);
-export const ScheduleStartPointStepSchema = z.object({}).merge(SystemSteps.ScheduleStartPointStepPayloadSchema);
+export const EmailStartPointStepSchema = SystemSteps.EmailStartPointStepPayloadSchema;
+export const ScheduleStartPointStepSchema = SystemSteps.ScheduleStartPointStepPayloadSchema;
 
-export const LlmInvocationStepSchema = z.object({}).merge(SystemSteps.LlmInvocationStepPayloadSchema);
-export const DataLoadStepSchema = z.object({}).merge(SystemSteps.DataLoadStepPayloadSchema);
-export const DataSaveStepSchema = z.object({}).merge(SystemSteps.DataSaveStepPayloadSchema);
-export const EmailSendStepSchema = z.object({}).merge(SystemSteps.EmailSendStepPayloadSchema);
+export const LlmInvocationStepSchema = SystemSteps.LlmInvocationStepPayloadSchema;
+export const DataLoadStepSchema = SystemSteps.DataLoadStepPayloadSchema;
+export const DataSaveStepSchema = SystemSteps.DataSaveStepPayloadSchema;
+export const EmailSendStepSchema = SystemSteps.EmailSendStepPayloadSchema;
 
-export const StartFlowExecutionStepSchema = z.object({}).merge(SystemSteps.StartFlowExecutionStepPayloadSchema);
-export const DataTransformationStepSchema = z.object({}).merge(SystemSteps.DataTransformationStepPayloadSchema);
-export const CustomLogicStepSchema = z.object({}).merge(SystemSteps.CustomLogicStepPayloadSchema);
-export const ApiCallStepSchema = z.object({}).merge(SystemSteps.ApiCallStepPayloadSchema);
-export const StartSubFlowStepSchema = z.object({}).merge(SystemSteps.StartSubFlowStepPayloadSchema);
-export const NoOpStepSchema = z.object({}).merge(SystemSteps.NoOpStepPayloadSchema);
-export const EndFlowStepSchema = z.object({}).merge(SystemSteps.EndFlowStepPayloadSchema);
-export const WaitForExternalEventStepSchema = z.object({}).merge(SystemSteps.WaitForExternalEventStepPayloadSchema);
-export const PollExternalApiStepSchema = z.object({}).merge(SystemSteps.PollExternalApiStepPayloadSchema);
-export const CustomLambdaInvokeStepSchema = z.object({}).merge(SystemSteps.CustomLambdaInvokeStepPayloadSchema);
-export const ParallelForkManagerStepSchema = z.object({}).merge(SystemSteps.ParallelForkManagerStepPayloadSchema);
-export const McpCallStepSchema = z.object({}).merge(SystemSteps.McpCallStepPayloadSchema);
-export const FileDownloadStepSchema = z.object({}).merge(SystemSteps.FileDownloadStepPayloadSchema);
+export const StartFlowExecutionStepSchema = SystemSteps.StartFlowExecutionStepPayloadSchema;
+export const DataTransformationStepSchema = SystemSteps.DataTransformationStepPayloadSchema;
+export const CustomLogicStepSchema = SystemSteps.CustomLogicStepPayloadSchema;
+export const ApiCallStepSchema = SystemSteps.ApiCallStepPayloadSchema;
+export const StartSubFlowStepSchema = SystemSteps.StartSubFlowStepPayloadSchema;
+export const NoOpStepSchema = SystemSteps.NoOpStepPayloadSchema;
+export const EndFlowStepSchema = SystemSteps.EndFlowStepPayloadSchema;
+export const WaitForExternalEventStepSchema = SystemSteps.WaitForExternalEventStepPayloadSchema;
+export const PollExternalApiStepSchema = SystemSteps.PollExternalApiStepPayloadSchema;
+export const CustomLambdaInvokeStepSchema = SystemSteps.CustomLambdaInvokeStepPayloadSchema;
+export const ParallelForkManagerStepSchema = SystemSteps.ParallelForkManagerStepPayloadSchema;
+export const McpCallStepSchema = SystemSteps.McpCallStepPayloadSchema;
+export const FileDownloadStepSchema = SystemSteps.FileDownloadStepPayloadSchema;
 
 /**
  * The most abstract schema containing all possible fields for any step type.
@@ -84,7 +83,19 @@ export const BaseStepDefinitionSchema = z.discriminatedUnion("stepType", [
   onError: StepErrorHandlerSchema.optional(),
   literals: z.record(z.any()).optional(),
   moduleIdentifier: z.string().optional(),
-}).passthrough());
+}).passthrough())
+.superRefine((data, ctx) => { 
+    if (data.stepType === StepType.EMAIL) {
+        const emailData = data as any;
+        if (emailData.attachments && emailData.attachmentsPath) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "Cannot provide both 'attachments' (static list) and 'attachmentsPath' (dynamic path) simultaneously.",
+                path: ['attachmentsPath'],
+            });
+        }
+    }
+});
 
 /**
  * The main schema for a reusable, storable Step Definition.

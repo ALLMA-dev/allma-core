@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import { JsonPathStringSchema } from '../common/core.js';
 import { StepTypeSchema } from '../common/enums.js';
-import { LlmParametersSchema } from '../llm/index.js';
-import { OnCompletionActionSchema } from './actions.js';
-import { StepErrorHandlerSchema } from '../steps/common.js';
+import { LlmParametersSchema, LlmParameters } from '../llm/index.js';
+import { OnCompletionActionSchema, OnCompletionAction } from './actions.js';
+import { StepErrorHandlerSchema, StepErrorHandler } from '../steps/common.js';
 import { StepInstanceSchema, StepInstance } from '../steps/definitions.js';
 
 /**
@@ -37,7 +37,36 @@ const checkJsonPath = (path: (string | number)[], value: any, ctx: z.RefinementC
 };
 
 /**
+ * Explicit type definition for an immutable version of an Allma flow.
+ * This is defined explicitly to prevent TypeScript error TS7056 due to the
+ * complexity of the inferred Zod schema type.
+ */
+export type FlowDefinition = {
+    id: string;
+    version: number;
+    isPublished: boolean;
+    steps: Record<string, StepInstance>;
+    startStepInstanceId: string;
+    enableExecutionLogs?: boolean;
+    description?: string | null;
+    flowVariables?: Record<string, any>;
+    defaultStepConfig?: {
+        defaultInferenceParameters?: LlmParameters;
+        defaultCustomConfig?: Record<string, any>;
+        defaultErrorHandler?: StepErrorHandler;
+    } | null;
+    onCompletionActions?: OnCompletionAction[];
+    createdAt: string;
+    updatedAt: string;
+    publishedAt?: string | null;
+    // Accommodate passthrough fields
+    [key: string]: any;
+};
+
+/**
  * Defines an immutable version of an Allma flow.
+ * It is cast to `z.ZodType<FlowDefinition>` to use the explicit type and
+ * prevent TypeScript's inference chain from exceeding serialization limits.
  */
 export const FlowDefinitionSchema = z.object({
   id: z.string().min(1, "Flow definition ID is required."),
@@ -104,5 +133,4 @@ export const FlowDefinitionSchema = z.object({
     if (action.payloadTemplate) Object.entries(action.payloadTemplate).forEach(([k, v]) => checkJsonPath(['onCompletionActions', index, 'payloadTemplate', k], v, ctx));
     if (action.actionType === 'SNS_SEND' && action.messageAttributesTemplate) Object.entries(action.messageAttributesTemplate).forEach(([k, v]) => checkJsonPath(['onCompletionActions', index, 'messageAttributesTemplate', k], v, ctx));
   });
-});
-export type FlowDefinition = z.infer<typeof FlowDefinitionSchema>;
+}) as z.ZodType<FlowDefinition>;

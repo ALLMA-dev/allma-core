@@ -115,7 +115,7 @@ export class AllmaImporterService {
                     name,
                     description,
                     tags,
-                    flowVariables: parsedFlow.flowVariables,
+                    ...(parsedFlow.flowVariables && { flowVariables: parsedFlow.flowVariables }),
                 });
 
                 const existingVersion = await FlowDefinitionService.getVersion(parsedFlow.id, parsedFlow.version);

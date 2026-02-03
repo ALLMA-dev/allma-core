@@ -77,7 +77,7 @@ const initialVersionFactory = (id: string, now: string, input: CreateFlowInput):
         createdAt: now,
         updatedAt: now,
         publishedAt: null,
-        description: input.description,
+        description: input.description ?? null,
         flowVariables: {},
     };
 };
