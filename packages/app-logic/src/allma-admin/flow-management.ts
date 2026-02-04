@@ -2,46 +2,52 @@ import {
     AdminPermission, FlowDefinitionSchema, CreateFlowInputSchema, 
     CreateFlowVersionInputSchema, CloneFlowInputSchema, UpdateFlowConfigInputSchema,
     CreateFlowInput,
-    StepInstanceSchema,
+    StepPayloadUnionSchema,
 } from '@allma/core-types';
 import { FlowDefinitionService } from './services/flow-definition.service.js';
 import { createCrudHandler } from './utils/create-crud-handler.js';
-import { z, ZodDiscriminatedUnion, AnyZodObject, ZodIntersection, ZodEffects } from 'zod';
+import { z, AnyZodObject } from 'zod';
 
 // --- Start: Partial Schema Generation for StepInstance ---
-// This function correctly creates a partial schema for a complex discriminated union
+// This robust approach creates a partial schema for a complex discriminated union
 // by making each option in the union partial while preserving the discriminator.
 
-// 1. Deconstruct the top-level StepInstanceSchema. It's a ZodEffects wrapper due to `.superRefine()`.
-const stepInstanceEffects = StepInstanceSchema as ZodEffects<any>;
-const stepInstanceIntersection = stepInstanceEffects._def.schema as ZodIntersection<any, any>;
-const baseStepDefSchema = stepInstanceIntersection._def.left as ZodIntersection<ZodDiscriminatedUnion<"stepType", any>, AnyZodObject>;
-const instancePropertiesSchema = stepInstanceIntersection._def.right as AnyZodObject;
-
-// 2. Deconstruct the BaseStepDefinitionSchema to get the core union and common properties.
-const discriminatedUnionSchema = baseStepDefSchema._def.left;
-const commonPropertiesSchema = baseStepDefSchema._def.right;
-
-// 3. Create partial versions of each individual schema within the union.
-// It's crucial to extend the partial schema to re-include the original `stepType` literal.
-// This allows the `discriminatedUnion` to still identify which schema to use.
-const partialUnionOptions = discriminatedUnionSchema.options.map((option: AnyZodObject) => 
+// 1. Create partial versions of each individual schema within the exported `StepPayloadUnionSchema`.
+const partialUnionOptions = StepPayloadUnionSchema.options.map((option: AnyZodObject) => 
     option.partial().extend({
-        stepType: option.shape.stepType,
+        stepType: option.shape.stepType, // This is crucial: re-add the literal discriminator
     })
 );
 
-// 4. Reconstruct the `discriminatedUnion` with the new array of partial schemas.
+// 2. Reconstruct the `discriminatedUnion` with the new array of partial schemas.
 // The `as any` is a necessary evil here due to Zod's complex internal typings for this constructor.
 const partialDiscriminatedUnion = z.discriminatedUnion("stepType", partialUnionOptions as any);
 
-// 5. Combine the new partial union with partial versions of the common properties.
-const PartialStepInstanceSchema = z.intersection(
-    partialDiscriminatedUnion,
-    commonPropertiesSchema.partial()
-).and(instancePropertiesSchema.partial());
-
-// --- End: CORRECT Partial Schema Generation ---
+// 3. To create the final partial schema, we must also make the other parts of `StepInstanceSchema` partial.
+// This is done declaratively, without relying on brittle internal properties, for long-term stability.
+const PartialStepInstanceSchema = partialDiscriminatedUnion.and(z.object({
+        // This is a partial re-declaration of the common and instance properties.
+        customConfig: z.record(z.any()).optional(),
+        inputMappings: z.record(z.string()).optional(), // Simplified for partial schema
+        outputMappings: z.record(z.string()).optional(), // Simplified for partial schema
+        onError: z.any().optional(), // Simplified
+        literals: z.record(z.any()).optional(),
+        moduleIdentifier: z.string().optional(),
+        stepInstanceId: z.string().min(1).optional(),
+        stepDefinitionId: z.string().optional().nullable(),
+        displayName: z.string().optional(),
+        position: z.object({ x: z.number(), y: z.number() }).optional(),
+        fill: z.string().optional(),
+        transitions: z.array(z.object({
+            condition: z.string(),
+            nextStepInstanceId: z.string().min(1),
+        })).optional(),
+        defaultNextStepInstanceId: z.string().min(1).optional(),
+        delay: z.any().optional(), // Simplified
+        disableS3Offload: z.boolean().optional(),
+        forceS3Offload: z.boolean().optional(),
+    }).passthrough());
+// --- End: Partial Schema Generation ---
 
 
 // Get the base ZodObject from the ZodEffects (created by .superRefine on FlowDefinitionSchema)

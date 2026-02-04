@@ -58,11 +58,10 @@ export const McpCallStepSchema = SystemSteps.McpCallStepPayloadSchema;
 export const FileDownloadStepSchema = SystemSteps.FileDownloadStepPayloadSchema;
 
 /**
- * The most abstract schema containing all possible fields for any step type.
- * This is a discriminated union based on `stepType` and forms the foundation for
- * both storable definitions and in-flow instances.
+ * The core discriminated union of all possible step payloads.
+ * Exporting this provides a stable API for manipulating step schemas.
  */
-export const BaseStepDefinitionSchema = z.discriminatedUnion("stepType", [
+export const StepPayloadUnionSchema = z.discriminatedUnion("stepType", [
   LlmInvocationStepSchema, DataLoadStepSchema, DataSaveStepSchema, DataTransformationStepSchema,
   CustomLogicStepSchema, ApiCallStepSchema, StartSubFlowStepSchema, NoOpStepSchema,
   EndFlowStepSchema, WaitForExternalEventStepSchema, PollExternalApiStepSchema,
@@ -75,7 +74,14 @@ export const BaseStepDefinitionSchema = z.discriminatedUnion("stepType", [
   ScheduleStartPointStepSchema,
   EmailSendStepSchema,
   FileDownloadStepSchema,
-]).and(z.object({
+]);
+
+/**
+ * The most abstract schema containing all possible fields for any step type.
+ * This is a discriminated union based on `stepType` and forms the foundation for
+ * both storable definitions and in-flow instances.
+ */
+export const BaseStepDefinitionSchema = StepPayloadUnionSchema.and(z.object({
   // Common configuration applicable to most step types.
   customConfig: z.record(z.any()).optional(),
   inputMappings: StepInputMappingSchema.optional(),
@@ -84,7 +90,7 @@ export const BaseStepDefinitionSchema = z.discriminatedUnion("stepType", [
   literals: z.record(z.any()).optional(),
   moduleIdentifier: z.string().optional(),
 }).passthrough())
-.superRefine((data, ctx) => { 
+.superRefine((data, ctx) => {
     if (data.stepType === StepType.EMAIL) {
         const emailData = data as any;
         if (emailData.attachments && emailData.attachmentsPath) {

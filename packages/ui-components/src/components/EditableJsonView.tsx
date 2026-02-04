@@ -146,19 +146,26 @@ export function EditableJsonView({ value, onChange, readOnly = false, displayVar
   } : {};
 
   const renderReadOnlyView = () => {
-    // Check the type of the value. Only use JsonView for objects/arrays.
     if (typeof value === 'object' && value !== null) {
-      return (
-        <JsonView
-          value={value} // No need for `?? {}` here as we've confirmed it's an object.
-          style={colorScheme === 'dark' ? darkTheme : lightTheme}
-          displayDataTypes={false}
-          enableClipboard
-          collapsed={2}
-        />
-      );
+      try {
+        // Attempt to serialize to ensure it's a valid JSON-like object before rendering.
+        // This also handles potential circular references if they ever occur.
+        JSON.stringify(value);
+        return (
+          <JsonView
+            value={value}
+            style={colorScheme === 'dark' ? darkTheme : lightTheme}
+            displayDataTypes={false}
+            enableClipboard
+            collapsed={2}
+          />
+        );
+      } catch (e) {
+        // If JSON.stringify fails or if JsonView itself has an issue, fall back to a safe string representation.
+        return <Code block style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: theme.colors.red[7] }}>{`[Unrenderable Object]: ${String(value)}`}</Code>;
+      }
     }
-    // For strings, numbers, booleans, or null, render as simple text to prevent crashing JsonView.
+    // For strings, numbers, booleans, or null, render as simple text.
     return <Code block style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{String(value ?? 'null')}</Code>;
   };
 

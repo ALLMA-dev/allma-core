@@ -19,6 +19,22 @@ const renderResolvedValue = (value: any) => {
     return <Code>{String(value)}</Code>;
 };
 
+/**
+ * Safely renders content that might be a string or an offloaded S3 pointer object.
+ * If it's an object, it's stringified to prevent React rendering errors.
+ * @param content The content to render, which could be a string or an object.
+ * @returns A string suitable for rendering.
+ */
+const renderLogContent = (content: any): string => {
+    if (typeof content === 'string') {
+        return content;
+    }
+    if (typeof content === 'object' && content !== null) {
+        return JSON.stringify(content, null, 2);
+    }
+    return String(content ?? '');
+};
+
 
 export function StepMetadataDisplay({ metadata }: { metadata: Record<string, any> }) {
     const {
@@ -99,7 +115,7 @@ export function StepMetadataDisplay({ metadata }: { metadata: Record<string, any
                         <Accordion.Control>LLM Prompt</Accordion.Control>
                         <Accordion.Panel>
                             <Code block style={{ maxHeight: '80vh', overflowY: 'auto' }}>
-                                {llmPrompt}
+                                {renderLogContent(llmPrompt)}
                             </Code>
                         </Accordion.Panel>
                     </Accordion.Item>
@@ -109,7 +125,7 @@ export function StepMetadataDisplay({ metadata }: { metadata: Record<string, any
                         <Accordion.Control>LLM Raw Response</Accordion.Control>
                         <Accordion.Panel>
                              <Code block style={{ maxHeight: '80vh', overflowY: 'auto' }}>
-                                {llmRawResponse}
+                                {renderLogContent(llmRawResponse)}
                             </Code>
                         </Accordion.Panel>
                     </Accordion.Item>
