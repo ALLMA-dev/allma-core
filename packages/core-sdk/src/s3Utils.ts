@@ -77,6 +77,13 @@ export async function offloadIfLarge(
 
     if (!payload) return undefined;
 
+    // Add a guard to prevent re-offloading an object that is already a pointer.
+    // This stops the creation of nested `_s3_output_pointer` objects.
+    if (isS3OutputPointerWrapper(payload)) {
+        log_debug('Payload is already an S3 output pointer. Skipping offload check.', { keyPrefix }, correlationId);
+        return payload;
+    }
+
     try {
         const payloadString = JSON.stringify(payload);
         const payloadSize = Buffer.byteLength(payloadString, 'utf-8');

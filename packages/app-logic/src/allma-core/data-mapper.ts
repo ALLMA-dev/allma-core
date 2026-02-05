@@ -207,7 +207,9 @@ export async function getSmartValueByJsonPath(
   }
 
   // Regex to find the first occurrence of a complex JSONPath operator.
-  const complexRegex = /(\*|\.\.|\[\?|@\.|\[.*:.*\])/;
+  // This includes wildcards, deep scans, filters (`[?(@...)]`), script expressions (`@.`), slices (`[start:end]`),
+  // and common shorthand filters (e.g., `[key=value]`).
+  const complexRegex = /(\*|\.\.|\[\?|@\.|\[.*:.*\]|\[.*[=><!].*\])/;
   const complexMatch = resolvedPath.match(complexRegex);
 
   if (complexMatch && complexMatch.index !== undefined) {
