@@ -155,6 +155,98 @@
     "buyerNotes": {
       "label": "Buyer Notes",
       "description": "Internal notes for the buyer."
+    },
+    "supplierName": {
+      "label": "Supplier Name",
+      "description": "The legal name of the supplier company."
+    },
+    "titanNo": {
+      "label": "TITAN No.",
+      "description": "Internal TITAN quoting number."
+    },
+    "commodityIds": {
+      "label": "Commodities",
+      "description": "Commodity IDs the supplier provides."
+    },
+    "responsible": {
+      "label": "Responsible",
+      "description": "Internal person responsible for this supplier."
+    },
+    "supplierLocation": {
+      "label": "Supplier Location",
+      "description": "Primary physical location or country."
+    },
+    "tenRegion": {
+      "label": "TEN Region",
+      "description": "TEN geographic region classification."
+    },
+    "relationshipStatus": {
+      "label": "Relationship Status",
+      "description": "Current status of the supplier relationship."
+    },
+    "classification": {
+      "label": "Classification",
+      "description": "The type classification of the supplier."
+    },
+    "bccHcc": {
+      "label": "BCC / HCC",
+      "description": "Best or High Cost Country classification."
+    },
+    "products": {
+      "label": "Products",
+      "description": "Products offered by the supplier."
+    },
+    "materials": {
+      "label": "Materials",
+      "description": "Materials the supplier works with."
+    },
+    "protoCapability": {
+      "label": "Proto Capability",
+      "description": "Whether the supplier can produce prototypes."
+    },
+    "testingCapability": {
+      "label": "Testing Capability",
+      "description": "Whether the supplier has testing capabilities."
+    },
+    "developmentCapabilities": {
+      "label": "Development Capabilities",
+      "description": "Supplier's development capabilities."
+    },
+    "contactName": {
+      "label": "Contact Name",
+      "description": "Primary contact person."
+    },
+    "contactEmail": {
+      "label": "Contact Email",
+      "description": "Primary contact email."
+    },
+    "contactPhone": {
+      "label": "Contact Phone",
+      "description": "Primary phone number."
+    },
+    "contactMobile": {
+      "label": "Contact Mobile",
+      "description": "Mobile phone number."
+    },
+    "contactFax": {
+      "label": "Contact Fax",
+      "description": "Fax number."
+    },
+    "website": {
+      "label": "Website",
+      "description": "Supplier's website URL."
+    },
+    "assessmentScore": {
+      "label": "Assessment Score",
+      "description": "Supplier's assessment or quality score."
+    },
+    "assessmentDate": {
+      "label": "Assessment Date",
+      "description": "Date of the last supplier assessment."
+    },
+    "comments": {
+      "label": "Comments / Remarks",
+      "description": "General comments or remarks about the supplier."
     }
   }
 }

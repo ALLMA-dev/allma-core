@@ -14,5 +14,13 @@
   "Default Currency": "Devise par Défaut",
   "Default Weight Unit": "Unité de Poids par Défaut",
   "Default currency for the project (e.g., EUR, USD).": "Devise par défaut pour le projet (ex: EUR, USD).",
-  "Default weight unit for the project (e.g., kg, g, lb).": "Unité de poids par défaut pour le projet (ex: kg, g, lb)."
+  "Default weight unit for the project (e.g., kg, g, lb).": "Unité de poids par défaut pour le projet (ex: kg, g, lb).",
+  "Supplier": "Fournisseur",
+  "Identity": "Identité",
+  "Location": "Localisation",
+  "Status": "Statut",
+  "Capabilities": "Capacités",
+  "Contact": "Contact",
+  "Assessment": "Évaluation",
+  "Notes": "Notes"
 }

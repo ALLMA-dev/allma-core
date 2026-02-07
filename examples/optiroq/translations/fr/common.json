@@ -27,5 +27,6 @@
     "New Value": "Nouvelle valeur",
     "Conversion not possible": "Conversion impossible",
     "Apply": "Appliquer",
-    "noResultsFound": "Aucun résultat trouvé"
+    "noResultsFound": "Aucun résultat trouvé",
+    "See more ({{count}} remaining)": "Voir plus ({{count}} restants)"
 }

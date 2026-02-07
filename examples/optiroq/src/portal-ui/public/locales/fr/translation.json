@@ -155,6 +155,98 @@
     "buyerNotes": {
       "label": "Notes de l'Acheteur",
       "description": "Notes internes pour l'acheteur."
+    },
+    "supplierName": {
+      "label": "Nom du Fournisseur",
+      "description": "Le nom légal de l'entreprise fournisseur."
+    },
+    "titanNo": {
+      "label": "N° TITAN",
+      "description": "Numéro de cotation interne TITAN."
+    },
+    "commodityIds": {
+      "label": "Matières Premières",
+      "description": "Les matières premières fournies."
+    },
+    "responsible": {
+      "label": "Responsable",
+      "description": "Personne interne responsable de ce fournisseur."
+    },
+    "supplierLocation": {
+      "label": "Localisation du Fournisseur",
+      "description": "Localisation physique principale ou pays."
+    },
+    "tenRegion": {
+      "label": "Région TEN",
+      "description": "Classification géographique TEN."
+    },
+    "relationshipStatus": {
+      "label": "Statut de la Relation",
+      "description": "Statut actuel de la relation fournisseur."
+    },
+    "classification": {
+      "label": "Classification",
+      "description": "Le type de classification du fournisseur."
+    },
+    "bccHcc": {
+      "label": "BCC / HCC",
+      "description": "Classification Best ou High Cost Country."
+    },
+    "products": {
+      "label": "Produits",
+      "description": "Produits offerts par le fournisseur."
+    },
+    "materials": {
+      "label": "Matériaux",
+      "description": "Matériaux avec lesquels le fournisseur travaille."
+    },
+    "protoCapability": {
+      "label": "Capacité Prototype",
+      "description": "Si le fournisseur peut produire des prototypes."
+    },
+    "testingCapability": {
+      "label": "Capacité de Test",
+      "description": "Si le fournisseur dispose de capacités de test."
+    },
+    "developmentCapabilities": {
+      "label": "Capacités de Développement",
+      "description": "Capacités de développement du fournisseur."
+    },
+    "contactName": {
+      "label": "Nom du Contact",
+      "description": "Personne de contact principale."
+    },
+    "contactEmail": {
+      "label": "Email du Contact",
+      "description": "Email du contact principal."
+    },
+    "contactPhone": {
+      "label": "Téléphone du Contact",
+      "description": "Numéro de téléphone principal."
+    },
+    "contactMobile": {
+      "label": "Mobile du Contact",
+      "description": "Numéro de téléphone mobile."
+    },
+    "contactFax": {
+      "label": "Fax du Contact",
+      "description": "Numéro de fax."
+    },
+    "website": {
+      "label": "Site Web",
+      "description": "URL du site web du fournisseur."
+    },
+    "assessmentScore": {
+      "label": "Score d'Évaluation",
+      "description": "Score d'évaluation ou de qualité du fournisseur."
+    },
+    "assessmentDate": {
+      "label": "Date d'Évaluation",
+      "description": "Date de la dernière évaluation du fournisseur."
+    },
+    "comments": {
+      "label": "Commentaires / Remarques",
+      "description": "Commentaires ou remarques généraux sur le fournisseur."
     }
   }
 }
