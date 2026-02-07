@@ -49,6 +49,24 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
     let stepInstance: StepInstance | undefined;
 
     try {
+        // --- HYDRATION LOGIC FOR DISTRIBUTED MAP ---
+        // This is the new logic to handle context passed via S3 for large parallel jobs.
+        const s3ContextPointer = (runtimeState.currentContextData as any)._s3_context_pointer;
+        if (s3ContextPointer && isS3Pointer(s3ContextPointer)) {
+            log_info('Distributed Map branch detected. Hydrating shared context from S3.', { pointer: s3ContextPointer }, correlationId);
+            const parentContext = await resolveS3Pointer(s3ContextPointer, correlationId);
+            
+            // Merge the parent context with the current branch context (which contains 'currentItem').
+            // The current context's properties (like 'currentItem') will overwrite any from the parent.
+            runtimeState.currentContextData = { ...parentContext, ...runtimeState.currentContextData };
+            
+            // Clean up the pointer so it's not processed again.
+            delete (runtimeState.currentContextData as any)._s3_context_pointer;
+            
+            log_debug('Shared context hydrated successfully.', { finalContextKeys: Object.keys(runtimeState.currentContextData) }, correlationId);
+        }
+        // --- END HYDRATION LOGIC ---
+
         if (resumePayload || pollingResult) {
             flowDef = await loadFlowDefinition(runtimeState.flowDefinitionId, runtimeState.flowDefinitionVersion, correlationId);
             runtimeState = handleAsyncResume(originalEvent, runtimeState, flowDef);

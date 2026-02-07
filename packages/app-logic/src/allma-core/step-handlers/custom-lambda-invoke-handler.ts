@@ -103,9 +103,26 @@ export const handleCustomLambdaInvoke: StepHandler = async (
     const result = await lambdaClient.send(command);
 
     if (result.FunctionError) {
-      const errorPayload = result.Payload ? new TextDecoder().decode(result.Payload) : '{}';
-      log_error(`Custom logic Lambda returned an error`, { errorPayload }, correlationId);
-      throw new Error(`Custom logic Lambda failed: ${errorPayload}`);
+        const errorPayloadString = result.Payload ? new TextDecoder().decode(result.Payload) : '{}';
+        log_error(`Custom logic Lambda returned an error`, { errorPayloadString }, correlationId);
+        
+        let errorDetails: any = {};
+        try {
+            errorDetails = JSON.parse(errorPayloadString);
+        } catch (e) {
+            errorDetails = { rawError: errorPayloadString };
+        }
+
+        const errorMessage = errorDetails.errorMessage || 'Custom lambda failed with an unparsable error.';
+        
+        // This is the key fix: Throw a structured TransientStepError.
+        // The `errorDetails` will be correctly serialized into the `Cause` string by SFN,
+        // preventing the double-stringification issue.
+        throw new TransientStepError(
+          `Failed to invoke custom logic Lambda '${lambdaArn}': ${errorMessage}`,
+          errorDetails,
+          new Error(errorMessage)
+        );
     }
 
     const responsePayload = result.Payload ? JSON.parse(new TextDecoder().decode(result.Payload)) : null;
@@ -130,7 +147,12 @@ export const handleCustomLambdaInvoke: StepHandler = async (
       outputData: finalPayloadForSfn,
     };
   } catch (error: any) {
-    // The generic retry mechanism is in step-executor. Here, we just classify the error.
+    // If the error is already a typed error (like the one we just threw), re-throw it.
+    if (error instanceof TransientStepError) {
+        throw error;
+    }
+      
+    // Handle other invocation errors (e.g., IAM permissions, timeouts)
     if (error.name === 'TooManyRequestsException') {
       // Re-throw as a specific, catchable TransientStepError
       throw new TransientStepError(`Failed to invoke custom logic Lambda '${lambdaArn}': Rate Exceeded.`, error.details, error);

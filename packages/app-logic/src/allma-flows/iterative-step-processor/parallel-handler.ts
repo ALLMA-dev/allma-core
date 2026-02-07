@@ -306,10 +306,16 @@ export const handleParallelFork = async (
                 correlationId
             );
 
+            // The branch input should contain the full parent context, plus the `currentItem` for this specific branch execution.
+            const branchInputPayload = {
+                ...runtimeState.currentContextData,
+                currentItem: offloadedItem,
+            };
+
             branchesToExecute.push({
                 branchId: branchTemplate.branchId,
                 branchDefinition: branchTemplate,
-                branchInput: { currentItem: offloadedItem }, // Pass the potentially offloaded item
+                branchInput: branchInputPayload, // Use the full context for the branch
                 parentFlowExecutionId: correlationId,
                 parentFlowDefinitionId: runtimeState.flowDefinitionId,
                 parentFlowDefinitionVersion: runtimeState.flowDefinitionVersion,
