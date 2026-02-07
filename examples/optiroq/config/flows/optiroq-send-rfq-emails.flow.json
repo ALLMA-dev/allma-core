@@ -1,0 +1,113 @@
+{
+  "formatVersion": "1.0",
+  "exportedAt": "2026-01-25T12:00:00.000Z",
+  "agents": [],
+  "stepDefinitions": [],
+  "flows": [
+    {
+      "id": "optiroq-send-rfq-emails",
+      "name": "Optiroq - Send RFQ Emails to Suppliers",
+      "description": "Loads a finalized RFQ, constructs a detailed email, and sends it to all selected suppliers in parallel.",
+      "version": 1,
+      "isPublished": true,
+      "createdAt": "2026-01-25T12:00:00.000Z",
+      "updatedAt": "2026-01-25T12:00:00.000Z",
+      "startStepInstanceId": "load_rfq_and_project_data",
+      "enableExecutionLogs": true,
+      "flowVariables": {
+        "EntityGraphTableName": "OptiroqEntityGraph-{{stage}}",
+        "FromEmail": "agent@mail-beta.optiroq.com"
+      },
+      "steps": {
+        "load_rfq_and_project_data": {
+          "stepInstanceId": "load_rfq_and_project_data",
+          "displayName": "1. Load RFQ & Project Data",
+          "stepType": "DATA_LOAD",
+          "moduleIdentifier": "system/dynamodb-data-loader",
+          "customConfig": {
+            "operation": "QUERY",
+            "tableName": "{{flow_variables.EntityGraphTableName}}",
+            "keyConditionExpression": "PK = :pk",
+            "expressionAttributeValues": {
+              ":pk": "RFQ#{{rfqId}}"
+            }
+          },
+          "outputMappings": {
+            "$.steps_output.rfq_items": "$.content"
+          },
+          "defaultNextStepInstanceId": "transform_data_for_email"
+        },
+        "transform_data_for_email": {
+          "stepInstanceId": "transform_data_for_email",
+          "displayName": "2. Prepare Data for Email",
+          "stepType": "DATA_TRANSFORMATION",
+          "moduleIdentifier": "system/jsonata-transformer",
+          "customConfig": {
+            "expression": "{ 'rfq': $[0], 'suppliers': $[0].suppliers[selected=true] }"
+          },
+          "inputMappings": {
+            "data": "$.steps_output.rfq_items"
+          },
+          "outputMappings": {
+            "$.steps_output.email_context": "$."
+          },
+          "defaultNextStepInstanceId": "send_emails_in_parallel"
+        },
+        "send_emails_in_parallel": {
+          "stepInstanceId": "send_emails_in_parallel",
+          "displayName": "3. Send Emails in Parallel",
+          "stepType": "PARALLEL_FORK_MANAGER",
+          "itemsPath": "$.steps_output.email_context.suppliers",
+          "aggregationConfig": {
+            "strategy": "COLLECT_ARRAY",
+            "failOnBranchError": false
+          },
+          "parallelBranches": [
+            {
+              "branchId": "send_and_log",
+              "stepInstanceId": "send_single_email"
+            }
+          ],
+          "defaultNextStepInstanceId": "end_flow"
+        },
+        "send_single_email": {
+          "stepInstanceId": "send_single_email",
+          "displayName": "Send RFQ to Supplier",
+          "stepType": "EMAIL",
+          "from": "{{flow_variables.FromEmail}}",
+          "to": "{{currentItem.email}}",
+          "cc": [ "{{userEmail}}" ],
+          "subject": "Request for Quotation (RFQ) {{steps_output.email_context.rfq.rfqId}} for Project {{steps_output.email_context.rfq.projectId}}",
+          "body": "Hello {{currentItem.name}},\n\nWe are formally requesting a quotation for the parts and services detailed below for our project.\n\n**Project ID:** {{steps_output.email_context.rfq.projectId}}\n**RFQ ID:** {{steps_output.email_context.rfq.rfqId}}\n**Response Deadline:** {{steps_output.email_context.rfq.responseDeadline}}\n\n**Parts Included in this RFQ:**\n{{#each steps_output.email_context.rfq.parts}}\n- **{{this}}**: {{lookup ../steps_output.email_context.rfq.partDescriptions this}}\n{{/each}}\n\n**Volume Scenarios:**\n{{#each steps_output.email_context.rfq.volumeScenarios}}\n- {{this.volume}} {{this.unit}}\n{{/each}}\n\n**Information Required:**\nPlease provide a detailed breakdown for the following items:\n{{#if steps_output.email_context.rfq.requirements.material}}- Material Cost Breakdown\n{{/if}}{{#if steps_output.email_context.rfq.requirements.process}}- Process Cost Breakdown\n{{/if}}{{#if steps_output.email_context.rfq.requirements.tooling}}- Tooling Cost (must be separate)\n{{/if}}{{#if steps_output.email_context.rfq.requirements.logistics}}- Logistics Costs\n{{/if}}{{#if steps_output.email_context.rfq.requirements.terms}}- Payment Terms and Lead Times\n{{/if}}{{#if steps_output.email_context.rfq.requirements.capacity}}- Capacity Confirmation\n{{/if}}{{#if steps_output.email_context.rfq.requirements.quality}}- Quality Certifications\n{{/if}}{{#if steps_output.email_context.rfq.requirements.prototype}}- Prototype Sample Availability\n{{/if}}{{#if steps_output.email_context.rfq.requirements.sustainability}}- Sustainability/ESG Information\n{{/if}}\n\n**Additional Notes:**\n{{#if steps_output.email_context.rfq.additionalNotes}}{{steps_output.email_context.rfq.additionalNotes}}{{else}}N/A{{/if}}\n\nPlease find any relevant attachments with this email. We look forward to your prompt response.\n\nBest regards,\nThe Optiroq Sourcing Team",
+          "defaultNextStepInstanceId": "log_communication_event"
+        },
+        "log_communication_event": {
+          "stepInstanceId": "log_communication_event",
+          "displayName": "Log Communication Event",
+          "stepType": "DATA_SAVE",
+          "moduleIdentifier": "system/dynamodb-update-item",
+          "customConfig": {
+            "tableName": "{{flow_variables.EntityGraphTableName}}",
+            "updateExpression": "SET entityType = :type, eventType = :eventType, details = :details",
+            "expressionAttributeValues": {
+              ":type": "COMMUNICATION_EVENT",
+              ":eventType": "INITIAL_RFQ_SENT",
+              ":details": {
+                "to": "{{currentItem.email}}",
+                "subject": "Request for Quotation (RFQ) {{steps_output.email_context.rfq.rfqId}} for Project {{steps_output.email_context.rfq.projectId}}"
+              }
+            }
+          },
+          "inputMappings": {
+            "key.PK": "$.steps_output.email_context.rfq.PK",
+            "key.SK": "$._internal.currentStepStartTime | prepend: 'COMM#' | append: '#SUPPLIER#' | append: '{{currentItem.name}}'"
+          }
+        },
+        "end_flow": {
+          "stepInstanceId": "end_flow",
+          "stepType": "END_FLOW"
+        }
+      }
+    }
+  ]
+}

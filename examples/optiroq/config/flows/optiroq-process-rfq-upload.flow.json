@@ -1,0 +1,150 @@
+{
+  "formatVersion": "1.0",
+  "exportedAt": "2026-01-25T14:00:00.000Z",
+  "agents": [],
+  "stepDefinitions": [],
+  "flows": [
+    {
+      "id": "optiroq-process-rfq-upload",
+      "name": "Optiroq - Process RFQ Document Upload",
+      "description": "Analyzes an uploaded RFQ document using an LLM to extract data and create a draft RFQ for user review.",
+      "version": 1,
+      "isPublished": true,
+      "createdAt": "2026-01-25T12:00:00.000Z",
+      "updatedAt": "2026-01-25T14:00:00.000Z",
+      "startStepInstanceId": "route_by_file_type",
+      "enableExecutionLogs": true,
+      "flowVariables": {
+        "EntityGraphTableName": "OptiroqEntityGraph-{{stage}}",
+        "FromEmail": "agent@mail-beta.optiroq.com",
+        "PortalBaseUrl": "https://portal-beta.optiroq.com",
+        "SanitizeRfqDocumentExcelLambdaArn": "arn:aws:lambda:{{region}}:{{accountId}}:function:optiroq-sanitizerfqdocumentexcel-{{stage}}",
+        "SanitizeRfqDocumentOcrLambdaArn": "arn:aws:lambda:{{region}}:{{accountId}}:function:optiroq-sanitizerfqdocumentocr-{{stage}}",
+        "SanitizeRfqDocumentPptLambdaArn": "arn:aws:lambda:{{region}}:{{accountId}}:function:optiroq-sanitizerfqdocumentppt-{{stage}}",
+        "ValidateAndSaveRfqDraftLambdaArn": "arn:aws:lambda:{{region}}:{{accountId}}:function:optiroq-validateandsaverfqdraft-{{stage}}"
+      },
+      "steps": {
+        "route_by_file_type": {
+          "stepInstanceId": "route_by_file_type",
+          "displayName": "1. Route by File Type",
+          "stepType": "NO_OP",
+          "transitions": [
+            {
+              "condition": "$.s3Key endsWith '.xlsx' || $.s3Key endsWith '.xls' || $.s3Key endsWith '.xlsm'",
+              "nextStepInstanceId": "sanitize_excel"
+            },
+            {
+              "condition": "$.s3Key endsWith '.pdf' || $.s3Key endsWith '.png' || $.s3Key endsWith '.jpg' || $.s3Key endsWith '.jpeg'",
+              "nextStepInstanceId": "sanitize_ocr"
+            },
+            {
+              "condition": "$.s3Key endsWith '.pptx' || $.s3Key endsWith '.ppt'",
+              "nextStepInstanceId": "sanitize_ppt"
+            }
+          ],
+          "defaultNextStepInstanceId": "unsupported_file_type_failure"
+        },
+        "sanitize_excel": {
+            "stepInstanceId": "sanitize_excel",
+            "displayName": "1a. Sanitize Excel",
+            "stepType": "CUSTOM_LAMBDA_INVOKE",
+            "lambdaFunctionArnTemplate": "{{flow_variables.SanitizeRfqDocumentExcelLambdaArn}}",
+            "defaultNextStepInstanceId": "load_project_and_user_context"
+        },
+        "sanitize_ocr": {
+            "stepInstanceId": "sanitize_ocr",
+            "displayName": "1b. Sanitize via OCR",
+            "stepType": "CUSTOM_LAMBDA_INVOKE",
+            "lambdaFunctionArnTemplate": "{{flow_variables.SanitizeRfqDocumentOcrLambdaArn}}",
+            "defaultNextStepInstanceId": "load_project_and_user_context"
+        },
+        "sanitize_ppt": {
+            "stepInstanceId": "sanitize_ppt",
+            "displayName": "1c. Sanitize PowerPoint",
+            "stepType": "CUSTOM_LAMBDA_INVOKE",
+            "lambdaFunctionArnTemplate": "{{flow_variables.SanitizeRfqDocumentPptLambdaArn}}",
+            "defaultNextStepInstanceId": "load_project_and_user_context"
+        },
+        "unsupported_file_type_failure": {
+            "stepInstanceId": "unsupported_file_type_failure",
+            "stepType": "END_FLOW",
+            "displayName": "1d. Unsupported File Type Failure"
+        },
+        "load_project_and_user_context": {
+          "stepInstanceId": "load_project_and_user_context",
+          "displayName": "2. Load Project & User Context",
+          "stepType": "DATA_LOAD",
+          "moduleIdentifier": "system/dynamodb-data-loader",
+          "inputMappings": {
+            "s3Bucket": "$.s3Bucket", "s3Key": "$.s3Key", "correlationId": "$.flow_variables.flowExecutionId"
+          },
+          "outputMappings": { "$.steps_output.sanitized": "$." },
+          "customConfig": {
+            "operation": "QUERY_BATCH",
+            "queries": [
+              { "tableName": "{{flow_variables.EntityGraphTableName}}", "keyConditionExpression": "PK = :pk AND begins_with(SK, :sk)", "expressionAttributeValues": { ":pk": "PROJECT#{{projectId}}", ":sk": "BOM_PART#" }, "projectionExpression": "partName, material, description, quantity", "outputJsonPath": "$.steps_output.project_context.bomParts" },
+              { "tableName": "{{flow_variables.EntityGraphTableName}}", "indexName": "GSI1", "keyConditionExpression": "GSI1PK = :pk AND begins_with(GSI1SK, :sk)", "expressionAttributeValues": { ":pk": "USER#{{userId}}", ":sk": "SUPPLIER#" }, "projectionExpression": "supplierName, contactEmail", "outputJsonPath": "$.steps_output.project_context.suppliers" },
+              { "tableName": "{{flow_variables.EntityGraphTableName}}", "keyConditionExpression": "PK = :pk", "expressionAttributeValues": { ":pk": "CONFIG#MASTER_FIELD_LIST" }, "outputJsonPath": "$.steps_output.project_context.masterFields" }
+            ]
+          },
+          "defaultNextStepInstanceId": "extract_rfq_data_llm",
+          "errorHandling": { "default": { "action": "TRANSITION", "nextStepInstanceId": "update_status_on_failure" } }
+        },
+        "extract_rfq_data_llm": {
+          "stepInstanceId": "extract_rfq_data_llm",
+          "displayName": "3. LLM - Extract RFQ Data",
+          "stepType": "LLM_INVOCATION",
+          "llmProvider": "GEMINI", "modelId": "gemini-1.5-pro-latest", "promptTemplateId": "optiroq-extract-rfq-data",
+          "customConfig": { "jsonOutputMode": true },
+          "templateContextMappings": {
+            "cleanText": { "sourceJsonPath": "$.steps_output.sanitized.cleanText" },
+            "availableParts": { "sourceJsonPath": "$.steps_output.project_context.bomParts", "formatAs": "JSON" },
+            "availableSuppliers": { "sourceJsonPath": "$.steps_output.project_context.suppliers", "formatAs": "JSON" },
+            "masterFields": { "sourceJsonPath": "$.steps_output.project_context.masterFields", "formatAs": "JSON" }
+          },
+          "outputMappings": { "$.steps_output.extracted_data": "$." },
+          "defaultNextStepInstanceId": "validate_and_save_draft",
+          "errorHandling": { "default": { "action": "TRANSITION", "nextStepInstanceId": "update_status_on_failure" } }
+        },
+        "validate_and_save_draft": {
+          "stepInstanceId": "validate_and_save_draft", "displayName": "4. Validate & Save RFQ Draft", "stepType": "CUSTOM_LAMBDA_INVOKE",
+          "lambdaFunctionArnTemplate": "{{flow_variables.ValidateAndSaveRfqDraftLambdaArn}}",
+          "inputMappings": { "extractedData": "$.steps_output.extracted_data", "rfqId": "$.rfqId", "correlationId": "$.flow_variables.flowExecutionId" },
+          "defaultNextStepInstanceId": "notify_user_of_completion",
+          "errorHandling": { "default": { "action": "TRANSITION", "nextStepInstanceId": "update_status_on_failure" } }
+        },
+        "notify_user_of_completion": {
+          "stepInstanceId": "notify_user_of_completion", "displayName": "5a. Notify User (Success)", "stepType": "EMAIL",
+          "from": "{{flow_variables.FromEmail}}", "to": "{{userEmail}}", "subject": "RFQ Draft for project {{projectId}} is ready for review",
+          "body": "The RFQ document you uploaded for project {{projectId}} has been processed. A draft RFQ ({{rfqId}}) has been created and is now ready for your review in the Optiroq portal.\n\nPlease review the extracted data here: {{flow_variables.PortalBaseUrl}}/projects/{{projectId}}/rfq/{{rfqId}}",
+          "defaultNextStepInstanceId": "end_flow"
+        },
+        "update_status_on_failure": {
+          "stepInstanceId": "update_status_on_failure", "displayName": "5b. Update Status (Failure)", "stepType": "DATA_SAVE", "moduleIdentifier": "system/dynamodb-update-item",
+          "customConfig": { "tableName": "{{flow_variables.EntityGraphTableName}}", "key": { "PK": "RFQ#{{rfqId}}", "SK": "METADATA" }, "updateExpression": "SET #status = :status", "expressionAttributeNames": { "#status": "status" }, "expressionAttributeValues": { ":status": "DRAFT_FAILED" } },
+          "defaultNextStepInstanceId": "notify_user_of_failure"
+        },
+        "notify_user_of_failure": {
+          "stepInstanceId": "notify_user_of_failure", "displayName": "6. Notify User (Failure)", "stepType": "EMAIL",
+          "from": "{{flow_variables.FromEmail}}", "to": "{{userEmail}}", "subject": "[ERROR] Failed to process RFQ document for {{projectId}}",
+          "body": "The RFQ document you uploaded for project {{projectId}} could not be processed due to an error. Please try again or create the RFQ manually.\n\nError: {{_internal.lastError.message}}",
+          "defaultNextStepInstanceId": "end_flow"
+        },
+        "end_flow": { "stepInstanceId": "end_flow", "stepType": "END_FLOW" }
+      }
+    }
+  ],
+  "promptTemplates": [
+    {
+      "id": "optiroq-extract-rfq-data",
+      "name": "Optiroq - Extract Structured RFQ Data",
+      "description": "Analyzes sanitized text from an RFQ document and extracts structured data by matching against available project parts and suppliers.",
+      "version": 1,
+      "isPublished": true,
+      "tags": ["optiroq", "rfq", "extraction"],
+      "createdAt": "2026-01-25T12:00:00.000Z",
+      "updatedAt": "2026-01-25T12:00:00.000Z",
+      "content": "You are a procurement data specialist AI. Your task is to extract structured information from the provided RFQ document text and format it as a valid JSON object. You must match extracted entities like parts and suppliers against the provided lists of available entities.\n\n**AVAILABLE BOM PARTS FOR THIS PROJECT:**\n```json\n{{availableParts}}\n```\n\n**AVAILABLE SUPPLIERS FOR THIS USER:**\n```json\n{{availableSuppliers}}\n```\n\n**REFERENCE MASTER FIELD LIST (for context):**\n```json\n{{masterFields}}\n```\n\n**RFQ DOCUMENT TEXT:**\n```text\n{{cleanText}}\n```\n\n**INSTRUCTIONS:**\n1.  **Extract Core Information**: Identify the `commodity`, `responseDeadline` (in YYYY-MM-DD format), `languagePreference`, and any `additionalNotes`.\n2.  **Extract Parts**: Identify all part names mentioned in the document. For each part name, find the exact match from the `availableParts` list. Your output must be an array of part name strings that exist in the provided list. Also, extract any specific `partDescriptions` for these selected parts.\n3.  **Extract Volume Scenarios**: Identify any mention of annual quantities or volume tiers. Format each as an object with `volume` (as a number) and `unit` (e.g., 'pieces', 'kg').\n4.  **Extract Suppliers**: Identify all supplier names or emails. For each, find the corresponding supplier object from the `availableSuppliers` list. Your output must be an array of supplier objects with `name` and `email`.\n5.  **Extract Requirements**: Analyze the text to determine which pieces of information are being requested from the supplier. For each potential requirement (`material`, `process`, `tooling`, `logistics`, `terms`, `capacity`, `quality`, `prototype`, `sustainability`), set the value to `true` if it's mentioned or implied, otherwise `false`.\n6.  **Provide Confidence Scores**: For each major section (`projectInfo`, `suppliers`, `requirements`), provide an overall `confidence` score from 0.0 to 1.0, where 1.0 is a perfect, unambiguous extraction.\n\n**CRITICAL:** Your entire response must be ONLY a single, valid JSON object conforming to the output format below. Do not include any explanatory text, preamble, or markdown formatting.\n\n**JSON OUTPUT FORMAT:**\n```json\n{\n  \"projectInfo\": {\n    \"confidence\": 0.95,\n    \"data\": {\n      \"commodity\": \"Stamping\",\n      \"responseDeadline\": \"2025-01-15\",\n      \"languagePreference\": \"English\",\n      \"additionalNotes\": \"Please provide detailed breakdown.\",\n      \"parts\": [\"ALU-BRACKET-001\", \"ALU-BRACKET-002\"],\n      \"partDescriptions\": {\n        \"ALU-BRACKET-001\": \"Aluminum mounting bracket for door assembly\"\n      },\n      \"volumeScenarios\": [\n        { \"volume\": 50000, \"unit\": \"pieces\" },\n        { \"volume\": 100000, \"unit\": \"pieces\" }\n      ]\n    }\n  },\n  \"suppliers\": {\n    \"confidence\": 0.88,\n    \"data\": [\n      { \"name\": \"Supplier A\", \"email\": \"supplier-a@company.com\", \"selected\": true },\n      { \"name\": \"Supplier B\", \"email\": \"supplier-b@company.com\", \"selected\": true }\n    ]\n  },\n  \"requirements\": {\n    \"confidence\": 0.91,\n    \"data\": {\n      \"material\": true,\n      \"process\": true,\n      \"tooling\": true,\n      \"logistics\": false,\n      \"terms\": true,\n      \"capacity\": true,\n      \"quality\": false,\n      \"prototype\": false,\n      \"sustainability\": false\n    }\n  }\n}\n```"
+    }
+  ]
+}

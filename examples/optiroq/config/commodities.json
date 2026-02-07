@@ -1,0 +1,71 @@
+[
+  {
+    "category": "Ferrous Metals",
+    "categoryDescription": "Metals containing iron, known for their strength and durability.",
+    "commodities": [
+      { "commodityId": "STEEL_HRC", "name": "Hot-Rolled Coil Steel", "description": "Commonly used for structural components and frames.", "tickerSymbol": "STEEL" },
+      { "commodityId": "STEEL_CRC", "name": "Cold-Rolled Coil Steel", "description": "Provides a better surface finish and tighter tolerances than HRC.", "tickerSymbol": "STEEL" },
+      { "commodityId": "STAINLESS_STEEL", "name": "Stainless Steel (304)", "description": "Corrosion-resistant steel alloy used for exhaust systems and trim." },
+      { "commodityId": "PIG_IRON", "name": "Pig Iron", "description": "The raw iron produced from a blast furnace, used to make steel." }
+    ]
+  },
+  {
+    "category": "Non-Ferrous Metals",
+    "categoryDescription": "Metals that do not contain iron, valued for properties like light weight and conductivity.",
+    "commodities": [
+      { "commodityId": "ALUMINUM", "name": "Aluminum", "description": "Lightweight metal for body panels, engine blocks, and wheels.", "tickerSymbol": "ALU" },
+      { "commodityId": "COPPER", "name": "Copper", "description": "Essential for electrical wiring, radiators, and motors.", "tickerSymbol": "COPPER" },
+      { "commodityId": "ZINC", "name": "Zinc", "description": "Primarily used for galvanizing steel to prevent corrosion.", "tickerSymbol": "ZINC" },
+      { "commodityId": "LEAD", "name": "Lead", "description": "Mainly used in lead-acid batteries.", "tickerSymbol": "LEAD" },
+      { "commodityId": "NICKEL", "name": "Nickel", "description": "A key component in batteries for electric vehicles and stainless steel alloys.", "tickerSymbol": "NICKEL" },
+      { "commodityId": "TIN", "name": "Tin", "description": "Used in coatings and solders.", "tickerSymbol": "TIN" },
+      { "commodityId": "MAGNESIUM", "name": "Magnesium", "description": "Ultra-lightweight metal for die-casting and transmission cases." },
+      { "commodityId": "TITANIUM", "name": "Titanium", "description": "High-strength, lightweight metal for high-performance applications." }
+    ]
+  },
+  {
+    "category": "Plastics & Polymers",
+    "categoryDescription": "Synthetic materials used for a wide range of interior and exterior components.",
+    "commodities": [
+      { "commodityId": "POLYPROPYLENE", "name": "Polypropylene (PP)", "description": "Used for bumpers, dashboards, and battery cases." },
+      { "commodityId": "ABS", "name": "Acrylonitrile Butadiene Styrene (ABS)", "description": "Rigid plastic for interior trim, grilles, and wheel covers." },
+      { "commodityId": "POLYCARBONATE", "name": "Polycarbonate (PC)", "description": "Strong, impact-resistant plastic for headlight lenses and trim." },
+      { "commodityId": "PVC", "name": "Polyvinyl Chloride (PVC)", "description": "Used for wire insulation, dashboards, and door panels." },
+      { "commodityId": "POLYETHYLENE", "name": "Polyethylene (PE)", "description": "Used for fuel tanks and cable insulation." }
+    ]
+  },
+  {
+    "category": "Composites",
+    "categoryDescription": "Materials made from two or more constituent materials with different properties.",
+    "commodities": [
+      { "commodityId": "CARBON_FIBER", "name": "Carbon Fiber Reinforced Polymer (CFRP)", "description": "High-strength, low-weight material for performance body panels and chassis." },
+      { "commodityId": "GLASS_FIBER", "name": "Glass Fiber Reinforced Polymer (GFRP)", "description": "Used for body panels, leaf springs, and structural components." }
+    ]
+  },
+  {
+    "category": "Chemicals & Fluids",
+    "categoryDescription": "Liquids and chemicals used in vehicle operation and manufacturing.",
+    "commodities": [
+      { "commodityId": "CRUDE_OIL", "name": "Crude Oil (Brent)", "description": "Base for gasoline, diesel, and lubricants.", "tickerSymbol": "BRENTOIL" },
+      { "commodityId": "LUBRICANTS", "name": "Lubricating Oils", "description": "Engine oils, transmission fluids, and greases." },
+      { "commodityId": "PAINTS_COATINGS", "name": "Paints & Coatings", "description": "Automotive paints, clear coats, and corrosion protection." },
+      { "commodityId": "ADHESIVES_SEALANTS", "name": "Adhesives & Sealants", "description": "Structural adhesives for body-in-white and sealants." }
+    ]
+  },
+  {
+    "category": "Electronics",
+    "categoryDescription": "Components forming the electrical and electronic systems of a vehicle.",
+    "commodities": [
+      { "commodityId": "SEMICONDUCTORS", "name": "Semiconductors (ECUs, MCUs)", "description": "Microchips for engine control, infotainment, and ADAS." },
+      { "commodityId": "PCBS", "name": "Printed Circuit Boards (PCBs)", "description": "Boards that connect electronic components." }
+    ]
+  },
+  {
+    "category": "Rubber & Elastomers",
+    "categoryDescription": "Flexible polymers used for seals, hoses, and tires.",
+    "commodities": [
+      { "commodityId": "NATURAL_RUBBER", "name": "Natural Rubber", "description": "Primary component for tires.", "tickerSymbol": "RUBBER" },
+      { "commodityId": "SYNTHETIC_RUBBER", "name": "Synthetic Rubber (EPDM, SBR)", "description": "Used for seals, hoses, belts, and weatherstripping." }
+    ]
+  }
+]

@@ -1,0 +1,13 @@
+{
+  "errors": {
+    "required": "This field is required",
+    "invalid_string": "Invalid value",
+    "invalid_number": "Must be a valid number",
+    "invalid_date": "Invalid date",
+    "invalid_integer": "Must be a whole number",
+    "too_small_string": "Must contain at least {{minimum}} character(s)",
+    "too_small_number": "Must be greater than or equal to {{minimum}}",
+    "too_big_string": "Must contain at most {{maximum}} character(s)",
+    "too_big_number": "Must be less than or equal to {{maximum}}"
+  }
+}

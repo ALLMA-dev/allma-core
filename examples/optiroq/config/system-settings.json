@@ -1,0 +1,6 @@
+{
+  "baseCurrency": "EUR",
+  "baseWeight": "kg",
+  "baseLength": "m",
+  "baseVolume": "l"
+}

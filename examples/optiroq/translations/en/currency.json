@@ -1,0 +1,18 @@
+{
+    "ratesAndCommoditiesTitle": "Exchange Rates & Commodities",
+    "Currencies": "Currencies",
+    "Commodities": "Commodities",
+    "ratesRelativeTo": "All rates are relative to the base currency: {{base}}",
+    "searchCurrenciesPlaceholder": "Search currencies by code...",
+    "Rate": "Rate",
+    "Base": "Base",
+    "noCurrenciesFound": "No matching currencies found.",
+    "Commodity": "Commodity",
+    "Price": "Price",
+    "Change": "Change",
+    "GOLD": "Gold",
+    "SILVER": "Silver",
+    "BRENT_CRUDE": "Brent Crude Oil",
+    "ALUMINIUM": "Aluminium",
+    "COPPER": "Copper"
+}

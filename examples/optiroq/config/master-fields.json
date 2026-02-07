@@ -1,0 +1,657 @@
+[
+  {
+    "key": "projectName",
+    "group": "Project",
+    "subgroup": "Project Identity",
+    "displayName": "Project Name",
+    "fieldType": "string",
+    "priority": "MUST_HAVE",
+    "display_order": 10,
+    "llm_description": "The official name of the project, used for identification and tracking.",
+    "description": "The primary name for this project.",
+    "validationRules": [
+      {
+        "type": "required",
+        "messageKey": "errors.required"
+      }
+    ]
+  },
+  {
+    "key": "platformName",
+    "group": "Project",
+    "subgroup": "Project Identity",
+    "displayName": "Platform Name",
+    "fieldType": "string",
+    "priority": "MUST_HAVE",
+    "display_order": 20,
+    "llm_description": "The vehicle or product platform this project belongs to.",
+    "description": "The product platform, if applicable."
+  },
+  {
+    "key": "projectDescription",
+    "group": "Project",
+    "subgroup": "Project Identity",
+    "displayName": "Project Description",
+    "fieldType": "text",
+    "priority": "RECOMMENDED",
+    "display_order": 30,
+    "llm_description": "A brief summary of the project's scope and objectives.",
+    "description": "A short description of the project."
+  },
+  {
+    "key": "customerName",
+    "group": "Project",
+    "subgroup": "Project Identity",
+    "displayName": "Customer Name",
+    "fieldType": "string",
+    "priority": "OPTIONAL",
+    "display_order": 40,
+    "llm_description": "The name of the end customer for this project.",
+    "description": "The customer this project is for.",
+    "validationRules": [
+      {
+        "type": "required",
+        "messageKey": "errors.required"
+      }
+    ]
+  },
+  {
+    "key": "commodity",
+    "group": "Project",
+    "subgroup": "Project Management",
+    "displayName": "Commodity",
+    "fieldType": "commodity-select",
+    "priority": "MUST_HAVE",
+    "display_order": 50,
+    "llm_description": "The primary purchasing commodity category for this project.",
+    "description": "The main commodity being sourced.",
+    "validationRules": [
+      {
+        "type": "required",
+        "messageKey": "errors.required"
+      }
+    ]
+  },
+  {
+    "key": "sopDate",
+    "group": "Project",
+    "subgroup": "Project Management",
+    "displayName": "SOP Date",
+    "fieldType": "date",
+    "priority": "MUST_HAVE",
+    "display_order": 60,
+    "llm_description": "The 'Start of Production' date for the project.",
+    "description": "The planned start of production date."
+  },
+  {
+    "key": "deadlineDate",
+    "group": "Project",
+    "subgroup": "Project Management",
+    "displayName": "Deadline Date",
+    "fieldType": "date",
+    "priority": "MUST_HAVE",
+    "display_order": 70,
+    "llm_description": "The final deadline for all sourcing activities related to this project.",
+    "description": "The deadline for RFQ responses."
+  },
+  {
+    "key": "targetCost",
+    "group": "Project",
+    "subgroup": "Project Management",
+    "displayName": "Target Cost (Budget)",
+    "fieldType": "currency",
+    "priority": "RECOMMENDED",
+    "display_order": 80,
+    "llm_description": "The overall budget or target cost for the project.",
+    "description": "The total target cost or budget for the project.",
+    "precision": 2,
+    "validationRules": [
+      {
+        "type": "min",
+        "value": 0,
+        "messageKey": "errors.too_small_number"
+      }
+    ]
+  },
+  {
+    "key": "defaultCurrency",
+    "group": "Project",
+    "subgroup": "Project Management",
+    "displayName": "Default Currency",
+    "fieldType": "string",
+    "priority": "OPTIONAL",
+    "display_order": 85,
+    "llm_description": "The default currency for all monetary values in this project (e.g., EUR, USD).",
+    "description": "Default currency for the project (e.g., EUR, USD)."
+  },
+  {
+    "key": "defaultWeightUnit",
+    "group": "Project",
+    "subgroup": "Project Management",
+    "displayName": "Default Weight Unit",
+    "fieldType": "string",
+    "priority": "OPTIONAL",
+    "display_order": 86,
+    "llm_description": "The default unit of weight for all parts in this project (e.g., kg, g, lb).",
+    "description": "Default weight unit for the project (e.g., kg, g, lb)."
+  },
+  {
+    "key": "partName",
+    "group": "BOM",
+    "subgroup": "Part Identity",
+    "displayName": "Part Name",
+    "fieldType": "string",
+    "priority": "MUST_HAVE",
+    "display_order": 90,
+    "llm_description": "The unique name or number identifying the part.",
+    "description": "The unique name or number for the part.",
+    "validationRules": [
+      {
+        "type": "required",
+        "messageKey": "errors.required"
+      }
+    ]
+  },
+  {
+    "key": "partDescription",
+    "group": "BOM",
+    "subgroup": "Part Identity",
+    "displayName": "Part Description",
+    "fieldType": "text",
+    "priority": "RECOMMENDED",
+    "display_order": 100,
+    "llm_description": "A brief description of the part's function or appearance.",
+    "description": "A short description of the part."
+  },
+  {
+    "key": "quantity",
+    "group": "BOM",
+    "subgroup": "Part Identity",
+    "displayName": "Annual Quantity",
+    "fieldType": "number",
+    "priority": "MUST_HAVE",
+    "display_order": 110,
+    "llm_description": "The estimated total number of units required per year.",
+    "description": "The estimated annual quantity needed.",
+    "validationRules": [
+      {
+        "type": "required",
+        "messageKey": "errors.required"
+      },
+      {
+        "type": "integer",
+        "messageKey": "errors.invalid_integer"
+      },
+      {
+        "type": "min",
+        "value": 1,
+        "messageKey": "errors.too_small_number"
+      }
+    ]
+  },
+  {
+    "key": "material",
+    "group": "BOM",
+    "subgroup": "Part Identity",
+    "displayName": "Material",
+    "fieldType": "string",
+    "priority": "MUST_HAVE",
+    "display_order": 120,
+    "llm_description": "The specific material the component is made of.",
+    "description": "The primary material of the part.",
+    "validationRules": [
+      {
+        "type": "required",
+        "messageKey": "errors.required"
+      }
+    ]
+  },
+  {
+    "key": "targetWeight",
+    "group": "BOM",
+    "subgroup": "Part Identity",
+    "displayName": "Target Weight",
+    "fieldType": "weight",
+    "priority": "RECOMMENDED",
+    "display_order": 130,
+    "llm_description": "The target weight of a single unit of this part.",
+    "description": "The target weight for one part.",
+    "precision": 3,
+    "validationRules": [
+      {
+        "type": "min",
+        "value": 0,
+        "messageKey": "errors.too_small_number"
+      }
+    ]
+  },
+  {
+    "key": "partTargetPrice",
+    "group": "BOM",
+    "subgroup": "Part Identity",
+    "displayName": "Part Target Price",
+    "fieldType": "currency",
+    "priority": "RECOMMENDED",
+    "display_order": 140,
+    "llm_description": "The target price for a single unit of this part.",
+    "description": "The target price per individual part.",
+    "precision": 4,
+    "validationRules": [
+      {
+        "type": "required",
+        "messageKey": "errors.required"
+      },
+      {
+        "type": "min",
+        "value": 0,
+        "messageKey": "errors.too_small_number"
+      }
+    ]
+  },
+  {
+    "key": "materialCost",
+    "group": "BOM",
+    "subgroup": "Core Costing",
+    "displayName": "Material Cost",
+    "fieldType": "currency",
+    "priority": "MUST_HAVE",
+    "display_order": 150,
+    "llm_description": "The cost of the raw material required to produce one part.",
+    "description": "Cost of raw materials per part.",
+    "precision": 4,
+    "validationRules": [
+      {
+        "type": "required",
+        "messageKey": "errors.required"
+      },
+      {
+        "type": "min",
+        "value": 0,
+        "messageKey": "errors.too_small_number"
+      }
+    ]
+  },
+  {
+    "key": "processCost",
+    "group": "BOM",
+    "subgroup": "Core Costing",
+    "displayName": "Process Cost",
+    "fieldType": "currency",
+    "priority": "MUST_HAVE",
+    "display_order": 160,
+    "llm_description": "The cost of all manufacturing processes to produce one part.",
+    "description": "Cost of manufacturing processes per part.",
+    "precision": 4,
+    "validationRules": [
+      {
+        "type": "required",
+        "messageKey": "errors.required"
+      },
+      {
+        "type": "min",
+        "value": 0,
+        "messageKey": "errors.too_small_number"
+      }
+    ]
+  },
+  {
+    "key": "toolingInvestment",
+    "group": "BOM",
+    "subgroup": "Core Costing",
+    "displayName": "Tooling Investment",
+    "fieldType": "currency",
+    "priority": "MUST_HAVE",
+    "display_order": 170,
+    "llm_description": "The total one-time investment cost for tooling for this part.",
+    "description": "Total investment for part-specific tooling.",
+    "precision": 2,
+    "validationRules": [
+      {
+        "type": "required",
+        "messageKey": "errors.required"
+      },
+      {
+        "type": "min",
+        "value": 0,
+        "messageKey": "errors.too_small_number"
+      }
+    ]
+  },
+  {
+    "key": "amortizationIncluded",
+    "group": "BOM",
+    "subgroup": "Tooling Details",
+    "displayName": "Amortization in Price",
+    "fieldType": "boolean",
+    "priority": "MUST_HAVE",
+    "display_order": 180,
+    "llm_description": "Indicates whether tooling amortization is included in the piece price.",
+    "description": "Is tooling amortization included in the piece price?",
+    "validationRules": [
+      {
+        "type": "required",
+        "messageKey": "errors.required"
+      }
+    ]
+  },
+  {
+    "key": "amortizationAmount",
+    "group": "BOM",
+    "subgroup": "Tooling Details",
+    "displayName": "Embedded Amortization Amount",
+    "fieldType": "currency",
+    "priority": "OPTIONAL",
+    "display_order": 190,
+    "llm_description": "The portion of the tooling cost embedded into each piece price.",
+    "description": "The amount of tooling cost added to each piece price.",
+    "precision": 4,
+    "validationRules": [
+      {
+        "type": "min",
+        "value": 0,
+        "messageKey": "errors.too_small_number"
+      }
+    ]
+  },
+  {
+    "key": "amortizationPeriod",
+    "group": "BOM",
+    "subgroup": "Tooling Details",
+    "displayName": "Amortization Period",
+    "fieldType": "number",
+    "priority": "OPTIONAL",
+    "display_order": 200,
+    "llm_description": "The number of units over which the tooling cost is amortized.",
+    "description": "Number of units for tooling amortization.",
+    "validationRules": [
+      {
+        "type": "integer",
+        "messageKey": "errors.invalid_integer"
+      },
+      {
+        "type": "min",
+        "value": 1,
+        "messageKey": "errors.too_small_number"
+      }
+    ]
+  },
+  {
+    "key": "maintenanceCost",
+    "group": "BOM",
+    "subgroup": "Tooling Details",
+    "displayName": "Tooling Maintenance Cost",
+    "fieldType": "currency",
+    "priority": "OPTIONAL",
+    "display_order": 210,
+    "llm_description": "The cost associated with maintaining the tooling over its lifespan.",
+    "description": "Ongoing maintenance cost for the tooling.",
+    "precision": 2,
+    "validationRules": [
+      {
+        "type": "min",
+        "value": 0,
+        "messageKey": "errors.too_small_number"
+      }
+    ]
+  },
+  {
+    "key": "leadTimeSampleA",
+    "group": "BOM",
+    "subgroup": "Lead Times",
+    "displayName": "Lead Time: Sample A",
+    "fieldType": "string",
+    "priority": "MUST_HAVE",
+    "display_order": 220,
+    "llm_description": "The time required to deliver the first batch of 'Sample A' parts.",
+    "description": "Time to deliver first 'Sample A' parts.",
+    "validationRules": [
+      {
+        "type": "required",
+        "messageKey": "errors.required"
+      }
+    ]
+  },
+  {
+    "key": "leadTimePPAP",
+    "group": "BOM",
+    "subgroup": "Lead Times",
+    "displayName": "Lead Time: PPAP",
+    "fieldType": "string",
+    "priority": "MUST_HAVE",
+    "display_order": 230,
+    "llm_description": "The time required to complete the Production Part Approval Process (PPAP).",
+    "description": "Time to complete the PPAP submission.",
+    "validationRules": [
+      {
+        "type": "required",
+        "messageKey": "errors.required"
+      }
+    ]
+  },
+  {
+    "key": "leadTimeSOP",
+    "group": "BOM",
+    "subgroup": "Lead Times",
+    "displayName": "Lead Time: SOP",
+    "fieldType": "string",
+    "priority": "MUST_HAVE",
+    "display_order": 240,
+    "llm_description": "The lead time required to be ready for the Start of Production (SOP).",
+    "description": "Time until ready for Start of Production.",
+    "validationRules": [
+      {
+        "type": "required",
+        "messageKey": "errors.required"
+      }
+    ]
+  },
+  {
+    "key": "leadTimePrototype",
+    "group": "BOM",
+    "subgroup": "Lead Times",
+    "displayName": "Lead Time: Prototype",
+    "fieldType": "string",
+    "priority": "OPTIONAL",
+    "display_order": 250,
+    "llm_description": "The time required to deliver prototype parts.",
+    "description": "Time to deliver prototype parts."
+  },
+  {
+    "key": "leadTimeSampleBCD",
+    "group": "BOM",
+    "subgroup": "Lead Times",
+    "displayName": "Lead Time: Sample B/C/D",
+    "fieldType": "string",
+    "priority": "OPTIONAL",
+    "display_order": 260,
+    "llm_description": "The time required to deliver subsequent sample batches (B, C, D).",
+    "description": "Time for subsequent sample batches (B/C/D)."
+  },
+  {
+    "key": "leadTimeOffToolParts",
+    "group": "BOM",
+    "subgroup": "Lead Times",
+    "displayName": "Lead Time: Off-Tool Parts",
+    "fieldType": "string",
+    "priority": "OPTIONAL",
+    "display_order": 270,
+    "llm_description": "The lead time for parts made from the final production tooling.",
+    "description": "Time for parts from final production tooling."
+  },
+  {
+    "key": "leadTimeOffToolOrProcess",
+    "group": "BOM",
+    "subgroup": "Lead Times",
+    "displayName": "Lead Time: Off-Tool or Process",
+    "fieldType": "string",
+    "priority": "OPTIONAL",
+    "display_order": 280,
+    "llm_description": "Lead time for off-tool or off-process parts.",
+    "description": "Time for off-tool or off-process parts."
+  },
+  {
+    "key": "incoterms",
+    "group": "BOM",
+    "subgroup": "Logistics",
+    "displayName": "Incoterms",
+    "fieldType": "string",
+    "priority": "MUST_HAVE",
+    "display_order": 290,
+    "llm_description": "The international commercial terms for shipping.",
+    "description": "International commercial terms (e.g., FOB, DDP).",
+    "validationRules": [
+      {
+        "type": "required",
+        "messageKey": "errors.required"
+      }
+    ]
+  },
+  {
+    "key": "deliveryLocation",
+    "group": "BOM",
+    "subgroup": "Logistics",
+    "displayName": "Delivery Location",
+    "fieldType": "text",
+    "priority": "MUST_HAVE",
+    "display_order": 300,
+    "llm_description": "The final physical address where the parts should be delivered.",
+    "description": "The final delivery address for the parts.",
+    "validationRules": [
+      {
+        "type": "required",
+        "messageKey": "errors.required"
+      }
+    ]
+  },
+  {
+    "key": "cartonType",
+    "group": "BOM",
+    "subgroup": "Logistics",
+    "displayName": "Carton Type",
+    "fieldType": "string",
+    "priority": "OPTIONAL",
+    "display_order": 310,
+    "llm_description": "The type of carton or packaging to be used.",
+    "description": "The specified type of carton for packaging."
+  },
+  {
+    "key": "usesEuroPallet",
+    "group": "BOM",
+    "subgroup": "Logistics",
+    "displayName": "Uses Euro Pallet",
+    "fieldType": "boolean",
+    "priority": "OPTIONAL",
+    "display_order": 320,
+    "llm_description": "A true/false value indicating if Euro pallets are required.",
+    "description": "Are Euro pallets required for shipping?"
+  },
+  {
+    "key": "returnablePackagingRequired",
+    "group": "BOM",
+    "subgroup": "Logistics",
+    "displayName": "Returnable Packaging Required",
+    "fieldType": "boolean",
+    "priority": "OPTIONAL",
+    "display_order": 330,
+    "llm_description": "A true/false value indicating if returnable packaging is required.",
+    "description": "Is returnable packaging mandatory?"
+  },
+  {
+    "key": "cleaningRequired",
+    "group": "BOM",
+    "subgroup": "Logistics",
+    "displayName": "Cleaning Required",
+    "fieldType": "boolean",
+    "priority": "OPTIONAL",
+    "display_order": 340,
+    "llm_description": "A true/false value indicating if the parts require a cleaning process.",
+    "description": "Do the parts require a cleaning process?"
+  },
+  {
+    "key": "isoCertifications",
+    "group": "BOM",
+    "subgroup": "Quality & ESG",
+    "displayName": "ISO Certifications",
+    "fieldType": "string[]",
+    "priority": "OPTIONAL",
+    "display_order": 350,
+    "llm_description": "A list of required ISO certifications.",
+    "description": "List of required ISO certifications."
+  },
+  {
+    "key": "ecovadisScore",
+    "group": "BOM",
+    "subgroup": "Quality & ESG",
+    "displayName": "ECOVADIS Score",
+    "fieldType": "number",
+    "priority": "OPTIONAL",
+    "display_order": 360,
+    "llm_description": "The supplier's EcoVadis sustainability rating score (0-100).",
+    "description": "Supplier's EcoVadis score.",
+    "validationRules": [
+      {
+        "type": "integer",
+        "messageKey": "errors.invalid_integer"
+      },
+      {
+        "type": "min",
+        "value": 0,
+        "messageKey": "errors.too_small_number"
+      },
+      {
+        "type": "max",
+        "value": 100,
+        "messageKey": "errors.too_big_number"
+      }
+    ]
+  },
+  {
+    "key": "internalEsgScore",
+    "group": "BOM",
+    "subgroup": "Quality & ESG",
+    "displayName": "Internal ESG Score",
+    "fieldType": "number",
+    "priority": "OPTIONAL",
+    "display_order": 370,
+    "llm_description": "The supplier's internal ESG score.",
+    "description": "Supplier's internal ESG score.",
+    "validationRules": [
+      {
+        "type": "integer",
+        "messageKey": "errors.invalid_integer"
+      },
+      {
+        "type": "min",
+        "value": 0,
+        "messageKey": "errors.too_small_number"
+      },
+      {
+        "type": "max",
+        "value": 100,
+        "messageKey": "errors.too_big_number"
+      }
+    ]
+  },
+  {
+    "key": "commentText",
+    "group": "BOM",
+    "subgroup": "Comments & Notes",
+    "displayName": "Comment",
+    "fieldType": "text",
+    "priority": "OPTIONAL",
+    "display_order": 380,
+    "llm_description": "General comments or notes from the supplier.",
+    "description": "General comments or notes."
+  },
+  {
+    "key": "buyerNotes",
+    "group": "BOM",
+    "subgroup": "Comments & Notes",
+    "displayName": "Buyer Notes",
+    "fieldType": "text",
+    "priority": "OPTIONAL",
+    "display_order": 390,
+    "llm_description": "Internal notes made by the buyer.",
+    "description": "Internal notes for the buyer."
+  }
+]

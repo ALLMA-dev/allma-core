@@ -1,0 +1,26 @@
+{
+    "Optiroq Portal": "Portail Optiroq",
+    "amplify": {
+        "Sign In": "Se connecter",
+        "Sign in": "Se connecter",
+        "Create Account": "Créer un compte",
+        "Email": "E-mail",
+        "Enter your Email": "Entrez votre e-mail",
+        "Username": "E-mail",
+        "Enter your Username": "Entrez votre e-mail",
+        "Password": "Mot de passe",
+        "Enter your Password": "Entrez votre mot de passe",
+        "Forgot your password?": "Mot de passe oublié ?",
+        "Reset password": "Réinitialiser le mot de passe",
+        "Send code": "Envoyer le code",
+        "Back to Sign In": "Retour à la connexion",
+        "Confirm Password": "Confirmez le mot de passe",
+        "Enter your new password": "Entrez votre nouveau mot de passe",
+        "Code": "Code de confirmation",
+        "Enter your code": "Entrez votre code",
+        "We Emailed You": "Nous vous avons envoyé un e-mail",
+        "Your code is on the way. To log in, enter the code we emailed to {{email}}. It may take a minute to arrive.": "Votre code est en route. Pour vous connecter, saisissez le code que nous avons envoyé à {{email}}. Il peut prendre une minute pour arriver.",
+        "Confirm": "Confirmer",
+        "Resend Code": "Renvoyer le code"
+    }
+}

@@ -1,0 +1,12 @@
+{
+    "pageTitle": "Détails du Fournisseur",
+    "errorLoadingTitle": "Échec du chargement des détails du fournisseur",
+    "backToList": "Retour aux Fournisseurs",
+    "save": "Enregistrer les Modifications",
+    "archive": "Archiver le Fournisseur",
+    "unarchive": "Restaurer le Fournisseur",
+    "archived": "Archivé",
+    "active": "Actif",
+    "createTitle": "Nouveau Fournisseur",
+    "create": "Créer le Fournisseur"
+}

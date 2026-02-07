@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json", // Extend from a potential root tsconfig
+  "compilerOptions": {
+    "outDir": "dist-lambdas", // We won't actually use this output, it's just for validation
+    "rootDir": "src/optiroq-lambdas",
+    "composite": false, // Lambdas are standalone, not part of a composite project
+    "noEmit": true
+  },
+  "include": [
+    "src/optiroq-lambdas/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "cdk.out"
+  ]
+}

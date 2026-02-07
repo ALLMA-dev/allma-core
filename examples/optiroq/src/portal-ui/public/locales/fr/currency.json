@@ -1,0 +1,18 @@
+{
+    "ratesAndCommoditiesTitle": "Taux de Change & Matières Premières",
+    "Currencies": "Devises",
+    "Commodities": "Matières Premières",
+    "ratesRelativeTo": "Tous les taux sont relatifs à la devise de base : {{base}}",
+    "searchCurrenciesPlaceholder": "Rechercher par code de devise...",
+    "Rate": "Taux",
+    "Base": "Base",
+    "noCurrenciesFound": "Aucune devise correspondante trouvée.",
+    "Commodity": "Matière Première",
+    "Price": "Prix",
+    "Change": "Variation",
+    "GOLD": "Or",
+    "SILVER": "Argent",
+    "BRENT_CRUDE": "Pétrole Brut Brent",
+    "ALUMINIUM": "Aluminium",
+    "COPPER": "Cuivre"
+}

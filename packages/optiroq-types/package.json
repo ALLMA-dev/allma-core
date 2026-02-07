@@ -1,0 +1,36 @@
+{
+  "name": "@optiroq/types",
+  "version": "1.0.1",
+  "description": "Shared TypeScript types, interfaces, and Zod schemas for the Optiroq project.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "lint": "eslint ."
+  },
+  "author": "@webjema",
+  "license": "Apache-2.0",
+  "keywords": [
+    "types",
+    "typescript",
+    "interfaces",
+    "zod",
+    "schemas"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "eslint": "^9.8.0",
+    "typescript-eslint": "^8.0.0",
+    "zod": "^3.22.4"
+  },
+  "peerDependencies": {
+    "zod": "^3.22.4"
+  }
+}

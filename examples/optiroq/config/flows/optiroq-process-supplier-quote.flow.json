@@ -1,0 +1,340 @@
+{
+  "formatVersion": "1.0",
+  "exportedAt": "2026-01-25T18:00:00.000Z",
+  "flows": [
+    {
+      "id": "optiroq-process-supplier-quote",
+      "name": "Optiroq - Process Supplier Quote (Sub-flow)",
+      "description": "The core workflow for ingesting, analyzing, and storing a supplier quote. Now a sub-flow triggered by the main email router.",
+      "version": 1,
+      "isPublished": true,
+      "createdAt": "2024-12-24T10:00:00.000Z",
+      "updatedAt": "2026-02-06T10:00:00.000Z",
+      "startStepInstanceId": "load_master_field_list",
+      "enableExecutionLogs": true,
+      "flowVariables": {
+        "OptiroqEntityGraphTable": "OptiroqEntityGraph-{{stage}}",
+        "OptiroqArtefactsBucket": "optiroq-artefacts-{{accountId}}-{{stage}}",
+        "FromEmail": "rfq-agent@optiroq.com",
+        "SanitizeQuoteDocumentLambdaArn": "arn:aws:lambda:{{region}}:{{accountId}}:function:optiroq-sanitizequotedocumentstep-{{stage}}",
+        "NormalizeQuoteDataLambdaArn": "arn:aws:lambda:{{region}}:{{accountId}}:function:optiroq-normalizequotedatastep-{{stage}}",
+        "RuleBasedAnomalyCheckLambdaArn": "arn:aws:lambda:{{region}}:{{accountId}}:function:optiroq-rulebasedanomalycheck-{{stage}}",
+        "RiskScoreCalculationLambdaArn": "arn:aws:lambda:{{region}}:{{accountId}}:function:optiroq-riskscorecalculation-{{stage}}",
+        "GenerateComparisonBoardFlowId": "optiroq-generate-and-email-comparison-board",
+        "ComposeBatchWriteLambdaArn": "arn:aws:lambda:{{region}}:{{accountId}}:function:optiroq-composebatchwrite-{{stage}}"
+      },
+      "steps": {
+        "load_master_field_list": {
+          "stepInstanceId": "load_master_field_list",
+          "displayName": "0a. Load Master Field List",
+          "stepType": "DATA_LOAD",
+          "moduleIdentifier": "system/dynamodb-data-loader",
+          "customConfig": {
+            "operation": "QUERY",
+            "tableName": "{{flow_variables.OptiroqEntityGraphTable}}",
+            "keyConditionExpression": "PK = :pk",
+            "expressionAttributeValues": {
+              ":pk": "CONFIG#MASTER_FIELD_LIST"
+            }
+          },
+          "outputMappings": {
+            "$.steps_output.master_field_list": "$.content"
+          },
+          "defaultNextStepInstanceId": "load_commodities"
+        },
+        "load_commodities": {
+          "stepInstanceId": "load_commodities",
+          "displayName": "0b. Load Commodities",
+          "stepType": "DATA_LOAD",
+          "moduleIdentifier": "system/dynamodb-data-loader",
+          "customConfig": {
+            "operation": "QUERY",
+            "tableName": "{{flow_variables.OptiroqEntityGraphTable}}",
+            "keyConditionExpression": "PK = :pk",
+            "expressionAttributeValues": {
+              ":pk": "CONFIG#COMMODITIES"
+            }
+          },
+          "outputMappings": {
+            "$.steps_output.commodities": "$.content"
+          },
+          "defaultNextStepInstanceId": "load_anomaly_rules"
+        },
+        "load_anomaly_rules": {
+          "stepInstanceId": "load_anomaly_rules",
+          "displayName": "0c. Load Anomaly Rules",
+          "stepType": "DATA_LOAD",
+          "moduleIdentifier": "system/dynamodb-data-loader",
+          "customConfig": {
+            "operation": "QUERY",
+            "tableName": "{{flow_variables.OptiroqEntityGraphTable}}",
+            "keyConditionExpression": "PK = :pk",
+            "expressionAttributeValues": {
+              ":pk": "CONFIG#ANOMALY_RULES"
+            }
+          },
+          "outputMappings": {
+            "$.steps_output.anomaly_rules": "$.content"
+          },
+          "defaultNextStepInstanceId": "pre_process_and_sanitize"
+        },
+        "pre_process_and_sanitize": {
+          "stepInstanceId": "pre_process_and_sanitize",
+          "displayName": "1. Sanitize Quote Document",
+          "stepType": "CUSTOM_LAMBDA_INVOKE",
+          "lambdaFunctionArnTemplate": "{{flow_variables.SanitizeQuoteDocumentLambdaArn}}",
+          "inputMappings": {
+            "s3Bucket": "$.initialContextData.s3Bucket",
+            "s3Key": "$.initialContextData.s3Key",
+            "correlationId": "$.flowExecutionId"
+          },
+          "outputMappings": {
+            "$.steps_output.sanitized": "$."
+          },
+          "defaultNextStepInstanceId": "raw_data_extraction"
+        },
+        "raw_data_extraction": {
+          "stepInstanceId": "raw_data_extraction",
+          "displayName": "2. Raw Data Extraction (LLM)",
+          "stepType": "LLM_INVOCATION",
+          "llmProvider": "GEMINI",
+          "modelId": "gemini-1.5-flash-latest",
+          "promptTemplateId": "optiroq-raw-data-extraction",
+          "customConfig": { "jsonOutputMode": true },
+          "templateContextMappings": {
+            "cleanText": { "sourceJsonPath": "$.steps_output.sanitized.cleanText" }
+          },
+          "outputMappings": { "$.steps_output.raw_extraction": "$." },
+          "defaultNextStepInstanceId": "semantic_enrichment"
+        },
+        "semantic_enrichment": {
+          "stepInstanceId": "semantic_enrichment",
+          "displayName": "3. Semantic Enrichment (LLM)",
+          "stepType": "LLM_INVOCATION",
+          "llmProvider": "GEMINI",
+          "modelId": "gemini-1.5-pro-latest",
+          "promptTemplateId": "optiroq-semantic-enrichment",
+          "customConfig": { "jsonOutputMode": true },
+          "templateContextMappings": {
+            "cleanText": { "sourceJsonPath": "$.steps_output.sanitized.cleanText" },
+            "rawKeyValues": { "sourceJsonPath": "$.steps_output.raw_extraction", "formatAs": "JSON" },
+            "masterFieldList": { "sourceJsonPath": "$.steps_output.master_field_list", "formatAs": "JSON" }
+          },
+          "outputMappings": { "$.steps_output.semantic_enrichment": "$." },
+          "defaultNextStepInstanceId": "extract_supplier_comments"
+        },
+        "extract_supplier_comments": {
+          "stepInstanceId": "extract_supplier_comments",
+          "displayName": "3b. Extract Supplier Comments (LLM)",
+          "stepType": "LLM_INVOCATION",
+          "llmProvider": "GEMINI",
+          "modelId": "gemini-1.5-pro-latest",
+          "promptTemplateId": "optiroq-extract-supplier-comments",
+          "customConfig": { "jsonOutputMode": true },
+          "templateContextMappings": {
+            "cleanText": { "sourceJsonPath": "$.steps_output.sanitized.cleanText" }
+          },
+          "outputMappings": { "$.steps_output.supplier_comments": "$." },
+          "defaultNextStepInstanceId": "deterministic_normalization"
+        },
+        "deterministic_normalization": {
+          "stepInstanceId": "deterministic_normalization",
+          "displayName": "4. Deterministic Normalization",
+          "stepType": "CUSTOM_LAMBDA_INVOKE",
+          "lambdaFunctionArnTemplate": "{{flow_variables.NormalizeQuoteDataLambdaArn}}",
+          "inputMappings": {
+            "enrichedData": "$.steps_output.semantic_enrichment",
+            "masterFieldList": "$.steps_output.master_field_list"
+          },
+          "outputMappings": { "$.steps_output.normalized_data": "$." },
+          "defaultNextStepInstanceId": "anomaly_detection"
+        },
+        "anomaly_detection": {
+          "stepInstanceId": "anomaly_detection",
+          "displayName": "5. Anomaly Detection (Parallel)",
+          "stepType": "PARALLEL_FORK_MANAGER",
+          "itemsPath": "$.steps_output.normalized_data",
+          "parallelBranches": [
+            { "branchId": "llm_check", "stepInstanceId": "llm_anomaly_check" },
+            { "branchId": "rules_check", "stepInstanceId": "rule_based_anomaly_check" }
+          ],
+          "aggregationConfig": { "strategy": "COLLECT_ARRAY" },
+          "outputMappings": { "$.steps_output.anomaly_results_nested": "$.aggregatedData" },
+          "defaultNextStepInstanceId": "flatten_anomalies"
+        },
+        "llm_anomaly_check": {
+          "stepInstanceId": "llm_anomaly_check", "stepType": "LLM_INVOCATION", "llmProvider": "GEMINI", "modelId": "gemini-1.5-pro-latest",
+          "promptTemplateId": "optiroq-llm-anomaly-detection", "customConfig": { "jsonOutputMode": true },
+          "templateContextMappings": {
+            "normalizedData": { "sourceJsonPath": "$.steps_output.normalized_data", "formatAs": "JSON" },
+            "businessRules": { "sourceJsonPath": "$.steps_output.anomaly_rules", "formatAs": "RAW" }
+          }
+        },
+        "rule_based_anomaly_check": {
+          "stepInstanceId": "rule_based_anomaly_check", 
+          "stepType": "CUSTOM_LAMBDA_INVOKE",
+          "lambdaFunctionArnTemplate": "{{flow_variables.RuleBasedAnomalyCheckLambdaArn}}",
+          "inputMappings": { "normalizedData": "$.steps_output.normalized_data" }
+        },
+        "flatten_anomalies": {
+          "stepInstanceId": "flatten_anomalies", "displayName": "Flatten Anomaly Results", "stepType": "DATA_TRANSFORMATION",
+          "moduleIdentifier": "system/flatten-array", "literals": { "path": "anomalies" },
+          "inputMappings": { "array": "$.steps_output.anomaly_results_nested" },
+          "outputMappings": { "$.steps_output.anomaly_results": "$.result" },
+          "defaultNextStepInstanceId": "risk_score_calculation"
+        },
+        "risk_score_calculation": {
+          "stepInstanceId": "risk_score_calculation", "displayName": "5b. Calculate Risk Score", "stepType": "CUSTOM_LAMBDA_INVOKE",
+          "lambdaFunctionArnTemplate": "{{flow_variables.RiskScoreCalculationLambdaArn}}",
+          "inputMappings": { "normalizedData": "$.steps_output.normalized_data", "anomalyResults": "$.steps_output.anomaly_results" },
+          "outputMappings": { "$.steps_output.risk_score": "$." }, "defaultNextStepInstanceId": "ui_payload_generation"
+        },
+        "ui_payload_generation": {
+          "stepInstanceId": "ui_payload_generation", "displayName": "6. Generate UI Payload (LLM)", "stepType": "LLM_INVOCATION",
+          "llmProvider": "GEMINI", "modelId": "gemini-1.5-pro-latest", "promptTemplateId": "optiroq-ui-payload-generation",
+          "customConfig": { "jsonOutputMode": true },
+          "templateContextMappings": {
+            "normalizedData": { "sourceJsonPath": "$.steps_output.normalized_data", "formatAs": "JSON" },
+            "masterFieldList": { "sourceJsonPath": "$.steps_output.master_field_list", "formatAs": "JSON" }
+          },
+          "outputMappings": { "$.steps_output.ui_payload": "$." }, "defaultNextStepInstanceId": "compose_batch_write_payload"
+        },
+        "compose_batch_write_payload": {
+          "stepInstanceId": "compose_batch_write_payload", "displayName": "7a. Compose Batch Write Payload", "stepType": "CUSTOM_LAMBDA_INVOKE",
+          "lambdaFunctionArnTemplate": "{{flow_variables.ComposeBatchWriteLambdaArn}}",
+          "inputMappings": {
+            "quoteData": "$.steps_output.normalized_data", "anomalies": "$.steps_output.anomaly_results",
+            "comments": "$.steps_output.supplier_comments.extractedComments", "riskScore": "$.steps_output.risk_score.riskScore",
+            "rfqId": "$.initialContextData.rfqId", "supplierName": "$.initialContextData.supplierName", "round": "$.initialContextData.round",
+            "projectId": "$.initialContextData.projectId",
+            "commodities": "$.steps_output.commodities"
+          },
+          "outputMappings": { "$.steps_output.batch_write_requests": "$." }, "defaultNextStepInstanceId": "save_and_finalize"
+        },
+        "save_and_finalize": {
+          "stepInstanceId": "save_and_finalize", "displayName": "7b. Save Quote, Anomalies & Comments", "stepType": "DATA_SAVE",
+          "moduleIdentifier": "system/dynamodb-batch-writer", "customConfig": { "tableName": "{{flow_variables.OptiroqEntityGraphTable}}" },
+          "inputMappings": { "requests": "$.steps_output.batch_write_requests.requests" },
+          "defaultNextStepInstanceId": "send_notifications_and_trigger_board"
+        },
+        "send_notifications_and_trigger_board": {
+          "stepInstanceId": "send_notifications_and_trigger_board", "displayName": "8. Route Notifications", "stepType": "NO_OP",
+          "transitions": [
+            { "condition": "$.steps_output.anomaly_results[?(@.severity=='High')]", "nextStepInstanceId": "send_rejection_notification" },
+            { "condition": "$.steps_output.anomaly_results[?(@.severity=='Medium')]", "nextStepInstanceId": "send_follow_up_notification" }
+          ],
+          "defaultNextStepInstanceId": "send_success_notification"
+        },
+        "send_rejection_notification": {
+          "stepInstanceId": "send_rejection_notification", "displayName": "Send Rejection Notification", "stepType": "EMAIL",
+          "from": "{{flow_variables.FromEmail}}", "to": "{{initialContextData.buyerEmail}}",
+          "subject": "[ACTION REQUIRED] Quote for RFQ {{initialContextData.rfqId}} has critical issues",
+          "body": "The quote received for RFQ {{initialContextData.rfqId}} has been processed and flagged with high-severity anomalies. The quote will not be considered until these issues are addressed. Please review in the Optiroq portal.",
+          "defaultNextStepInstanceId": "end_flow"
+        },
+        "send_follow_up_notification": {
+          "stepInstanceId": "send_follow_up_notification", "displayName": "Send Follow-up Notification", "stepType": "EMAIL",
+          "from": "{{flow_variables.FromEmail}}", "to": "{{initialContextData.buyerEmail}}",
+          "subject": "[REVIEW NEEDED] Quote for RFQ {{initialContextData.rfqId}} requires clarification",
+          "body": "The quote received for RFQ {{initialContextData.rfqId}} has been processed but requires your review for medium-severity anomalies. A follow-up with the supplier may be required.",
+          "defaultNextStepInstanceId": "end_flow"
+        },
+        "send_success_notification": {
+          "stepInstanceId": "send_success_notification", "displayName": "Send Success Notification", "stepType": "EMAIL",
+          "from": "{{flow_variables.FromEmail}}", "to": "{{initialContextData.buyerEmail}}",
+          "subject": "[SUCCESS] Quote for RFQ {{initialContextData.rfqId}} has been processed",
+          "body": "The quote received for RFQ {{initialContextData.rfqId}} has been successfully processed and added to the comparison board.",
+          "defaultNextStepInstanceId": "trigger_comparison_board_flow"
+        },
+        "trigger_comparison_board_flow": {
+          "stepInstanceId": "trigger_comparison_board_flow", "displayName": "Trigger Comparison Board Generation", "stepType": "START_FLOW_EXECUTION",
+          "moduleIdentifier": "system/start-flow-execution",
+          "literals": { "flowDefinitionId": "{{flow_variables.GenerateComparisonBoardFlowId}}", "flowVersion": "LATEST_PUBLISHED" },
+          "inputMappings": {
+            "initialContextData.rfqId": "$.initialContextData.rfqId", "initialContextData.projectId": "$.initialContextData.projectId",
+            "initialContextData.recipientEmail": "$.initialContextData.buyerEmail"
+          },
+          "defaultNextStepInstanceId": "end_flow"
+        },
+        "end_flow": { "stepInstanceId": "end_flow", "stepType": "END_FLOW" }
+      }
+    }
+  ],
+  "promptTemplates": [{
+      "id": "optiroq-extract-supplier-comments",
+      "name": "Optiroq - Extract Supplier Comments",
+      "description": "Analyzes a text representation of a quote to extract qualitative supplier comments, notes, and disclaimers.",
+      "createdAt": "2026-01-24T22:00:00.000Z",
+      "updatedAt": "2026-01-26T11:00:00.000Z",
+      "version": 1,
+      "isPublished": true,
+      "tags": [
+        "optiroq",
+        "supplier",
+        "analysis"
+      ],
+      "content": "You are a procurement assistant AI. Your task is to extract important qualitative information, notes, disclaimers, or general comments from the provided supplier quote text.\n\n**INSTRUCTIONS:**\n1.  Focus on text that provides context on pricing validity, lead time assumptions, technical capabilities, or general terms.\n2.  Do not extract quantitative data points, table headers, titles, or boilerplate legal text.\n3.  Extract each distinct comment as a separate string in an array.\n4.  If no relevant comments are found, return an empty array.\n\n**INPUT TEXT:**\n```\n{{cleanText}}\n```\n\n**CRITICAL:** Your entire response must be ONLY a single, valid JSON object with a single key `extractedComments` which contains an array of strings. Do not include any explanatory text, preamble, or markdown formatting.\n\n**Example Output:**\n```json\n{\n  \"extractedComments\": [\n    \"Pricing is valid for 30 days from the date of this quotation.\",\n    \"Lead times are subject to raw material availability and may vary.\",\n    \"Our facility is IATF 16949 certified.\"\n  ]\n}\n```\n\n**JSON_OUTPUT:**\n```json\n"
+    },
+  {
+      "id": "optiroq-llm-anomaly-detection",
+      "name": "Optiroq - LLM Anomaly Detection",
+      "description": "Analyzes supplier quote data for anomalies against a set of business rules.",
+      "createdAt": "2026-01-24T22:00:00.000Z",
+      "updatedAt": "2026-01-26T11:00:00.000Z",
+      "version": 1,
+      "isPublished": true,
+      "tags": [
+        "optiroq",
+        "supplier",
+        "analysis",
+        "auditing"
+      ],
+      "content": "You are an expert supply chain analyst and data auditor AI. Your task is to analyze the provided normalized quote data against a set of business rules and identify any anomalies.\n\n**INPUTS:**\n\n1.  **Normalized Quote Data:** This is the structured, machine-readable data for the quote.\n    ```json\n    {{normalizedData}}\n    ```\n\n2.  **Business Rules:** You must check the data against each of these rules.\n    ```text\n    {{businessRules}}\n    ```\n\n**INSTRUCTIONS:**\n\n1.  **Evaluate Each Rule:** For each rule in the `businessRules` input, check if the `normalizedData` violates it.\n2.  **Create Anomaly Objects:** If a rule is violated, create a detailed JSON object for the anomaly.\n3.  **Provide Detailed Output:** For each anomaly, you must provide:\n    *   `anomalyType`: Classify the issue from this list: `[MISSING_DATA, LOW_CONFIDENCE, OUTLIER, INCONSISTENCY]`.\n    *   `originalSeverity`: Assign a severity: `High`, `Medium`, or `Low`.\n    *   `description`: A clear, human-readable explanation of the anomaly and why it's a problem.\n    *   `details`: A structured object containing the `field` key, the problematic `value`, and any `context` (like the peer average or threshold it violated).\n    *   `impact`: A brief sentence describing the potential business impact of this anomaly.\n    *   `recommendedAction`: Suggest a clear next step for the user (e.g., \"Request supplier to validate the material cost.\").\n4.  **Format the Output:** Your entire response must be a single JSON object with one key, `anomalies`, which contains an array of the anomaly objects you created. If no anomalies are found, return an empty array.\n\n**CRITICAL JSON OUTPUT FORMAT:**\nYour entire response must be ONLY a valid JSON object. Do not include any explanatory text, preamble, or markdown formatting.\n\n```json\n{\n  \"anomalies\": [\n    {\n      \"anomalyType\": \"OUTLIER\",\n      \"originalSeverity\": \"High\",\n      \"description\": \"Material cost of 16.50 EUR is 37% above the peer average of 12.06 EUR for this part type.\",\n      \"details\": {\n        \"field\": \"materialCost\",\n        \"value\": 16.50,\n        \"context\": {\n          \"peerAverage\": 12.06,\n          \"deviationPercentage\": 0.37\n        }\n      },\n      \"impact\": \"This significantly affects the total piece price and competitiveness of the quote.\",\n      \"recommendedAction\": \"Request supplier to validate the material cost and provide justification or a cost breakdown.\"\n    }\n  ]\n}\n```\n\n**JSON_OUTPUT:**\n```json\n"
+    },
+  {
+      "id": "optiroq-raw-data-extraction",
+      "name": "Optiroq - Raw Data Extraction",
+      "description": "Extracts raw key-value pairs from supplier quotes, preserving document structure where possible.",
+      "createdAt": "2026-01-24T22:00:00.000Z",
+      "updatedAt": "2026-01-26T11:00:00.000Z",
+      "version": 1,
+      "isPublished": true,
+      "tags": [
+        "optiroq",
+        "supplier",
+        "extraction"
+      ],
+      "content": "You are a data extraction engine. Your task is to extract all key-value pairs from the following text.\n\n**INSTRUCTIONS:**\n1.  Scan the text and identify labels and their associated values.\n2.  Preserve the original labels and values exactly as they appear. Do not change formatting or spelling.\n3.  Structure the output as a single JSON object.\n4.  If the document structure suggests data is grouped (e.g., under a specific part number or in a table), use nested JSON objects to represent that structure.\n\n**INPUT TEXT:**\n```\n{{cleanText}}\n```\n\n**CRITICAL:** Your entire response must be ONLY a single, valid JSON object. Do not include any explanatory text or markdown formatting.\n\n**JSON_OUTPUT:**\n```json\n"
+    },
+  {
+      "id": "optiroq-semantic-enrichment",
+      "name": "Optiroq - Semantic Enrichment",
+      "description": "Maps raw quote data to a canonical model, handling multi-part quotes and extracting complex business logic.",
+      "createdAt": "2026-01-24T22:00:00.000Z",
+      "updatedAt": "2026-01-26T11:00:00.000Z",
+      "version": 1,
+      "isPublished": true,
+      "tags": [
+        "optiroq",
+        "supplier",
+        "enrichment",
+        "mapping"
+      ],
+      "content": "You are an expert procurement data specialist AI. Your task is to analyze the provided raw extracted data and the full text from a supplier quote, then map it to the company's canonical Master Field List. You must structure the output for single or multi-part quotes and extract specific business details.\n\n**CONTEXT & INPUTS:**\n\n1.  **Master Field List (Canonical Schema):** This is the source of truth for all fields. Use the `key`, `displayName`, and critically, the `llm_description` to find the correct mapping.\n    ```json\n    {{masterFieldList}}\n    ```\n\n2.  **Raw Extracted Data:** This is a best-effort extraction of key-value pairs from the document.\n    ```json\n    {{rawKeyValues}}\n    ```\n\n3.  **Full Text Context:** Use this full text to resolve ambiguities in the raw data and to find information that might have been missed.\n    ```text\n    {{cleanText}}\n    ```\n\n**INSTRUCTIONS:**\n\n1.  **Identify Parts:** First, determine if the quote is for a single part or multiple parts. Identify the part names/numbers.\n2.  **Map Fields:** For each part, iterate through the `rawKeyValues` and the `fullTextContext`. Map each piece of supplier data to the single most appropriate `key` from the `Master Field List`.\n3.  **Extract Value and Unit:** For each mapped field, extract its `value` and its `unit` if applicable (e.g., for currency, weight). The value should be a number if possible, otherwise a string.\n4.  **Provide Confidence:** For each mapping, provide a `confidence` score from 0.0 to 1.0.\n5.  **Source Reference:** Provide a `sourceReference` indicating where you found the information (e.g., \"cell B5\", \"page 2, paragraph 3\", \"label 'Tooling'\").\n6.  **Critical Business Logic Extraction:**\n    *   **Tooling Amortization:** Search the text to determine if tooling cost is included in the piece price. Set `amortizationIncluded` (boolean) and extract `amortizationAmount` and `amortizationPeriod` if available.\n    *   **Lead Times:** Identify and map all seven lead time milestones: `leadTimeSampleA`, `leadTimeSampleBCD`, `leadTimePrototype`, `leadTimeOffToolParts`, `leadTimeOffToolOrProcess`, `leadTimePPAP`, `leadTimeSOP`.\n    *   **ESG Data:** Extract `ecovadisScore`, `internalEsgScore`, and any quality-related scores.\n7.  **Structure the Output:** Format your entire response as a single JSON object according to the `JSON_OUTPUT_FORMAT` below. Use the part names as top-level keys. For data that applies to the whole quote (like `incoterms` or `toolingInvestment`), place it under a `_global` key.\n\n**CRITICAL JSON OUTPUT FORMAT:**\nYour entire response must be ONLY a valid JSON object matching this structure. Do not add any text, notes, or markdown formatting outside of the JSON.\n\n```json\n{\n  \"PART-NUMBER-123\": {\n    \"materialCost\": { \"value\": 8.75, \"unit\": \"USD\", \"confidence\": 0.99, \"sourceReference\": \"cell B5\" },\n    \"processCost\": { \"value\": 4.10, \"unit\": \"USD\", \"confidence\": 0.95, \"sourceReference\": \"cell B6\" },\n    \"partTargetPrice\": { \"value\": 15.00, \"unit\": \"USD\", \"confidence\": 0.98, \"sourceReference\": \"table row 3\" }\n  },\n  \"PART-NUMBER-456\": {\n     \"materialCost\": { \"value\": 2.15, \"unit\": \"USD\", \"confidence\": 0.99, \"sourceReference\": \"cell C5\" }\n  },\n  \"_global\": {\n    \"toolingInvestment\": { \"value\": 65000, \"unit\": \"EUR\", \"confidence\": 1.0, \"sourceReference\": \"Tooling section\" },\n    \"amortizationIncluded\": { \"value\": false, \"confidence\": 0.92, \"sourceReference\": \"Notes section, paragraph 2\" },\n    \"leadTimeSOP\": { \"value\": \"16 weeks\", \"confidence\": 0.95, \"sourceReference\": \"page 2, paragraph 4\" },\n    \"incoterms\": { \"value\": \"FOB Hamburg\", \"confidence\": 0.99, \"sourceReference\": \"Logistics table\" },\n    \"ecovadisScore\": { \"value\": 78, \"confidence\": 0.88, \"sourceReference\": \"ESG report summary\" }\n  }\n}\n```\n\n**JSON_OUTPUT:**\n```json\n"
+    },
+  {
+      "id": "optiroq-ui-payload-generation",
+      "name": "Optiroq - UI Payload Generation",
+      "description": "Generates a UI descriptor array by filtering a master list against available data.",
+      "createdAt": "2026-01-24T22:00:00.000Z",
+      "updatedAt": "2026-01-26T11:00:00.000Z",
+      "version": 1,
+      "isPublished": true,
+      "tags": [
+        "optiroq",
+        "supplier",
+        "ui-gen"
+      ],
+      "content": "You are a UI generation engine. Your task is to generate a `FieldDescriptor[]` JSON array for a user interface. You will create this array by filtering the `Master Field List` to include ONLY the fields that are present in the `Normalized Quote Data`.\n\n**INPUTS:**\n\n1.  **Master Field List (Source of UI properties):**\n    ```json\n    {{masterFieldList}}\n    ```\n\n2.  **Normalized Quote Data (Source of which fields to include):**\n    ```json\n    {{normalizedData}}\n    ```\n\n**INSTRUCTIONS:**\n\n1.  **Iterate through Data:** Look at every key present in the `normalizedData` object and its nested objects (like `_global` or part-specific objects).\n2.  **Find Matching Master Field:** For each key, find the corresponding object in the `masterFieldList` where `key` matches.\n3.  **Construct Descriptor:** If a match is found, create a `FieldDescriptor` object. Populate it using the properties from the matched `masterFieldList` object.\n4.  **Do Not Include System Fields:** Exclude any internal system fields (e.g., fields starting with `_`, `PK`, `SK`, `entityType`).\n5.  **Format the Output:** Your entire response must be ONLY a single, valid JSON array of `FieldDescriptor` objects, sorted by `group` then `displayOrder`.\n\n**CRITICAL JSON OUTPUT FORMAT (`FieldDescriptor[]`):**\nYour entire response must be ONLY a valid JSON array. Do not include any explanatory text or markdown formatting.\n\n```json\n[\n  {\n    \"key\": \"projectName\",\n    \"displayName\": \"Project Name\",\n    \"fieldType\": \"string\",\n    \"group\": \"Project Identity\",\n    \"displayOrder\": 10\n  },\n  {\n    \"key\": \"materialCost\",\n    \"displayName\": \"Material Cost\",\n    \"fieldType\": \"currency\",\n    \"group\": \"Core Costing\",\n    \"displayOrder\": 10\n  }\n]\n```\n\n**JSON_OUTPUT:**\n```json\n"
+    }]
+}

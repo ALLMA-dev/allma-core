@@ -1,0 +1,22 @@
+{
+    "New Project - Upload BOM": "Nouveau Projet - Télécharger BOM",
+    "Select File": "Choisir Fichier",
+    "Choose your BOM file": "Choisissez votre fichier BOM",
+    "Upload & Process": "Télécharger & Traiter",
+    "Confirm and start the workflow": "Confirmez et lancez le processus",
+    "Review": "Vérifier",
+    "Confirm extracted data": "Confirmez les données extraites",
+    "Drag your Excel file here or click to select": "Glissez votre fichier Excel ici ou cliquez pour sélectionner",
+    "Attach one .xls, .xlsx ou .xlsm file, up to 10MB": "Joindre un fichier .xls, .xlsx ou .xlsm, jusqu'à 10Mo",
+    "Selected file: {{fileName}}": "Fichier sélectionné : {{fileName}}",
+    "Ready to upload: {{fileName}}": "Prêt à télécharger : {{fileName}}",
+    "Upload and Process File": "Télécharger et Traiter le Fichier",
+    "Back": "Retour",
+    "Upload Failed": "Échec du Téléchargement",
+    "Processing Started": "Traitement Démarré",
+    "Your BOM file is being processed for project {{projectId}}. You will be notified upon completion.": "Votre fichier BOM est en cours de traitement pour le projet {{projectId}}. Vous serez averti à la fin.",
+    "Starting analysis...": "Démarrage de l'analyse...",
+    "File processing started. Redirecting...": "Le traitement du fichier a commencé. Redirection...",
+    "reviewInstructions": "Une fois le traitement terminé, vous pourrez examiner les données extraites ici.",
+    "stepperCompleted": "Terminé, cliquez sur le bouton de retour pour revenir à l'étape précédente"
+}

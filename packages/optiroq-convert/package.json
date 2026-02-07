@@ -1,0 +1,27 @@
+{
+  "name": "@optiroq/convert",
+  "version": "1.0.0",
+  "description": "Shared conversion utility for units and currencies in the Optiroq project.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "lint": "eslint ."
+  },
+  "author": "@webjema",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@optiroq/types": "1.0.1",
+    "convert-units": "^2.3.4"
+  },
+  "devDependencies": {
+    "@types/convert-units": "^2.3.9",
+    "typescript": "^5.9.3",
+    "eslint": "^9.8.0",
+    "typescript-eslint": "^8.0.0"
+  }
+}

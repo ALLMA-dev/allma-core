@@ -1,0 +1,22 @@
+{
+    "New Project - Upload BOM": "New Project - Upload BOM",
+    "Select File": "Select File",
+    "Choose your BOM file": "Choose your BOM file",
+    "Upload & Process": "Upload & Process",
+    "Confirm and start the workflow": "Confirm and start the workflow",
+    "Review": "Review",
+    "Confirm extracted data": "Confirm extracted data",
+    "Drag your Excel file here or click to select": "Drag your Excel file here or click to select",
+    "Attach one .xls, .xlsx or .xlsm file, up to 10MB": "Attach one .xls, .xlsx or .xlsm file, up to 10MB",
+    "Selected file: {{fileName}}": "Selected file: {{fileName}}",
+    "Ready to upload: {{fileName}}": "Ready to upload: {{fileName}}",
+    "Upload and Process File": "Upload and Process File",
+    "Back": "Back",
+    "Upload Failed": "Upload Failed",
+    "Processing Started": "Processing Started",
+    "Your BOM file is being processed. You can now see the project in your dashboard.": "Your BOM file is being processed. You can now see the project in your dashboard.",
+    "Starting analysis...": "Starting analysis...",
+    "File processing started. Redirecting...": "File processing started. Redirecting...",
+    "reviewInstructions": "Once processing is complete, you will be able to review the extracted data here.",
+    "stepperCompleted": "Completed, click back button to get to previous step"
+}

@@ -1,0 +1,232 @@
+[
+    {
+        "key": "supplierName",
+        "group": "Supplier",
+        "subgroup": "Identity",
+        "displayName": "Supplier Name",
+        "fieldType": "string",
+        "priority": "MUST_HAVE",
+        "display_order": 10,
+        "llm_description": "The legal name of the supplier company."
+    },
+    {
+        "key": "titanNo",
+        "group": "Supplier",
+        "subgroup": "Identity",
+        "displayName": "TITAN No.",
+        "fieldType": "string",
+        "priority": "RECOMMENDED",
+        "display_order": 15,
+        "llm_description": "The internal TITAN quoting number assigned to this supplier."
+    },
+    {
+        "key": "commodityIds",
+        "group": "Supplier",
+        "subgroup": "Capabilities",
+        "displayName": "Commodities",
+        "fieldType": "string[]",
+        "priority": "MUST_HAVE",
+        "display_order": 20,
+        "llm_description": "A comma-separated list of commodity IDs that the supplier provides (e.g., 'STEEL_HRC,ALUMINUM')."
+    },
+    {
+        "key": "responsible",
+        "group": "Supplier",
+        "subgroup": "Identity",
+        "displayName": "Responsible",
+        "fieldType": "string",
+        "priority": "OPTIONAL",
+        "display_order": 25,
+        "llm_description": "The internal person responsible for managing this supplier relationship."
+    },
+    {
+        "key": "supplierLocation",
+        "group": "Supplier",
+        "subgroup": "Location",
+        "displayName": "Supplier Location",
+        "fieldType": "string",
+        "priority": "OPTIONAL",
+        "display_order": 30,
+        "llm_description": "The primary physical location or country of the supplier."
+    },
+    {
+        "key": "tenRegion",
+        "group": "Supplier",
+        "subgroup": "Location",
+        "displayName": "TEN Region",
+        "fieldType": "string",
+        "priority": "OPTIONAL",
+        "display_order": 35,
+        "llm_description": "The TEN region classification for the supplier."
+    },
+    {
+        "key": "relationshipStatus",
+        "group": "Supplier",
+        "subgroup": "Status",
+        "displayName": "Relationship Status",
+        "fieldType": "string",
+        "priority": "RECOMMENDED",
+        "display_order": 40,
+        "llm_description": "The global relationship status (e.g., Active, Benchmark, Phase Out)."
+    },
+    {
+        "key": "classification",
+        "group": "Supplier",
+        "subgroup": "Status",
+        "displayName": "Classification",
+        "fieldType": "string",
+        "priority": "OPTIONAL",
+        "display_order": 45,
+        "llm_description": "The classification tier of the supplier."
+    },
+    {
+        "key": "bccHcc",
+        "group": "Supplier",
+        "subgroup": "Identity",
+        "displayName": "BCC/HCC",
+        "fieldType": "string",
+        "priority": "OPTIONAL",
+        "display_order": 50,
+        "llm_description": "The BCC/HCC classification for the supplier."
+    },
+    {
+        "key": "products",
+        "group": "Supplier",
+        "subgroup": "Capabilities",
+        "displayName": "Products",
+        "fieldType": "string",
+        "priority": "OPTIONAL",
+        "display_order": 55,
+        "llm_description": "A description of the product types the supplier manufactures or provides."
+    },
+    {
+        "key": "materials",
+        "group": "Supplier",
+        "subgroup": "Capabilities",
+        "displayName": "Materials",
+        "fieldType": "string",
+        "priority": "OPTIONAL",
+        "display_order": 57,
+        "llm_description": "The materials the supplier is capable of working with."
+    },
+    {
+        "key": "protoCapability",
+        "group": "Supplier",
+        "subgroup": "Capabilities",
+        "displayName": "Proto Capability",
+        "fieldType": "string",
+        "priority": "OPTIONAL",
+        "display_order": 60,
+        "llm_description": "A description of the supplier's prototyping capabilities."
+    },
+    {
+        "key": "testingCapability",
+        "group": "Supplier",
+        "subgroup": "Capabilities",
+        "displayName": "Testing Capability",
+        "fieldType": "string",
+        "priority": "OPTIONAL",
+        "display_order": 70,
+        "llm_description": "A description of the supplier's in-house testing capabilities."
+    },
+    {
+        "key": "developmentCapabilities",
+        "group": "Supplier",
+        "subgroup": "Capabilities",
+        "displayName": "Development Capabilities",
+        "fieldType": "string",
+        "priority": "OPTIONAL",
+        "display_order": 75,
+        "llm_description": "A description of the supplier's development and engineering capabilities."
+    },
+    {
+        "key": "contactName",
+        "group": "Supplier",
+        "subgroup": "Contact",
+        "displayName": "Contact Person",
+        "fieldType": "string",
+        "priority": "RECOMMENDED",
+        "display_order": 80,
+        "llm_description": "The name of the primary contact person at the supplier."
+    },
+    {
+        "key": "contactEmail",
+        "group": "Supplier",
+        "subgroup": "Contact",
+        "displayName": "E-Mail",
+        "fieldType": "string",
+        "priority": "RECOMMENDED",
+        "display_order": 90,
+        "llm_description": "The email address of the primary contact."
+    },
+    {
+        "key": "contactPhone",
+        "group": "Supplier",
+        "subgroup": "Contact",
+        "displayName": "Phone #",
+        "fieldType": "string",
+        "priority": "OPTIONAL",
+        "display_order": 100,
+        "llm_description": "The main office phone number for the contact."
+    },
+    {
+        "key": "contactMobile",
+        "group": "Supplier",
+        "subgroup": "Contact",
+        "displayName": "Mobile #",
+        "fieldType": "string",
+        "priority": "OPTIONAL",
+        "display_order": 110,
+        "llm_description": "The mobile phone number for the contact."
+    },
+    {
+        "key": "contactFax",
+        "group": "Supplier",
+        "subgroup": "Contact",
+        "displayName": "Fax #",
+        "fieldType": "string",
+        "priority": "OPTIONAL",
+        "display_order": 115,
+        "llm_description": "The fax number for the contact."
+    },
+    {
+        "key": "website",
+        "group": "Supplier",
+        "subgroup": "Contact",
+        "displayName": "Website",
+        "fieldType": "string",
+        "priority": "OPTIONAL",
+        "display_order": 120,
+        "llm_description": "The supplier's website URL."
+    },
+    {
+        "key": "assessmentScore",
+        "group": "Supplier",
+        "subgroup": "Assessment",
+        "displayName": "Assessment Score",
+        "fieldType": "number",
+        "priority": "OPTIONAL",
+        "display_order": 130,
+        "llm_description": "The supplier's most recent assessment score."
+    },
+    {
+        "key": "assessmentDate",
+        "group": "Supplier",
+        "subgroup": "Assessment",
+        "displayName": "Assessment Date",
+        "fieldType": "date",
+        "priority": "OPTIONAL",
+        "display_order": 135,
+        "llm_description": "The date of the supplier's most recent assessment."
+    },
+    {
+        "key": "comments",
+        "group": "Supplier",
+        "subgroup": "Notes",
+        "displayName": "Comments / Remarks",
+        "fieldType": "text",
+        "priority": "OPTIONAL",
+        "display_order": 200,
+        "llm_description": "General comments or remarks about this supplier."
+    }
+]

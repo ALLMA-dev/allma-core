@@ -1,0 +1,19 @@
+{
+    "pageTitle": "Import Suppliers",
+    "selectFile": "Select File",
+    "chooseFile": "Choose your supplier list",
+    "uploadAndProcess": "Upload & Process",
+    "confirmAndStart": "Confirm and start import",
+    "stepperCompleted": "Import process initiated.",
+    "dragFile": "Drag your Excel file here or click to select",
+    "attachFile": "Attach one .xls, .xlsx or .xlsm file, up to 10MB",
+    "selectedFile": "Selected file: {{fileName}}",
+    "readyToUpload": "Ready to upload: {{fileName}}",
+    "uploadAndProcessFile": "Upload and Process File",
+    "fileRejected": "File rejected. Please ensure it is a supported Excel format and under 10MB.",
+    "uploadFailed": "Upload Failed",
+    "processingStarted": "Processing Started",
+    "processingMessage": "Your supplier list is being processed. You will be notified upon completion.",
+    "startingAnalysis": "Starting analysis...",
+    "processingStartedMessage": "File processing started. You can now navigate away from this page."
+}

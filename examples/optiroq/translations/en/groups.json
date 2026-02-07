@@ -1,0 +1,18 @@
+{
+  "Project": "Project",
+  "BOM": "Parts List",
+  "Project Identity": "Project Identity",
+  "Project Management": "Project Management",
+  "Part Identity": "Part Identity",
+  "Core Costing": "Core Costing",
+  "Tooling Details": "Tooling Details",
+  "Lead Times": "Lead Times",
+  "Logistics": "Logistics",
+  "Quality & ESG": "Quality & ESG",
+  "Comments & Notes": "Comments & Notes",
+  "Project Defaults": "Project Defaults",
+  "Default Currency": "Default Currency",
+  "Default Weight Unit": "Default Weight Unit",
+  "Default currency for the project (e.g., EUR, USD).": "Default currency for the project (e.g., EUR, USD).",
+  "Default weight unit for the project (e.g., kg, g, lb).": "Default weight unit for the project (e.g., kg, g, lb)."
+}

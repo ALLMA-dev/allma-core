@@ -1,0 +1,273 @@
+{
+  "formatVersion": "1.0",
+  "exportedAt": "2026-01-27T10:00:00.000Z",
+  "flows": [
+    {
+      "id": "optiroq-process-incoming-email",
+      "name": "Optiroq - Process Incoming Email Router",
+      "description": "The main entry point for all incoming emails. Correlates, logs, and routes emails to the correct processing flow.",
+      "version": 1,
+      "isPublished": true,
+      "createdAt": "2026-01-27T10:00:00.000Z",
+      "updatedAt": "2026-01-27T10:00:00.000Z",
+      "startStepInstanceId": "email_trigger",
+      "enableExecutionLogs": true,
+      "flowVariables": {
+        "ParseAndCorrelateEmailLambdaArn": "arn:aws:lambda:{{region}}:{{accountId}}:function:optiroq-parseandcorrelateemail-{{stage}}",
+        "ProcessQuoteFlowId": "optiroq-process-supplier-quote",
+        "ProcessResponseFlowId": "optiroq-process-supplier-response",
+        "HumanReviewFlowId": "optiroq-notify-human-review"
+      },
+      "steps": {
+        "email_trigger": {
+          "stepInstanceId": "email_trigger",
+          "displayName": "On Any RFQ Agent Email",
+          "stepType": "EMAIL_START_POINT",
+          "emailAddress": "agent-rfq@mail-beta.optiroq.com",
+          "defaultNextStepInstanceId": "parse_and_correlate"
+        },
+        "parse_and_correlate": {
+          "stepInstanceId": "parse_and_correlate",
+          "displayName": "1. Parse, Correlate & Log Email",
+          "stepType": "CUSTOM_LAMBDA_INVOKE",
+          "lambdaFunctionArnTemplate": "{{flow_variables.ParseAndCorrelateEmailLambdaArn}}",
+          "inputMappings": {
+            "triggeringEmail": "$.triggeringEmail",
+            "correlationId": "$.flowExecutionId"
+          },
+          "outputMappings": {
+            "$.steps_output.routing": "$."
+          },
+          "defaultNextStepInstanceId": "route_by_intent"
+        },
+        "route_by_intent": {
+          "stepInstanceId": "route_by_intent",
+          "displayName": "2. Route by Intent",
+          "stepType": "NO_OP",
+          "transitions": [
+            {
+              "condition": "$.steps_output.routing.intent == 'QUOTE_SUBMISSION'",
+              "nextStepInstanceId": "trigger_quote_processing"
+            },
+            {
+              "condition": "$.steps_output.routing.intent == 'GENERAL_REPLY'",
+              "nextStepInstanceId": "trigger_response_processing"
+            }
+          ],
+          "defaultNextStepInstanceId": "trigger_human_review"
+        },
+        "trigger_quote_processing": {
+          "stepInstanceId": "trigger_quote_processing",
+          "displayName": "Trigger Quote Processing",
+          "stepType": "START_FLOW_EXECUTION",
+          "moduleIdentifier": "system/start-flow-execution",
+          "literals": {
+            "flowDefinitionId": "{{flow_variables.ProcessQuoteFlowId}}"
+          },
+          "inputMappings": {
+            "initialContextData": "$.steps_output.routing"
+          },
+          "defaultNextStepInstanceId": "end_flow"
+        },
+        "trigger_response_processing": {
+          "stepInstanceId": "trigger_response_processing",
+          "displayName": "Trigger Response Processing",
+          "stepType": "START_FLOW_EXECUTION",
+          "moduleIdentifier": "system/start-flow-execution",
+          "literals": {
+            "flowDefinitionId": "{{flow_variables.ProcessResponseFlowId}}"
+          },
+          "inputMappings": {
+            "initialContextData": "$.steps_output.routing"
+          },
+          "defaultNextStepInstanceId": "end_flow"
+        },
+        "trigger_human_review": {
+          "stepInstanceId": "trigger_human_review",
+          "displayName": "Trigger Human Review",
+          "stepType": "START_FLOW_EXECUTION",
+          "moduleIdentifier": "system/start-flow-execution",
+          "literals": {
+            "flowDefinitionId": "{{flow_variables.HumanReviewFlowId}}"
+          },
+          "inputMappings": {
+            "initialContextData": "$.steps_output.routing"
+          },
+          "defaultNextStepInstanceId": "end_flow"
+        },
+        "end_flow": {
+          "stepInstanceId": "end_flow",
+          "stepType": "END_FLOW"
+        }
+      }
+    },
+    {
+      "id": "optiroq-process-supplier-response",
+      "name": "Optiroq - Process Supplier Response",
+      "description": "Handles non-quote replies by logging them as a comment and notifying the buyer.",
+      "version": 1,
+      "isPublished": true,
+      "createdAt": "2026-01-27T10:00:00.000Z",
+      "updatedAt": "2026-01-27T10:00:00.000Z",
+      "startStepInstanceId": "save_as_comment",
+      "enableExecutionLogs": true,
+      "flowVariables": {
+        "EntityGraphTableName": "OptiroqEntityGraph-{{stage}}",
+        "FromEmail": "notifications@optiroq.com"
+      },
+      "steps": {
+        "save_as_comment": {
+          "stepInstanceId": "save_as_comment",
+          "displayName": "1. Save Email as Comment",
+          "stepType": "DATA_SAVE",
+          "moduleIdentifier": "system/dynamodb-update-item",
+          "customConfig": {
+            "tableName": "{{flow_variables.EntityGraphTableName}}",
+            "key": {
+              "PK": "RFQ#{{initialContextData.rfqId}}",
+              "SK": "COMMENT#{{_internal.currentStepStartTime}}"
+            },
+            "updateExpression": "SET entityType = :type, commentSource = :source, supplierId = :supplierId, commentText = :text, createdAt = :now",
+            "expressionAttributeValues": {
+              ":type": "COMMENT",
+              ":source": "email",
+              ":supplierId": "{{initialContextData.supplierName}}",
+              ":text": "Subject: {{initialContextData.emailSubject}}\n\n{{initialContextData.emailBody}}",
+              ":now": "{{_internal.currentStepStartTime}}"
+            }
+          },
+          "defaultNextStepInstanceId": "notify_buyer"
+        },
+        "notify_buyer": {
+          "stepInstanceId": "notify_buyer",
+          "displayName": "2. Notify Buyer of Reply",
+          "stepType": "EMAIL",
+          "from": "{{flow_variables.FromEmail}}",
+          "to": "{{initialContextData.buyerEmail}}",
+          "subject": "New Reply from {{initialContextData.supplierName}} for RFQ {{initialContextData.rfqId}}",
+          "body": "A new email has been received from {{initialContextData.supplierName}} regarding RFQ {{initialContextData.rfqId}}. It has been logged as a comment in the Optiroq portal. \n\nSubject: {{initialContextData.emailSubject}}",
+          "defaultNextStepInstanceId": "end_flow"
+        },
+        "end_flow": {
+          "stepInstanceId": "end_flow",
+          "stepType": "END_FLOW"
+        }
+      }
+    },
+    {
+      "id": "optiroq-send-buyer-email",
+      "name": "Optiroq - Send Buyer Email",
+      "description": "Sends an email from a buyer to a supplier, ensuring it is tracked and correlated.",
+      "version": 1,
+      "isPublished": true,
+      "createdAt": "2026-01-27T10:00:00.000Z",
+      "updatedAt": "2026-01-27T10:00:00.000Z",
+      "startStepInstanceId": "generate_attachment_links",
+      "enableExecutionLogs": true,
+      "flowVariables": {
+        "EntityGraphTableName": "OptiroqEntityGraph-{{stage}}",
+        "FromEmail": "rfq-agent@mail-beta.optiroq.com",
+        "GenerateAttachmentLinksLambdaArn": "arn:aws:lambda:{{region}}:{{accountId}}:function:optiroq-generateattachmentlinks-{{stage}}"
+      },
+      "steps": {
+        "generate_attachment_links": {
+          "stepInstanceId": "generate_attachment_links",
+          "displayName": "1. Generate Attachment Links",
+          "stepType": "CUSTOM_LAMBDA_INVOKE",
+          "lambdaFunctionArnTemplate": "{{flow_variables.GenerateAttachmentLinksLambdaArn}}",
+          "inputMappings": {
+            "attachments": "$.initialContextData.attachments",
+            "correlationId": "$.flowExecutionId"
+          },
+          "outputMappings": {
+            "$.steps_output.attachment_links": "$."
+          },
+          "defaultNextStepInstanceId": "send_email"
+        },
+        "send_email": {
+          "stepInstanceId": "send_email",
+          "displayName": "2. Send Email to Supplier",
+          "stepType": "EMAIL",
+          "from": "{{flow_variables.FromEmail}}",
+          "replyTo": [
+            "{{flow_variables.FromEmail}}"
+          ],
+          "to": "{{initialContextData.supplier.email}}",
+          "cc": [
+            "{{initialContextData.buyerEmail}}"
+          ],
+          "subject": "[RFQ#{{initialContextData.rfqId}}] {{initialContextData.subject}}",
+          "body": "{{initialContextData.body}}\n\n---\n\nAttachments:\n{{steps_output.attachment_links.linksText}}",
+          "defaultNextStepInstanceId": "log_outbound_event"
+        },
+        "log_outbound_event": {
+          "stepInstanceId": "log_outbound_event",
+          "displayName": "3. Log Outbound Communication",
+          "stepType": "DATA_SAVE",
+          "moduleIdentifier": "system/dynamodb-update-item",
+          "customConfig": {
+            "tableName": "{{flow_variables.EntityGraphTableName}}",
+            "key": {
+              "PK": "RFQ#{{initialContextData.rfqId}}",
+              "SK": "COMM#{{_internal.currentStepStartTime}}#SUPPLIER#{{initialContextData.supplier.supplierId}}"
+            },
+            "updateExpression": "SET entityType = :type, direction = :dir, eventType = :eType, supplierId = :sId, details = :details, createdAt = :now",
+            "expressionAttributeValues": {
+              ":type": "COMMUNICATION_EVENT",
+              ":dir": "outbound",
+              ":eType": "BUYER_QUESTION",
+              ":sId": "{{initialContextData.supplier.supplierId}}",
+              ":details": {
+                "from": "{{flow_variables.FromEmail}}",
+                "to": [
+                  "{{initialContextData.supplier.email}}"
+                ],
+                "cc": [
+                  "{{initialContextData.buyerEmail}}"
+                ],
+                "subject": "[RFQ#{{initialContextData.rfqId}}] {{initialContextData.subject}}"
+              },
+              ":now": "{{_internal.currentStepStartTime}}"
+            }
+          },
+          "defaultNextStepInstanceId": "end_flow"
+        },
+        "end_flow": {
+          "stepInstanceId": "end_flow",
+          "stepType": "END_FLOW"
+        }
+      }
+    },
+    {
+      "id": "optiroq-notify-human-review",
+      "name": "Optiroq - Notify Human Review Required",
+      "description": "Notifies a user that an incoming email could not be automatically correlated and requires manual review.",
+      "version": 1,
+      "isPublished": true,
+      "createdAt": "2026-01-27T10:00:00.000Z",
+      "updatedAt": "2026-01-27T10:00:00.000Z",
+      "startStepInstanceId": "send_notification",
+      "enableExecutionLogs": true,
+      "flowVariables": {
+        "FromEmail": "notifications@optiroq.com",
+        "ReviewerEmail": "admin@optiroq.com"
+      },
+      "steps": {
+        "send_notification": {
+          "stepInstanceId": "send_notification",
+          "stepType": "EMAIL",
+          "displayName": "Notify Admin for Review",
+          "from": "{{flow_variables.FromEmail}}",
+          "to": "{{flow_variables.ReviewerEmail}}",
+          "subject": "[ACTION REQUIRED] Uncorrelated email received",
+          "body": "An email was received that could not be automatically correlated to an RFQ. Please review it manually in the system.\n\nFrom: {{initialContextData.triggeringEmail.from}}\nSubject: {{initialContextData.triggeringEmail.subject}}\nError: {{initialContextData.error}}",
+          "defaultNextStepInstanceId": "end_flow"
+        },
+        "end_flow": {
+          "stepInstanceId": "end_flow",
+          "stepType": "END_FLOW"
+        }
+      }
+    }
+  ]
+}

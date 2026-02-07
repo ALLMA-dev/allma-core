@@ -1,0 +1,60 @@
+# Node dependencies
+node_modules/
+**/node_modules/
+models/model-artifacts/
+models/work/bge-large-en-v1.5/
+
+# Build output
+dist/
+dist-logic/
+build/
+cdk.out/
+*.tsbuildinfo
+**/*.tsbuildinfo
+coverage/
+temp/
+tmp/
+
+
+# Optional: Ignore local .env files (React, CDK, etc.)
+.env
+.env.*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDEs and editors
+# .vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Optional: ignore lockfiles (if using only one kind consistently)
+# Uncomment the one(s) not used
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+
+# React specific (if using CRA)
+*.log
+build/
+
+# AWS CDK
+cdk.out/
+.context.json
+
+# Monorepo tooling (e.g., Nx, TurboRepo)
+.nx/
+.turbo/
+
+**/examples/*

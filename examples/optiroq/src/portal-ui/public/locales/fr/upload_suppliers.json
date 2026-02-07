@@ -1,0 +1,19 @@
+{
+    "pageTitle": "Importer des Fournisseurs",
+    "selectFile": "Sélectionner un Fichier",
+    "chooseFile": "Choisissez votre liste de fournisseurs",
+    "uploadAndProcess": "Télécharger & Traiter",
+    "confirmAndStart": "Confirmer et lancer l'import",
+    "stepperCompleted": "Processus d'importation initié.",
+    "dragFile": "Glissez votre fichier Excel ici ou cliquez pour sélectionner",
+    "attachFile": "Joindre un fichier .xls, .xlsx ou .xlsm, jusqu'à 10Mo",
+    "selectedFile": "Fichier sélectionné : {{fileName}}",
+    "readyToUpload": "Prêt à télécharger : {{fileName}}",
+    "uploadAndProcessFile": "Télécharger et Traiter le Fichier",
+    "fileRejected": "Fichier rejeté. Veuillez vous assurer qu'il s'agit d'un format Excel pris en charge et de moins de 10 Mo.",
+    "uploadFailed": "Échec du Téléchargement",
+    "processingStarted": "Traitement Démarré",
+    "processingMessage": "Votre liste de fournisseurs est en cours de traitement. Vous serez averti à la fin.",
+    "startingAnalysis": "Démarrage de l'analyse...",
+    "processingStartedMessage": "Le traitement du fichier a commencé. Vous pouvez maintenant quitter cette page."
+}

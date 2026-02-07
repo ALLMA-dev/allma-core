@@ -1,0 +1,160 @@
+{
+  "masterFields": {
+    "projectName": {
+      "label": "Nom du Projet",
+      "description": "Le nom principal de ce projet."
+    },
+    "projectDescription": {
+      "label": "Description du Projet",
+      "description": "Une courte description du projet."
+    },
+    "customerName": {
+      "label": "Nom du Client",
+      "description": "Le client pour lequel ce projet est destiné."
+    },
+    "platformName": {
+      "label": "Nom de la Plateforme",
+      "description": "La plateforme de produit, le cas échéant."
+    },
+    "sopDate": {
+      "label": "Date de début de production",
+      "description": "La date prévue pour le début de la production."
+    },
+    "deadlineDate": {
+      "label": "Date Limite",
+      "description": "La date limite pour les réponses à l'appel d'offres."
+    },
+    "commodity": {
+      "label": "Matière Première",
+      "description": "La principale matière première recherchée."
+    },
+    "targetCost": {
+      "label": "Coût Cible (Budget)",
+      "description": "Le coût cible total ou le budget pour le projet."
+    },
+    "partName": {
+      "label": "Nom de la Pièce",
+      "description": "Le nom ou numéro unique de la pièce."
+    },
+    "partDescription": {
+      "label": "Description de la Pièce",
+      "description": "Une courte description de la pièce."
+    },
+    "quantity": {
+      "label": "Quantité Annuelle",
+      "description": "La quantité annuelle estimée nécessaire."
+    },
+    "material": {
+      "label": "Matériau",
+      "description": "Le matériau principal de la pièce."
+    },
+    "partTargetPrice": {
+      "label": "Prix Cible de la Pièce",
+      "description": "Le prix cible par pièce individuelle."
+    },
+    "targetWeight": {
+      "label": "Poids Cible",
+      "description": "Le poids cible pour une pièce."
+    },
+    "materialCost": {
+      "label": "Coût du Matériau",
+      "description": "Coût des matières premières par pièce."
+    },
+    "processCost": {
+      "label": "Coût du Processus",
+      "description": "Coût des processus de fabrication par pièce."
+    },
+    "toolingInvestment": {
+      "label": "Investissement Outillage",
+      "description": "Investissement total pour l'outillage spécifique à la pièce."
+    },
+    "amortizationIncluded": {
+      "label": "Amortissement inclus dans le prix",
+      "description": "L'amortissement de l'outillage est-il inclus dans le prix pièce ?"
+    },
+    "amortizationAmount": {
+      "label": "Montant de l'Amortissement Intégré",
+      "description": "Le montant du coût de l'outillage ajouté à chaque prix pièce."
+    },
+    "amortizationPeriod": {
+      "label": "Période d'Amortissement",
+      "description": "Nombre d'unités pour l'amortissement de l'outillage."
+    },
+    "maintenanceCost": {
+      "label": "Coût de Maintenance de l'Outillage",
+      "description": "Coût de maintenance continu pour l'outillage."
+    },
+    "leadTimeSampleA": {
+      "label": "Délai : Échantillon A",
+      "description": "Temps pour livrer les premières pièces 'Échantillon A'."
+    },
+    "leadTimePPAP": {
+      "label": "Délai : PPAP",
+      "description": "Temps pour compléter la soumission PPAP."
+    },
+    "leadTimeSOP": {
+      "label": "Délai : Début de Production",
+      "description": "Temps jusqu'à être prêt pour le début de la production."
+    },
+    "leadTimeSampleBCD": {
+      "label": "Délai : Échantillon B/C/D",
+      "description": "Temps pour les lots d'échantillons suivants (B/C/D)."
+    },
+    "leadTimePrototype": {
+      "label": "Délai : Prototype",
+      "description": "Temps pour livrer les pièces prototypes."
+    },
+    "leadTimeOffToolParts": {
+      "label": "Délai : Pièces Hors-Outil",
+      "description": "Temps pour les pièces issues de l'outillage de production final."
+    },
+    "leadTimeOffToolOrProcess": {
+      "label": "Délai : Hors-Outil ou Processus",
+      "description": "Temps pour les pièces hors-outil ou hors-processus."
+    },
+    "incoterms": {
+      "label": "Incoterms",
+      "description": "Termes commerciaux internationaux (ex: FOB, DDP)."
+    },
+    "deliveryLocation": {
+      "label": "Lieu de Livraison",
+      "description": "L'adresse de livraison finale pour les pièces."
+    },
+    "cartonType": {
+      "label": "Type de Carton",
+      "description": "Le type de carton spécifié pour l'emballage."
+    },
+    "usesEuroPallet": {
+      "label": "Utilise des Palettes Europe",
+      "description": "Des palettes Europe sont-elles requises pour l'expédition ?"
+    },
+    "returnablePackagingRequired": {
+      "label": "Emballage Réutilisable Requis",
+      "description": "L'emballage réutilisable est-il obligatoire ?"
+    },
+    "cleaningRequired": {
+      "label": "Nettoyage Requis",
+      "description": "Les pièces nécessitent-elles un processus de nettoyage ?"
+    },
+    "isoCertifications": {
+      "label": "Certifications ISO",
+      "description": "Liste des certifications ISO requises."
+    },
+    "ecovadisScore": {
+      "label": "Score ECOVADIS",
+      "description": "Score EcoVadis du fournisseur."
+    },
+    "internalEsgScore": {
+      "label": "Score ESG Interne",
+      "description": "Score ESG interne du fournisseur."
+    },
+    "commentText": {
+      "label": "Commentaire",
+      "description": "Commentaires ou notes générales."
+    },
+    "buyerNotes": {
+      "label": "Notes de l'Acheteur",
+      "description": "Notes internes pour l'acheteur."
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+    "pageTitle": "Fournisseurs",
+    "importSuppliers": "Importer des Fournisseurs",
+    "supplierName": "Nom du Fournisseur",
+    "email": "Email",
+    "commodities": "Matières Premières",
+    "previousRfqs": "Appels d'Offres Précédents",
+    "errorLoadingTitle": "Échec du chargement des fournisseurs",
+    "searchPlaceholder": "Rechercher par nom, n° TITAN ou contact...",
+    "emptyMessage": "Aucun fournisseur trouvé. Importez des fournisseurs pour commencer.",
+    "filterByCommodity": "Filtrer par matière première",
+    "statusAll": "Tous",
+    "statusActive": "Actifs",
+    "statusArchived": "Archivés",
+    "viewSupplier": "Voir les détails du fournisseur",
+    "archiveSupplier": "Archiver le fournisseur",
+    "unarchiveSupplier": "Restaurer le fournisseur",
+    "newSupplier": "Nouveau Fournisseur"
+}

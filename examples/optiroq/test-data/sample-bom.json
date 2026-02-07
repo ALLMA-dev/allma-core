@@ -1,0 +1,2170 @@
+{
+  "workbookSummaryForLlm": "Workbook: mock-key.xlsx\n\n--- SHEET: BOM-DOOR ---\nRow 1: BOM - DOOR\nRow 2: LEVEL | PART NAME | IMAGE | MATERIAL | THK | QTY | WEIGHT (g) | TOTAL WEIGHT (g)\nRow 3: 1 | ASSY., DOOR | - | - | - | - | -\nRow 4: 2 | PANEL , OUTER | MJAC340H-OC-45/45 | 0.6 | 1 | 4840.492469047201 | 4840.492469047201\nRow 5: 2 | ASSY., INNER | - | - | - | - | -\nRow 6: 3 | PANEL, INNER | MJAC270D-OC-45/45 | 0.65 | 1 | 5411.813358478801 | 5411.813358478801\nRow 7: 3 | REINFORCEMENT HINGE UPR | MJAC270D-OC-45/45 | 1 | 1 | 296.37620648999996 | 296.37620648999996\nRow 8: 3 | REINFORCEMENT HINGE LWR | MJAC270D-OC-45/45 | 1 | 1 | 125.561532642 | 125.561532642\nRow 9: 3 | REINFORCEMENT LATCH | MJAC270C-OC-45/45 | 1 | 1 | 92.393506926 | 92.393506926\nRow 10: 3 | STIFFNER 1 | MJAC270D-OC-45/45 | 0.65 | 1 | 530.9005870077001 | 530.9005870077001\nRow 11: 3 | STIFFNER 2 | MJAC270D-OC-45/45 | 0.65 | 1 | 550.6708919712 | 550.6708919712\nRow 12: 3 | REINFORCEMENT BELTLINE | MJSC270D-OC-45/45 | 1.2 | 1 | 1504.7345236896 | 1504.7345236896\nRow 13: 3 | REINFORCEMENT SILL | MJSC270D-OC-45/45 | 1.2 | 1 | 625.5027466632 | 625.5027466632\nRow 14: 3 | ASSY, SASH FR FR | - | - | - | - | -\nRow 15: 4 | SASH FR FR | MJSC270D-OC | 0.8 | 1 | 256.6409472 | 256.6409472\nRow 16: 4 | BRACKET 01 | MJAC270D-OC-45/45 | 1 | 1 | 34.81010862 | 34.81010862\nRow 17: 4 | BRACKET 02 | MJAC270D-OC-45/45 | 1 | 1 | 24.417567888 | 24.417567888\nRow 18: 3 | ASSY, SASH FR RR | - | - | - | - | -\nRow 19: 4 | SASH FR RR | MJSC270D-OC | 0.8 | 1 | 180.88249440000004 | 180.88249440000004\nRow 20: 4 | BRACKET 03 | MJAC270D-OC-45/45 | 1 | 1 | 5.472146148 | 5.472146148\nRow 21: 4 | BRACKET 04 | MJAC270D-OC-45/45 | 1 | 1 | 6.108050802 | 6.108050802\nRow 22: 3 | ASSY, SASH FR RR LWR | - | - | - | - | -\nRow 23: 4 | SASH FR RR LWR | MJSC270D-OC | 0.8 | 1 | 189.910176 | 189.910176\nRow 24: 4 | BRACKET 05\n  + M6 WELD NUT\n  + M6 BOLT | MJAC270D-OC-45/45 | 1 | 1 | 16.781735412 | 16.781735412\nRow 25: 4 | BRACKET 06\n  + M6 WELD NUT\n  + M6 BOLT | MJAC270D-OC-45/45 | 1 | 1 | 22.26485805 | 22.26485805\nRow 26: 1 | HINGE UPR | NA | SS | 5 | 1 | 2500 | 2500\nRow 27: 1 | HINGE LWR | NA | SS | 5 | 1 | 2500 | 2500\nRow 28: 1 | LATCH | NA | SS | - | 1 | 500 | 500\nRow 29: TOTAL WEIGHT | 14715.733907435702\nRow 30: This is a only BIW weight (14.7Kg)                                                    Hinge and Latch weight is not counted in Total weight\nRow N/A: \n\n--- SHEET: WEIGHT CHART ---\nRow N/A: \nRow 2: FRONT DOOR AREA\nRow 3: SR. NO. | PART NAME | DENSITY | SURFACE AREA | FACTOR | THK | FACTOR | QTY. | MASS\nRow 4: (g/cm3) | (cm2) | (cm) | (g)\nRow 5: 1 | PANEL , OUTER | 7.86 | 11024.682 | 0.95 | 0.06 | 0.98 | 1 | 4840.492469047201\nRow 6: 2 | PANEL, INNER | 7.86 | 11377.772 | 0.95 | 0.065 | 0.98 | 1 | 5411.813358478801\nRow 7: 3 | REINFORCEMENT HINGE UPR | 7.86 | 405.015 | 0.95 | 0.1 | 0.98 | 1 | 296.37620648999996\nRow 8: 4 | REINFORCEMENT HINGE LWR | 7.86 | 171.587 | 0.95 | 0.1 | 0.98 | 1 | 125.561532642\nRow 9: 5 | REINFORCEMENT LATCH | 7.86 | 126.261 | 0.95 | 0.1 | 0.98 | 1 | 92.393506926\nRow 10: 6 | STIFFNER 1 | 7.86 | 1116.163 | 0.95 | 0.065 | 0.98 | 1 | 530.9005870077001\nRow 11: 7 | STIFFNER 2 | 7.86 | 1157.728 | 0.95 | 0.065 | 0.98 | 1 | 550.6708919712\nRow 12: 8 | REINFORCEMENT BELTLINE | 7.86 | 1713.588 | 0.95 | 0.12 | 0.98 | 1 | 1504.7345236896\nRow 13: 9 | REINFORCEMENT SILL | 7.86 | 712.321 | 0.95 | 0.12 | 0.98 | 1 | 625.5027466632\nRow 14: 10 | SASH FR FR | 7.86 | 408.144 | 1 | 0.08 | 1 | 1 | 256.6409472\nRow 15: 11 | BRACKET 01 | 7.86 | 47.57 | 0.95 | 0.1 | 0.98 | 1 | 34.81010862\nRow 16: 12 | BRACKET 02 | 7.86 | 33.368 | 0.95 | 0.1 | 0.98 | 1 | 24.417567888\nRow 17: 13 | SASH FR RR | 7.86 | 287.663 | 1 | 0.08 | 1 | 1 | 180.88249440000004\nRow 18: 14 | BRACKET 03 | 7.86 | 7.478 | 0.95 | 0.1 | 0.98 | 1 | 5.472146148\nRow 19: 15 | BRACKET 04 | 7.86 | 8.347 | 0.95 | 0.1 | 0.98 | 1 | 6.108050802\nRow 20: 16 | SASH FR RR LWR | 7.86 | 302.02 | 1 | 0.08 | 1 | 1 | 189.910176\nRow 21: 17 | BRACKET 05\n  + M6 WELD NUT\n  + M6 BOLT | 7.86 | 19.182 | 0.95 | 0.1 | 0.98 | 1 | 16.781735412\nRow 22: 18 | BRACKET 06\n  + M6 WELD NUT\n  + M6 BOLT | 7.86 | 26.675 | 0.95 | 0.1 | 0.98 | 1 | 22.26485805\nRow N/A: \nRow 24: NOTE :- ALL SASH CHANNEL ( 10,13,16 ) ARE EXTRUSION PARTS , EXCEPT ALL ARE DRAW PARTS\n\n",
+  "fullWorkbookData": {
+    "workbookName": "mock-key.xlsx",
+    "sheets": [
+      {
+        "sheetName": "BOM-DOOR",
+        "rowCount": 31,
+        "columnCount": 8,
+        "data": [
+          [
+            {
+              "address": "A1",
+              "value": "BOM - DOOR",
+              "type": "string"
+            }
+          ],
+          [
+            {
+              "address": "A2",
+              "value": "LEVEL",
+              "type": "string"
+            },
+            {
+              "address": "B2",
+              "value": "PART NAME",
+              "type": "string"
+            },
+            {
+              "address": "C2",
+              "value": "IMAGE",
+              "type": "string"
+            },
+            {
+              "address": "D2",
+              "value": "MATERIAL",
+              "type": "string"
+            },
+            {
+              "address": "E2",
+              "value": "THK",
+              "type": "string"
+            },
+            {
+              "address": "F2",
+              "value": "QTY",
+              "type": "string"
+            },
+            {
+              "address": "G2",
+              "value": "WEIGHT (g)",
+              "type": "string"
+            },
+            {
+              "address": "H2",
+              "value": "TOTAL WEIGHT (g)",
+              "type": "string"
+            }
+          ],
+          [
+            {
+              "address": "A3",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "B3",
+              "value": "ASSY., DOOR",
+              "type": "string"
+            },
+            {
+              "address": "D3",
+              "value": "-",
+              "type": "string"
+            },
+            {
+              "address": "E3",
+              "value": "-",
+              "type": "string"
+            },
+            {
+              "address": "F3",
+              "value": "-",
+              "type": "string"
+            },
+            {
+              "address": "G3",
+              "value": "-",
+              "type": "string"
+            },
+            {
+              "address": "H3",
+              "value": "-",
+              "type": "string"
+            }
+          ],
+          [
+            {
+              "address": "A4",
+              "value": 2,
+              "type": "number"
+            },
+            {
+              "address": "B4",
+              "value": "PANEL , OUTER",
+              "type": "string"
+            },
+            {
+              "address": "D4",
+              "value": "MJAC340H-OC-45/45",
+              "type": "string"
+            },
+            {
+              "address": "E4",
+              "value": 0.6,
+              "type": "number"
+            },
+            {
+              "address": "F4",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "G4",
+              "value": 4840.492469047201,
+              "formula": "'WEIGHT CHART'!I5",
+              "type": "formula"
+            },
+            {
+              "address": "H4",
+              "value": 4840.492469047201,
+              "formula": "F4*G4",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A5",
+              "value": 2,
+              "type": "number"
+            },
+            {
+              "address": "B5",
+              "value": "ASSY., INNER",
+              "type": "string"
+            },
+            {
+              "address": "D5",
+              "value": "-",
+              "type": "string"
+            },
+            {
+              "address": "E5",
+              "value": "-",
+              "type": "string"
+            },
+            {
+              "address": "F5",
+              "value": "-",
+              "type": "string"
+            },
+            {
+              "address": "G5",
+              "value": "-",
+              "type": "string"
+            },
+            {
+              "address": "H5",
+              "value": "-",
+              "type": "string"
+            }
+          ],
+          [
+            {
+              "address": "A6",
+              "value": 3,
+              "type": "number"
+            },
+            {
+              "address": "B6",
+              "value": "PANEL, INNER",
+              "type": "string"
+            },
+            {
+              "address": "D6",
+              "value": "MJAC270D-OC-45/45",
+              "type": "string"
+            },
+            {
+              "address": "E6",
+              "value": 0.65,
+              "type": "number"
+            },
+            {
+              "address": "F6",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "G6",
+              "value": 5411.813358478801,
+              "formula": "'WEIGHT CHART'!I6",
+              "type": "formula"
+            },
+            {
+              "address": "H6",
+              "value": 5411.813358478801,
+              "formula": "F6*G6",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A7",
+              "value": 3,
+              "type": "number"
+            },
+            {
+              "address": "B7",
+              "value": "REINFORCEMENT HINGE UPR",
+              "type": "string"
+            },
+            {
+              "address": "D7",
+              "value": "MJAC270D-OC-45/45",
+              "type": "string"
+            },
+            {
+              "address": "E7",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "F7",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "G7",
+              "value": 296.37620648999996,
+              "formula": "'WEIGHT CHART'!I7",
+              "type": "formula"
+            },
+            {
+              "address": "H7",
+              "value": 296.37620648999996,
+              "formula": "F7*G7",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A8",
+              "value": 3,
+              "type": "number"
+            },
+            {
+              "address": "B8",
+              "value": "REINFORCEMENT HINGE LWR",
+              "type": "string"
+            },
+            {
+              "address": "D8",
+              "value": "MJAC270D-OC-45/45",
+              "type": "string"
+            },
+            {
+              "address": "E8",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "F8",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "G8",
+              "value": 125.561532642,
+              "formula": "'WEIGHT CHART'!I8",
+              "type": "formula"
+            },
+            {
+              "address": "H8",
+              "value": 125.561532642,
+              "formula": "F8*G8",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A9",
+              "value": 3,
+              "type": "number"
+            },
+            {
+              "address": "B9",
+              "value": "REINFORCEMENT LATCH",
+              "type": "string"
+            },
+            {
+              "address": "D9",
+              "value": "MJAC270C-OC-45/45",
+              "type": "string"
+            },
+            {
+              "address": "E9",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "F9",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "G9",
+              "value": 92.393506926,
+              "formula": "'WEIGHT CHART'!I9",
+              "type": "formula"
+            },
+            {
+              "address": "H9",
+              "value": 92.393506926,
+              "formula": "F9*G9",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A10",
+              "value": 3,
+              "type": "number"
+            },
+            {
+              "address": "B10",
+              "value": "STIFFNER 1",
+              "type": "string"
+            },
+            {
+              "address": "D10",
+              "value": "MJAC270D-OC-45/45",
+              "type": "string"
+            },
+            {
+              "address": "E10",
+              "value": 0.65,
+              "type": "number"
+            },
+            {
+              "address": "F10",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "G10",
+              "value": 530.9005870077001,
+              "formula": "'WEIGHT CHART'!I10",
+              "type": "formula"
+            },
+            {
+              "address": "H10",
+              "value": 530.9005870077001,
+              "formula": "F10*G10",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A11",
+              "value": 3,
+              "type": "number"
+            },
+            {
+              "address": "B11",
+              "value": "STIFFNER 2",
+              "type": "string"
+            },
+            {
+              "address": "D11",
+              "value": "MJAC270D-OC-45/45",
+              "type": "string"
+            },
+            {
+              "address": "E11",
+              "value": 0.65,
+              "type": "number"
+            },
+            {
+              "address": "F11",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "G11",
+              "value": 550.6708919712,
+              "formula": "'WEIGHT CHART'!I11",
+              "type": "formula"
+            },
+            {
+              "address": "H11",
+              "value": 550.6708919712,
+              "formula": "F11*G11",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A12",
+              "value": 3,
+              "type": "number"
+            },
+            {
+              "address": "B12",
+              "value": "REINFORCEMENT BELTLINE",
+              "type": "string"
+            },
+            {
+              "address": "D12",
+              "value": "MJSC270D-OC-45/45",
+              "type": "string"
+            },
+            {
+              "address": "E12",
+              "value": 1.2,
+              "type": "number"
+            },
+            {
+              "address": "F12",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "G12",
+              "value": 1504.7345236896,
+              "formula": "'WEIGHT CHART'!I12",
+              "type": "formula"
+            },
+            {
+              "address": "H12",
+              "value": 1504.7345236896,
+              "formula": "F12*G12",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A13",
+              "value": 3,
+              "type": "number"
+            },
+            {
+              "address": "B13",
+              "value": "REINFORCEMENT SILL",
+              "type": "string"
+            },
+            {
+              "address": "D13",
+              "value": "MJSC270D-OC-45/45",
+              "type": "string"
+            },
+            {
+              "address": "E13",
+              "value": 1.2,
+              "type": "number"
+            },
+            {
+              "address": "F13",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "G13",
+              "value": 625.5027466632,
+              "formula": "'WEIGHT CHART'!I13",
+              "type": "formula"
+            },
+            {
+              "address": "H13",
+              "value": 625.5027466632,
+              "formula": "F13*G13",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A14",
+              "value": 3,
+              "type": "number"
+            },
+            {
+              "address": "B14",
+              "value": "ASSY, SASH FR FR",
+              "type": "string"
+            },
+            {
+              "address": "D14",
+              "value": "-",
+              "type": "string"
+            },
+            {
+              "address": "E14",
+              "value": "-",
+              "type": "string"
+            },
+            {
+              "address": "F14",
+              "value": "-",
+              "type": "string"
+            },
+            {
+              "address": "G14",
+              "value": "-",
+              "type": "string"
+            },
+            {
+              "address": "H14",
+              "value": "-",
+              "type": "string"
+            }
+          ],
+          [
+            {
+              "address": "A15",
+              "value": 4,
+              "type": "number"
+            },
+            {
+              "address": "B15",
+              "value": "SASH FR FR",
+              "type": "string"
+            },
+            {
+              "address": "D15",
+              "value": "MJSC270D-OC",
+              "type": "string"
+            },
+            {
+              "address": "E15",
+              "value": 0.8,
+              "type": "number"
+            },
+            {
+              "address": "F15",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "G15",
+              "value": 256.6409472,
+              "formula": "'WEIGHT CHART'!I14",
+              "type": "formula"
+            },
+            {
+              "address": "H15",
+              "value": 256.6409472,
+              "formula": "F15*G15",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A16",
+              "value": 4,
+              "type": "number"
+            },
+            {
+              "address": "B16",
+              "value": "BRACKET 01",
+              "type": "string"
+            },
+            {
+              "address": "D16",
+              "value": "MJAC270D-OC-45/45",
+              "type": "string"
+            },
+            {
+              "address": "E16",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "F16",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "G16",
+              "value": 34.81010862,
+              "formula": "'WEIGHT CHART'!I15",
+              "type": "formula"
+            },
+            {
+              "address": "H16",
+              "value": 34.81010862,
+              "formula": "F16*G16",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A17",
+              "value": 4,
+              "type": "number"
+            },
+            {
+              "address": "B17",
+              "value": "BRACKET 02",
+              "type": "string"
+            },
+            {
+              "address": "D17",
+              "value": "MJAC270D-OC-45/45",
+              "type": "string"
+            },
+            {
+              "address": "E17",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "F17",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "G17",
+              "value": 24.417567888,
+              "formula": "'WEIGHT CHART'!I16",
+              "type": "formula"
+            },
+            {
+              "address": "H17",
+              "value": 24.417567888,
+              "formula": "F17*G17",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A18",
+              "value": 3,
+              "type": "number"
+            },
+            {
+              "address": "B18",
+              "value": "ASSY, SASH FR RR",
+              "type": "string"
+            },
+            {
+              "address": "D18",
+              "value": "-",
+              "type": "string"
+            },
+            {
+              "address": "E18",
+              "value": "-",
+              "type": "string"
+            },
+            {
+              "address": "F18",
+              "value": "-",
+              "type": "string"
+            },
+            {
+              "address": "G18",
+              "value": "-",
+              "type": "string"
+            },
+            {
+              "address": "H18",
+              "value": "-",
+              "type": "string"
+            }
+          ],
+          [
+            {
+              "address": "A19",
+              "value": 4,
+              "type": "number"
+            },
+            {
+              "address": "B19",
+              "value": "SASH FR RR",
+              "type": "string"
+            },
+            {
+              "address": "D19",
+              "value": "MJSC270D-OC",
+              "type": "string"
+            },
+            {
+              "address": "E19",
+              "value": 0.8,
+              "type": "number"
+            },
+            {
+              "address": "F19",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "G19",
+              "value": 180.88249440000004,
+              "formula": "'WEIGHT CHART'!I17",
+              "type": "formula"
+            },
+            {
+              "address": "H19",
+              "value": 180.88249440000004,
+              "formula": "F19*G19",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A20",
+              "value": 4,
+              "type": "number"
+            },
+            {
+              "address": "B20",
+              "value": "BRACKET 03",
+              "type": "string"
+            },
+            {
+              "address": "D20",
+              "value": "MJAC270D-OC-45/45",
+              "type": "string"
+            },
+            {
+              "address": "E20",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "F20",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "G20",
+              "value": 5.472146148,
+              "formula": "'WEIGHT CHART'!I18",
+              "type": "formula"
+            },
+            {
+              "address": "H20",
+              "value": 5.472146148,
+              "formula": "F20*G20",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A21",
+              "value": 4,
+              "type": "number"
+            },
+            {
+              "address": "B21",
+              "value": "BRACKET 04",
+              "type": "string"
+            },
+            {
+              "address": "D21",
+              "value": "MJAC270D-OC-45/45",
+              "type": "string"
+            },
+            {
+              "address": "E21",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "F21",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "G21",
+              "value": 6.108050802,
+              "formula": "'WEIGHT CHART'!I19",
+              "type": "formula"
+            },
+            {
+              "address": "H21",
+              "value": 6.108050802,
+              "formula": "F21*G21",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A22",
+              "value": 3,
+              "type": "number"
+            },
+            {
+              "address": "B22",
+              "value": "ASSY, SASH FR RR LWR",
+              "type": "string"
+            },
+            {
+              "address": "D22",
+              "value": "-",
+              "type": "string"
+            },
+            {
+              "address": "E22",
+              "value": "-",
+              "type": "string"
+            },
+            {
+              "address": "F22",
+              "value": "-",
+              "type": "string"
+            },
+            {
+              "address": "G22",
+              "value": "-",
+              "type": "string"
+            },
+            {
+              "address": "H22",
+              "value": "-",
+              "type": "string"
+            }
+          ],
+          [
+            {
+              "address": "A23",
+              "value": 4,
+              "type": "number"
+            },
+            {
+              "address": "B23",
+              "value": "SASH FR RR LWR",
+              "type": "string"
+            },
+            {
+              "address": "D23",
+              "value": "MJSC270D-OC",
+              "type": "string"
+            },
+            {
+              "address": "E23",
+              "value": 0.8,
+              "type": "number"
+            },
+            {
+              "address": "F23",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "G23",
+              "value": 189.910176,
+              "formula": "'WEIGHT CHART'!I20",
+              "type": "formula"
+            },
+            {
+              "address": "H23",
+              "value": 189.910176,
+              "formula": "F23*G23",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A24",
+              "value": 4,
+              "type": "number"
+            },
+            {
+              "address": "B24",
+              "value": "BRACKET 05\n  + M6 WELD NUT\n  + M6 BOLT",
+              "type": "string"
+            },
+            {
+              "address": "D24",
+              "value": "MJAC270D-OC-45/45",
+              "type": "string"
+            },
+            {
+              "address": "E24",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "F24",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "G24",
+              "value": 16.781735412,
+              "formula": "'WEIGHT CHART'!I21",
+              "type": "formula"
+            },
+            {
+              "address": "H24",
+              "value": 16.781735412,
+              "formula": "F24*G24",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A25",
+              "value": 4,
+              "type": "number"
+            },
+            {
+              "address": "B25",
+              "value": "BRACKET 06\n  + M6 WELD NUT\n  + M6 BOLT",
+              "type": "string"
+            },
+            {
+              "address": "D25",
+              "value": "MJAC270D-OC-45/45",
+              "type": "string"
+            },
+            {
+              "address": "E25",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "F25",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "G25",
+              "value": 22.26485805,
+              "formula": "'WEIGHT CHART'!I22",
+              "type": "formula"
+            },
+            {
+              "address": "H25",
+              "value": 22.26485805,
+              "formula": "F25*G25",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A26",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "B26",
+              "value": "HINGE UPR",
+              "type": "string"
+            },
+            {
+              "address": "C26",
+              "value": "NA",
+              "type": "string"
+            },
+            {
+              "address": "D26",
+              "value": "SS",
+              "type": "string"
+            },
+            {
+              "address": "E26",
+              "value": 5,
+              "type": "number"
+            },
+            {
+              "address": "F26",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "G26",
+              "value": 2500,
+              "type": "number"
+            },
+            {
+              "address": "H26",
+              "value": 2500,
+              "formula": "F26*G26",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A27",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "B27",
+              "value": "HINGE LWR",
+              "type": "string"
+            },
+            {
+              "address": "C27",
+              "value": "NA",
+              "type": "string"
+            },
+            {
+              "address": "D27",
+              "value": "SS",
+              "type": "string"
+            },
+            {
+              "address": "E27",
+              "value": 5,
+              "type": "number"
+            },
+            {
+              "address": "F27",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "G27",
+              "value": 2500,
+              "type": "number"
+            },
+            {
+              "address": "H27",
+              "value": 2500,
+              "formula": "F27*G27",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A28",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "B28",
+              "value": "LATCH",
+              "type": "string"
+            },
+            {
+              "address": "C28",
+              "value": "NA",
+              "type": "string"
+            },
+            {
+              "address": "D28",
+              "value": "SS",
+              "type": "string"
+            },
+            {
+              "address": "E28",
+              "value": "-",
+              "type": "string"
+            },
+            {
+              "address": "F28",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "G28",
+              "value": 500,
+              "type": "number"
+            },
+            {
+              "address": "H28",
+              "value": 500,
+              "formula": "F28*G28",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A29",
+              "value": "TOTAL WEIGHT",
+              "type": "string"
+            },
+            {
+              "address": "H29",
+              "value": 14715.733907435702,
+              "formula": "H4+H6+H7+H8+H9+H11+H12+H10+H13+H15+H16+H17+H19+H20+H21+H23+H24+H25",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "E30",
+              "value": "This is a only BIW weight (14.7Kg)                                                    Hinge and Latch weight is not counted in Total weight",
+              "type": "richtext"
+            }
+          ],
+          []
+        ],
+        "images": [
+          {
+            "s3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/02eaf887-bf8d-44cb-bab1-4c98231289b8.png",
+            "range": "C13:C13"
+          },
+          {
+            "s3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/291e719d-13e4-42d4-a445-9e16a560b7eb.png",
+            "range": "C11:C11"
+          },
+          {
+            "s3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/1a4c8775-578f-44cf-aa94-41723c14eb5e.png",
+            "range": "C10:C10"
+          },
+          {
+            "s3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/923bc10d-df46-4443-90bd-d4ed489aff4f.png",
+            "range": "C4:C4"
+          },
+          {
+            "s3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/b7246556-7972-4b65-b440-b221d9338c7d.png",
+            "range": "C6:C6"
+          },
+          {
+            "s3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/ab9b0eff-395b-40a4-a714-d9978c5fc684.png",
+            "range": "C3:C3"
+          },
+          {
+            "s3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/e60db974-7e73-4485-8022-fc05a07fd358.png",
+            "range": "C5:C5"
+          },
+          {
+            "s3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/7b5c82b3-c8e9-4035-bd58-d0c7a535ec97.png",
+            "range": "C7:C8"
+          },
+          {
+            "s3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/d3e3d9a6-ae07-4383-9bfd-c66909a8ef51.png",
+            "range": "C9:C9"
+          },
+          {
+            "s3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/1020d60d-7e76-4857-9576-9247c4cfa379.png",
+            "range": "C8:C8"
+          },
+          {
+            "s3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/defe8f5a-5968-4b8b-a1bb-b9763395e30c.png",
+            "range": "C12:C12"
+          },
+          {
+            "s3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/328ec5d3-d7ec-4081-beb6-c30333812f41.png",
+            "range": "C15:C15"
+          },
+          {
+            "s3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/d7215419-0e35-4c04-b6f7-0cb410a4b2a7.png",
+            "range": "C16:C16"
+          },
+          {
+            "s3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/5b53e278-bdf6-4764-8afc-b24a6a65e23f.png",
+            "range": "C17:C17"
+          },
+          {
+            "s3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/1535b55b-c488-40fd-897f-ac25f2717c7c.png",
+            "range": "C14:C14"
+          },
+          {
+            "s3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/69ce3114-47d6-4265-85b1-6371ceab9ef8.png",
+            "range": "C18:C18"
+          },
+          {
+            "s3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/cda97a87-ff21-46a0-9905-4f96d84da626.png",
+            "range": "C20:C20"
+          },
+          {
+            "s3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/f279f1f1-2b0f-453d-b3f3-9d46fd7398e8.png",
+            "range": "C21:C21"
+          },
+          {
+            "s3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/e6333ec1-a892-4e83-bd5a-2bb6aa8ec7da.png",
+            "range": "C19:C19"
+          },
+          {
+            "s3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/3c4b7396-5906-4315-8aab-59049648d78a.png",
+            "range": "C22:C22"
+          },
+          {
+            "s3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/a8c71b8e-b015-4d5c-a203-b8637a5aea2e.png",
+            "range": "C23:C23"
+          },
+          {
+            "s3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/cab655fd-e6a8-4d65-9f5a-b4a5d45a9bed.png",
+            "range": "C24:C24"
+          },
+          {
+            "s3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/bb0b745b-40de-4bf2-97e0-1bc7758c043f.png",
+            "range": "C25:C25"
+          }
+        ]
+      },
+      {
+        "sheetName": "WEIGHT CHART",
+        "rowCount": 24,
+        "columnCount": 9,
+        "data": [
+          [],
+          [
+            {
+              "address": "A2",
+              "value": "FRONT DOOR AREA",
+              "type": "string"
+            }
+          ],
+          [
+            {
+              "address": "A3",
+              "value": "SR. NO.",
+              "type": "string"
+            },
+            {
+              "address": "B3",
+              "value": "PART NAME",
+              "type": "string"
+            },
+            {
+              "address": "C3",
+              "value": "DENSITY",
+              "type": "string"
+            },
+            {
+              "address": "D3",
+              "value": "SURFACE AREA",
+              "type": "string"
+            },
+            {
+              "address": "E3",
+              "value": "FACTOR",
+              "type": "string"
+            },
+            {
+              "address": "F3",
+              "value": "THK",
+              "type": "string"
+            },
+            {
+              "address": "G3",
+              "value": "FACTOR",
+              "type": "string"
+            },
+            {
+              "address": "H3",
+              "value": "QTY.",
+              "type": "string"
+            },
+            {
+              "address": "I3",
+              "value": "MASS",
+              "type": "string"
+            }
+          ],
+          [
+            {
+              "address": "C4",
+              "value": "(g/cm3)",
+              "type": "string"
+            },
+            {
+              "address": "D4",
+              "value": "(cm2)",
+              "type": "string"
+            },
+            {
+              "address": "F4",
+              "value": "(cm)",
+              "type": "string"
+            },
+            {
+              "address": "I4",
+              "value": "(g)",
+              "type": "string"
+            }
+          ],
+          [
+            {
+              "address": "A5",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "B5",
+              "value": "PANEL , OUTER",
+              "formula": "'BOM-DOOR'!B4",
+              "type": "formula"
+            },
+            {
+              "address": "C5",
+              "value": 7.86,
+              "type": "number"
+            },
+            {
+              "address": "D5",
+              "value": 11024.682,
+              "type": "number"
+            },
+            {
+              "address": "E5",
+              "value": 0.95,
+              "type": "number"
+            },
+            {
+              "address": "F5",
+              "value": 0.06,
+              "type": "number"
+            },
+            {
+              "address": "G5",
+              "value": 0.98,
+              "type": "number"
+            },
+            {
+              "address": "H5",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "I5",
+              "value": 4840.492469047201,
+              "formula": "C5*(D5*E5)*(F5*G5)*H5",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A6",
+              "value": 2,
+              "type": "number"
+            },
+            {
+              "address": "B6",
+              "value": "PANEL, INNER",
+              "formula": "'BOM-DOOR'!B6",
+              "type": "formula"
+            },
+            {
+              "address": "C6",
+              "value": 7.86,
+              "type": "number"
+            },
+            {
+              "address": "D6",
+              "value": 11377.772,
+              "type": "number"
+            },
+            {
+              "address": "E6",
+              "value": 0.95,
+              "type": "number"
+            },
+            {
+              "address": "F6",
+              "value": 0.065,
+              "type": "number"
+            },
+            {
+              "address": "G6",
+              "value": 0.98,
+              "type": "number"
+            },
+            {
+              "address": "H6",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "I6",
+              "value": 5411.813358478801,
+              "formula": "C6*(D6*E6)*(F6*G6)*H6",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A7",
+              "value": 3,
+              "type": "number"
+            },
+            {
+              "address": "B7",
+              "value": "REINFORCEMENT HINGE UPR",
+              "formula": "'BOM-DOOR'!B7",
+              "type": "formula"
+            },
+            {
+              "address": "C7",
+              "value": 7.86,
+              "type": "number"
+            },
+            {
+              "address": "D7",
+              "value": 405.015,
+              "type": "number"
+            },
+            {
+              "address": "E7",
+              "value": 0.95,
+              "type": "number"
+            },
+            {
+              "address": "F7",
+              "value": 0.1,
+              "type": "number"
+            },
+            {
+              "address": "G7",
+              "value": 0.98,
+              "type": "number"
+            },
+            {
+              "address": "H7",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "I7",
+              "value": 296.37620648999996,
+              "formula": "C7*(D7*E7)*(F7*G7)*H7",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A8",
+              "value": 4,
+              "type": "number"
+            },
+            {
+              "address": "B8",
+              "value": "REINFORCEMENT HINGE LWR",
+              "formula": "'BOM-DOOR'!B8",
+              "type": "formula"
+            },
+            {
+              "address": "C8",
+              "value": 7.86,
+              "type": "number"
+            },
+            {
+              "address": "D8",
+              "value": 171.587,
+              "type": "number"
+            },
+            {
+              "address": "E8",
+              "value": 0.95,
+              "type": "number"
+            },
+            {
+              "address": "F8",
+              "value": 0.1,
+              "type": "number"
+            },
+            {
+              "address": "G8",
+              "value": 0.98,
+              "type": "number"
+            },
+            {
+              "address": "H8",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "I8",
+              "value": 125.561532642,
+              "formula": "C8*(D8*E8)*(F8*G8)*H8",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A9",
+              "value": 5,
+              "type": "number"
+            },
+            {
+              "address": "B9",
+              "value": "REINFORCEMENT LATCH",
+              "formula": "'BOM-DOOR'!B9",
+              "type": "formula"
+            },
+            {
+              "address": "C9",
+              "value": 7.86,
+              "type": "number"
+            },
+            {
+              "address": "D9",
+              "value": 126.261,
+              "type": "number"
+            },
+            {
+              "address": "E9",
+              "value": 0.95,
+              "type": "number"
+            },
+            {
+              "address": "F9",
+              "value": 0.1,
+              "type": "number"
+            },
+            {
+              "address": "G9",
+              "value": 0.98,
+              "type": "number"
+            },
+            {
+              "address": "H9",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "I9",
+              "value": 92.393506926,
+              "formula": "C9*(D9*E9)*(F9*G9)*H9",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A10",
+              "value": 6,
+              "type": "number"
+            },
+            {
+              "address": "B10",
+              "value": "STIFFNER 1",
+              "formula": "'BOM-DOOR'!B10",
+              "type": "formula"
+            },
+            {
+              "address": "C10",
+              "value": 7.86,
+              "type": "number"
+            },
+            {
+              "address": "D10",
+              "value": 1116.163,
+              "type": "number"
+            },
+            {
+              "address": "E10",
+              "value": 0.95,
+              "type": "number"
+            },
+            {
+              "address": "F10",
+              "value": 0.065,
+              "type": "number"
+            },
+            {
+              "address": "G10",
+              "value": 0.98,
+              "type": "number"
+            },
+            {
+              "address": "H10",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "I10",
+              "value": 530.9005870077001,
+              "formula": "C10*(D10*E10)*(F10*G10)*H10",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A11",
+              "value": 7,
+              "type": "number"
+            },
+            {
+              "address": "B11",
+              "value": "STIFFNER 2",
+              "formula": "'BOM-DOOR'!B11",
+              "type": "formula"
+            },
+            {
+              "address": "C11",
+              "value": 7.86,
+              "type": "number"
+            },
+            {
+              "address": "D11",
+              "value": 1157.728,
+              "type": "number"
+            },
+            {
+              "address": "E11",
+              "value": 0.95,
+              "type": "number"
+            },
+            {
+              "address": "F11",
+              "value": 0.065,
+              "type": "number"
+            },
+            {
+              "address": "G11",
+              "value": 0.98,
+              "type": "number"
+            },
+            {
+              "address": "H11",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "I11",
+              "value": 550.6708919712,
+              "formula": "C11*(D11*E11)*(F11*G11)*H11",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A12",
+              "value": 8,
+              "type": "number"
+            },
+            {
+              "address": "B12",
+              "value": "REINFORCEMENT BELTLINE",
+              "formula": "'BOM-DOOR'!B12",
+              "type": "formula"
+            },
+            {
+              "address": "C12",
+              "value": 7.86,
+              "type": "number"
+            },
+            {
+              "address": "D12",
+              "value": 1713.588,
+              "type": "number"
+            },
+            {
+              "address": "E12",
+              "value": 0.95,
+              "type": "number"
+            },
+            {
+              "address": "F12",
+              "value": 0.12,
+              "type": "number"
+            },
+            {
+              "address": "G12",
+              "value": 0.98,
+              "type": "number"
+            },
+            {
+              "address": "H12",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "I12",
+              "value": 1504.7345236896,
+              "formula": "C12*(D12*E12)*(F12*G12)*H12",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A13",
+              "value": 9,
+              "type": "number"
+            },
+            {
+              "address": "B13",
+              "value": "REINFORCEMENT SILL",
+              "formula": "'BOM-DOOR'!B13",
+              "type": "formula"
+            },
+            {
+              "address": "C13",
+              "value": 7.86,
+              "type": "number"
+            },
+            {
+              "address": "D13",
+              "value": 712.321,
+              "type": "number"
+            },
+            {
+              "address": "E13",
+              "value": 0.95,
+              "type": "number"
+            },
+            {
+              "address": "F13",
+              "value": 0.12,
+              "type": "number"
+            },
+            {
+              "address": "G13",
+              "value": 0.98,
+              "type": "number"
+            },
+            {
+              "address": "H13",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "I13",
+              "value": 625.5027466632,
+              "formula": "C13*(D13*E13)*(F13*G13)*H13",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A14",
+              "value": 10,
+              "type": "number"
+            },
+            {
+              "address": "B14",
+              "value": "SASH FR FR",
+              "formula": "'BOM-DOOR'!B15",
+              "type": "formula"
+            },
+            {
+              "address": "C14",
+              "value": 7.86,
+              "type": "number"
+            },
+            {
+              "address": "D14",
+              "value": 408.144,
+              "type": "number"
+            },
+            {
+              "address": "E14",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "F14",
+              "value": 0.08,
+              "type": "number"
+            },
+            {
+              "address": "G14",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "H14",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "I14",
+              "value": 256.6409472,
+              "formula": "C14*(D14*E14)*(F14*G14)*H14",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A15",
+              "value": 11,
+              "type": "number"
+            },
+            {
+              "address": "B15",
+              "value": "BRACKET 01",
+              "formula": "'BOM-DOOR'!B16",
+              "type": "formula"
+            },
+            {
+              "address": "C15",
+              "value": 7.86,
+              "type": "number"
+            },
+            {
+              "address": "D15",
+              "value": 47.57,
+              "type": "number"
+            },
+            {
+              "address": "E15",
+              "value": 0.95,
+              "type": "number"
+            },
+            {
+              "address": "F15",
+              "value": 0.1,
+              "type": "number"
+            },
+            {
+              "address": "G15",
+              "value": 0.98,
+              "type": "number"
+            },
+            {
+              "address": "H15",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "I15",
+              "value": 34.81010862,
+              "formula": "C15*(D15*E15)*(F15*G15)*H15",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A16",
+              "value": 12,
+              "type": "number"
+            },
+            {
+              "address": "B16",
+              "value": "BRACKET 02",
+              "formula": "'BOM-DOOR'!B17",
+              "type": "formula"
+            },
+            {
+              "address": "C16",
+              "value": 7.86,
+              "type": "number"
+            },
+            {
+              "address": "D16",
+              "value": 33.368,
+              "type": "number"
+            },
+            {
+              "address": "E16",
+              "value": 0.95,
+              "type": "number"
+            },
+            {
+              "address": "F16",
+              "value": 0.1,
+              "type": "number"
+            },
+            {
+              "address": "G16",
+              "value": 0.98,
+              "type": "number"
+            },
+            {
+              "address": "H16",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "I16",
+              "value": 24.417567888,
+              "formula": "C16*(D16*E16)*(F16*G16)*H16",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A17",
+              "value": 13,
+              "type": "number"
+            },
+            {
+              "address": "B17",
+              "value": "SASH FR RR",
+              "formula": "'BOM-DOOR'!B19",
+              "type": "formula"
+            },
+            {
+              "address": "C17",
+              "value": 7.86,
+              "type": "number"
+            },
+            {
+              "address": "D17",
+              "value": 287.663,
+              "type": "number"
+            },
+            {
+              "address": "E17",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "F17",
+              "value": 0.08,
+              "type": "number"
+            },
+            {
+              "address": "G17",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "H17",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "I17",
+              "value": 180.88249440000004,
+              "formula": "C17*(D17*E17)*(F17*G17)*H17",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A18",
+              "value": 14,
+              "type": "number"
+            },
+            {
+              "address": "B18",
+              "value": "BRACKET 03",
+              "formula": "'BOM-DOOR'!B20",
+              "type": "formula"
+            },
+            {
+              "address": "C18",
+              "value": 7.86,
+              "type": "number"
+            },
+            {
+              "address": "D18",
+              "value": 7.478,
+              "type": "number"
+            },
+            {
+              "address": "E18",
+              "value": 0.95,
+              "type": "number"
+            },
+            {
+              "address": "F18",
+              "value": 0.1,
+              "type": "number"
+            },
+            {
+              "address": "G18",
+              "value": 0.98,
+              "type": "number"
+            },
+            {
+              "address": "H18",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "I18",
+              "value": 5.472146148,
+              "formula": "C18*(D18*E18)*(F18*G18)*H18",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A19",
+              "value": 15,
+              "type": "number"
+            },
+            {
+              "address": "B19",
+              "value": "BRACKET 04",
+              "formula": "'BOM-DOOR'!B21",
+              "type": "formula"
+            },
+            {
+              "address": "C19",
+              "value": 7.86,
+              "type": "number"
+            },
+            {
+              "address": "D19",
+              "value": 8.347,
+              "type": "number"
+            },
+            {
+              "address": "E19",
+              "value": 0.95,
+              "type": "number"
+            },
+            {
+              "address": "F19",
+              "value": 0.1,
+              "type": "number"
+            },
+            {
+              "address": "G19",
+              "value": 0.98,
+              "type": "number"
+            },
+            {
+              "address": "H19",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "I19",
+              "value": 6.108050802,
+              "formula": "C19*(D19*E19)*(F19*G19)*H19",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A20",
+              "value": 16,
+              "type": "number"
+            },
+            {
+              "address": "B20",
+              "value": "SASH FR RR LWR",
+              "formula": "'BOM-DOOR'!B23",
+              "type": "formula"
+            },
+            {
+              "address": "C20",
+              "value": 7.86,
+              "type": "number"
+            },
+            {
+              "address": "D20",
+              "value": 302.02,
+              "type": "number"
+            },
+            {
+              "address": "E20",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "F20",
+              "value": 0.08,
+              "type": "number"
+            },
+            {
+              "address": "G20",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "H20",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "I20",
+              "value": 189.910176,
+              "formula": "C20*(D20*E20)*(F20*G20)*H20",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A21",
+              "value": 17,
+              "type": "number"
+            },
+            {
+              "address": "B21",
+              "value": "BRACKET 05\n  + M6 WELD NUT\n  + M6 BOLT",
+              "formula": "'BOM-DOOR'!B24",
+              "type": "formula"
+            },
+            {
+              "address": "C21",
+              "value": 7.86,
+              "type": "number"
+            },
+            {
+              "address": "D21",
+              "value": 19.182,
+              "type": "number"
+            },
+            {
+              "address": "E21",
+              "value": 0.95,
+              "type": "number"
+            },
+            {
+              "address": "F21",
+              "value": 0.1,
+              "type": "number"
+            },
+            {
+              "address": "G21",
+              "value": 0.98,
+              "type": "number"
+            },
+            {
+              "address": "H21",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "I21",
+              "value": 16.781735412,
+              "formula": "(C21*(D21*E21)*(F21*G21)*H21)+2.745",
+              "type": "formula"
+            }
+          ],
+          [
+            {
+              "address": "A22",
+              "value": 18,
+              "type": "number"
+            },
+            {
+              "address": "B22",
+              "value": "BRACKET 06\n  + M6 WELD NUT\n  + M6 BOLT",
+              "formula": "'BOM-DOOR'!B25",
+              "type": "formula"
+            },
+            {
+              "address": "C22",
+              "value": 7.86,
+              "type": "number"
+            },
+            {
+              "address": "D22",
+              "value": 26.675,
+              "type": "number"
+            },
+            {
+              "address": "E22",
+              "value": 0.95,
+              "type": "number"
+            },
+            {
+              "address": "F22",
+              "value": 0.1,
+              "type": "number"
+            },
+            {
+              "address": "G22",
+              "value": 0.98,
+              "type": "number"
+            },
+            {
+              "address": "H22",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "address": "I22",
+              "value": 22.26485805,
+              "formula": "(C22*(D22*E22)*(F22*G22)*H22)+2.745",
+              "type": "formula"
+            }
+          ],
+          [],
+          [
+            {
+              "address": "B24",
+              "value": "NOTE :- ALL SASH CHANNEL ( 10,13,16 ) ARE EXTRUSION PARTS , EXCEPT ALL ARE DRAW PARTS",
+              "type": "string"
+            }
+          ]
+        ],
+        "images": []
+      }
+    ]
+  }
+}

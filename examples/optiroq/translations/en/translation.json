@@ -1,0 +1,160 @@
+{
+  "masterFields": {
+    "projectName": {
+      "label": "Project Name",
+      "description": "The primary name for this project."
+    },
+    "projectDescription": {
+      "label": "Project Description",
+      "description": "A short description of the project."
+    },
+    "customerName": {
+      "label": "Customer Name",
+      "description": "The customer this project is for."
+    },
+    "platformName": {
+      "label": "Platform Name",
+      "description": "The product platform, if applicable."
+    },
+    "sopDate": {
+      "label": "SOP Date",
+      "description": "The planned start of production date."
+    },
+    "deadlineDate": {
+      "label": "Deadline Date",
+      "description": "The deadline for RFQ responses."
+    },
+    "commodity": {
+      "label": "Commodity",
+      "description": "The main commodity being sourced."
+    },
+    "targetCost": {
+      "label": "Target Cost (Budget)",
+      "description": "The total target cost or budget for the project."
+    },
+    "partName": {
+      "label": "Part Name",
+      "description": "The unique name or number for the part."
+    },
+    "partDescription": {
+      "label": "Part Description",
+      "description": "A short description of the part."
+    },
+    "quantity": {
+      "label": "Annual Quantity",
+      "description": "The estimated annual quantity needed."
+    },
+    "material": {
+      "label": "Material",
+      "description": "The primary material of the part."
+    },
+    "partTargetPrice": {
+      "label": "Part Target Price",
+      "description": "The target price per individual part."
+    },
+    "targetWeight": {
+      "label": "Target Weight",
+      "description": "The target weight for one part."
+    },
+    "materialCost": {
+      "label": "Material Cost",
+      "description": "Cost of raw materials per part."
+    },
+    "processCost": {
+      "label": "Process Cost",
+      "description": "Cost of manufacturing processes per part."
+    },
+    "toolingInvestment": {
+      "label": "Tooling Investment",
+      "description": "Total investment for part-specific tooling."
+    },
+    "amortizationIncluded": {
+      "label": "Amortization in Price",
+      "description": "Is tooling amortization included in the piece price?"
+    },
+    "amortizationAmount": {
+      "label": "Embedded Amortization Amount",
+      "description": "The amount of tooling cost added to each piece price."
+    },
+    "amortizationPeriod": {
+      "label": "Amortization Period",
+      "description": "Number of units for tooling amortization."
+    },
+    "maintenanceCost": {
+      "label": "Tooling Maintenance Cost",
+      "description": "Ongoing maintenance cost for the tooling."
+    },
+    "leadTimeSampleA": {
+      "label": "Lead Time: Sample A",
+      "description": "Time to deliver first 'Sample A' parts."
+    },
+    "leadTimePPAP": {
+      "label": "Lead Time: PPAP",
+      "description": "Time to complete the PPAP submission."
+    },
+    "leadTimeSOP": {
+      "label": "Lead Time: SOP",
+      "description": "Time until ready for Start of Production."
+    },
+    "leadTimeSampleBCD": {
+      "label": "Lead Time: Sample B/C/D",
+      "description": "Time for subsequent sample batches (B/C/D)."
+    },
+    "leadTimePrototype": {
+      "label": "Lead Time: Prototype",
+      "description": "Time to deliver prototype parts."
+    },
+    "leadTimeOffToolParts": {
+      "label": "Lead Time: Off-Tool Parts",
+      "description": "Time for parts from final production tooling."
+    },
+    "leadTimeOffToolOrProcess": {
+      "label": "Lead Time: Off-Tool or Process",
+      "description": "Time for off-tool or off-process parts."
+    },
+    "incoterms": {
+      "label": "Incoterms",
+      "description": "International commercial terms (e.g., FOB, DDP)."
+    },
+    "deliveryLocation": {
+      "label": "Delivery Location",
+      "description": "The final delivery address for the parts."
+    },
+    "cartonType": {
+      "label": "Carton Type",
+      "description": "The specified type of carton for packaging."
+    },
+    "usesEuroPallet": {
+      "label": "Uses Euro Pallet",
+      "description": "Are Euro pallets required for shipping?"
+    },
+    "returnablePackagingRequired": {
+      "label": "Returnable Packaging Required",
+      "description": "Is returnable packaging mandatory?"
+    },
+    "cleaningRequired": {
+      "label": "Cleaning Required",
+      "description": "Do the parts require a cleaning process?"
+    },
+    "isoCertifications": {
+      "label": "ISO Certifications",
+      "description": "List of required ISO certifications."
+    },
+    "ecovadisScore": {
+      "label": "ECOVADIS Score",
+      "description": "Supplier's EcoVadis score."
+    },
+    "internalEsgScore": {
+      "label": "Internal ESG Score",
+      "description": "Supplier's internal ESG score."
+    },
+    "commentText": {
+      "label": "Comment",
+      "description": "General comments or notes."
+    },
+    "buyerNotes": {
+      "label": "Buyer Notes",
+      "description": "Internal notes for the buyer."
+    }
+  }
+}

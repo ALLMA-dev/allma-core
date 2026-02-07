@@ -1,0 +1,10 @@
+{
+    "ACTIVE": "Actif",
+    "COMPLETED": "Terminé",
+    "PENDING_REVIEW": "En attente d'examen",
+    "DRAFT_AWAITING_REVIEW": "Brouillon (en attente d'examen)",
+    "DRAFT": "Brouillon",
+    "ARCHIVED": "Archivé",
+    "NOT_STARTED": "Non commencé",
+    "IN_PROGRESS": "En cours"
+}

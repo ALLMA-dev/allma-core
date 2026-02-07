@@ -1,0 +1,34 @@
+{
+  "LEVEL": {
+    "mapsTo": null,
+    "confidence": 0.1
+  },
+  "PART NAME": {
+    "mapsTo": "partName",
+    "confidence": 1.0
+  },
+  "IMAGE": {
+    "mapsTo": null,
+    "confidence": 0.1
+  },
+  "MATERIAL": {
+    "mapsTo": "material",
+    "confidence": 1.0
+  },
+  "THK": {
+    "mapsTo": null,
+    "confidence": 0.2
+  },
+  "QTY": {
+    "mapsTo": "quantity",
+    "confidence": 0.98
+  },
+  "WEIGHT (g)": {
+    "mapsTo": "targetWeight",
+    "confidence": 0.9
+  },
+  "TOTAL WEIGHT (g)": {
+    "mapsTo": null,
+    "confidence": 0.2
+  }
+}

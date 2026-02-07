@@ -1,0 +1,19 @@
+{
+    "pageTitle": "Suppliers",
+    "importSuppliers": "Import Suppliers",
+    "supplierName": "Supplier Name",
+    "email": "Email",
+    "commodities": "Commodities",
+    "previousRfqs": "Previous RFQs",
+    "errorLoadingTitle": "Failed to load suppliers",
+    "searchPlaceholder": "Search by name, TITAN no., or contact...",
+    "emptyMessage": "No suppliers found. Import suppliers to get started.",
+    "filterByCommodity": "Filter by commodity",
+    "statusAll": "All",
+    "statusActive": "Active",
+    "statusArchived": "Archived",
+    "viewSupplier": "View supplier details",
+    "archiveSupplier": "Archive supplier",
+    "unarchiveSupplier": "Restore supplier",
+    "newSupplier": "New Supplier"
+}

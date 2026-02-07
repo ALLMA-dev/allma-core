@@ -1,0 +1,13 @@
+{
+  "errors": {
+    "required": "Ce champ est obligatoire",
+    "invalid_string": "Valeur invalide",
+    "invalid_number": "Doit être un nombre valide",
+    "invalid_date": "Date invalide",
+    "invalid_integer": "Doit être un nombre entier",
+    "too_small_string": "Doit contenir au moins {{minimum}} caractère(s)",
+    "too_small_number": "Doit être supérieur ou égal à {{minimum}}",
+    "too_big_string": "Doit contenir au plus {{maximum}} caractère(s)",
+    "too_big_number": "Doit être inférieur ou égal à {{maximum}}"
+  }
+}

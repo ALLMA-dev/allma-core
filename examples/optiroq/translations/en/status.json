@@ -1,0 +1,12 @@
+{
+    "ACTIVE": "Active",
+    "COMPLETED": "Completed",
+    "PENDING_REVIEW": "Pending Review",
+    "DRAFT_AWAITING_REVIEW": "Draft (Awaiting Review)",
+    "DRAFT": "Draft",
+    "DRAFT_PROCESSING": "Processing",
+    "DRAFT_FAILED": "Processing Failed",
+    "ARCHIVED": "Archived",
+    "NOT_STARTED": "Not Started",
+    "IN_PROGRESS": "In Progress"
+}

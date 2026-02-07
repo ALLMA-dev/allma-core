@@ -1,0 +1,235 @@
+{
+  "formatVersion": "1.0",
+  "exportedAt": "2026-02-06T18:00:00.000Z",
+  "flows": [
+    {
+      "id": "optiroq-process-supplier-import",
+      "name": "Optiroq - Process Supplier Import",
+      "description": "Handles the ingestion and processing of a supplier list, with intelligent creation of new commodities.",
+      "version": 1,
+      "isPublished": true,
+      "createdAt": "2026-01-24T22:00:00.000Z",
+      "updatedAt": "2026-02-06T18:00:00.000Z",
+      "startStepInstanceId": "extract_workbook_data",
+      "enableExecutionLogs": true,
+      "flowVariables": {
+        "EntityGraphTableName": "OptiroqEntityGraph-Beta",
+        "FromEmail": "agent@mail-beta.optiroq.com",
+        "PortalBaseUrl": "https://portal-beta.optiroq.com",
+        "ExtractWorkbookDataLambdaArn": "arn:aws:lambda:us-west-2:871610744338:function:optiroq-extractworkbookdata-beta",
+        "ExtractDataFromBomLambdaArn": "arn:aws:lambda:us-west-2:871610744338:function:optiroq-extractdatafrombom-beta",
+        "MapAndValidateSupplierDataLambdaArn": "arn:aws:lambda:us-west-2:871610744338:function:optiroq-mapandvalidatesupplierdata-beta",
+        "ReconcileSupplierCommoditiesLambdaArn": "arn:aws:lambda:us-west-2:871610744338:function:optiroq-reconcilesuppliercommodities-beta",
+        "PersistSupplierLambdaArn": "arn:aws:lambda:us-west-2:871610744338:function:optiroq-persistsupplier-beta"
+      },
+      "steps": {
+        "extract_workbook_data": {
+          "stepInstanceId": "extract_workbook_data",
+          "displayName": "1. Extract & Summarize Workbook",
+          "stepType": "CUSTOM_LAMBDA_INVOKE",
+          "lambdaFunctionArnTemplate": "{{flow_variables.ExtractWorkbookDataLambdaArn}}",
+          "inputMappings": { "s3Bucket": "$.s3Bucket", "s3Key": "$.s3Key", "correlationId": "$.flowExecutionId" },
+          "outputMappings": { "$.steps_output.workbook_extraction": "$." },
+          "defaultNextStepInstanceId": "llm_analyze_workbook_structure"
+        },
+        "llm_analyze_workbook_structure": {
+          "stepInstanceId": "llm_analyze_workbook_structure",
+          "displayName": "2. LLM - Analyze Supplier Sheet",
+          "stepType": "LLM_INVOCATION",
+          "llmProvider": "GEMINI", "modelId": "gemini-flash-latest", "promptTemplateId": "optiroq-analyze-supplier-structure", "customConfig": { "jsonOutputMode": true },
+          "templateContextMappings": { "workbookSummary": { "sourceJsonPath": "$.steps_output.workbook_extraction.workbookSummaryForLlm" } },
+          "outputMappings": { "$.steps_output.extraction_plan": "$." },
+          "defaultNextStepInstanceId": "extract_data_from_sheet"
+        },
+        "extract_data_from_sheet": {
+          "stepInstanceId": "extract_data_from_sheet",
+          "displayName": "3. Extract Data Using Plan",
+          "stepType": "CUSTOM_LAMBDA_INVOKE",
+          "lambdaFunctionArnTemplate": "{{flow_variables.ExtractDataFromBomLambdaArn}}",
+          "inputMappings": { "workbookData": "$.steps_output.workbook_extraction.fullWorkbookData", "extractionPlan": "$.steps_output.extraction_plan", "correlationId": "$.flowExecutionId" },
+          "outputMappings": { "$.steps_output.extracted_data": "$." },
+          "defaultNextStepInstanceId": "load_config_data"
+        },
+        "load_config_data": {
+          "stepInstanceId": "load_config_data",
+          "displayName": "4. Load Supplier Fields & Commodities",
+          "stepType": "DATA_LOAD",
+          "moduleIdentifier": "system/dynamodb-data-loader",
+          "customConfig": {
+            "operation": "QUERY_BATCH",
+            "queries": [
+              { "tableName": "{{flow_variables.EntityGraphTableName}}", "keyConditionExpression": "PK = :pk", "expressionAttributeValues": { ":pk": "CONFIG#SUPPLIER_FIELD_LIST" }, "outputJsonPath": "$.steps_output.supplier_fields" },
+              { "tableName": "{{flow_variables.EntityGraphTableName}}", "keyConditionExpression": "PK = :pk", "expressionAttributeValues": { ":pk": "CONFIG#COMMODITIES" }, "outputJsonPath": "$.steps_output.commodities" }
+            ]
+          },
+          "defaultNextStepInstanceId": "plan_header_mapping_llm"
+        },
+        "plan_header_mapping_llm": {
+          "stepInstanceId": "plan_header_mapping_llm",
+          "displayName": "5. LLM - Plan Header Mapping",
+          "stepType": "LLM_INVOCATION",
+          "llmProvider": "GEMINI", "modelId": "gemini-flash-latest", "promptTemplateId": "optiroq-plan-supplier-mapping", "customConfig": { "jsonOutputMode": true },
+          "templateContextMappings": {
+            "rawHeaders": { "sourceJsonPath": "$.steps_output.extracted_data.headers", "formatAs": "JSON" },
+            "supplierFields": { "sourceJsonPath": "$.steps_output.supplier_fields", "formatAs": "JSON" },
+            "firstDataRows": { "sourceJsonPath": "$.steps_output.extracted_data.parts[0:3]", "formatAs": "JSON" },
+            "existingCommodities": { "sourceJsonPath": "$.steps_output.commodities", "formatAs": "JSON" }
+          },
+          "outputMappings": { "$.steps_output.mapping_plan": "$." },
+          "defaultNextStepInstanceId": "map_and_validate_supplier_data"
+        },
+        "map_and_validate_supplier_data": {
+          "stepInstanceId": "map_and_validate_supplier_data",
+          "displayName": "6. Map, Validate & Identify New Commodities",
+          "stepType": "CUSTOM_LAMBDA_INVOKE",
+          "lambdaFunctionArnTemplate": "{{flow_variables.MapAndValidateSupplierDataLambdaArn}}",
+          "inputMappings": {
+            "extractedData": "$.steps_output.extracted_data",
+            "mappingPlan": "$.steps_output.mapping_plan",
+            "supplierFields": "$.steps_output.supplier_fields",
+            "existingCommodities": "$.steps_output.commodities",
+            "userId": "$.userId",
+            "correlationId": "$.flowExecutionId"
+          },
+          "outputMappings": { "$.steps_output.validation_result": "$." },
+          "defaultNextStepInstanceId": "check_for_new_commodities",
+          "transitions": [{ "condition": "$.isValid == false", "nextStepInstanceId": "notify_user_of_failure" }]
+        },
+        "check_for_new_commodities": {
+            "stepInstanceId": "check_for_new_commodities",
+            "displayName": "7. Any New Commodities to Create?",
+            "stepType": "NO_OP",
+            "transitions": [{ "condition": "$.newCommodityNames[0]", "nextStepInstanceId": "process_new_commodities" }],
+            "defaultNextStepInstanceId": "reconcile_supplier_commodities"
+        },
+        "process_new_commodities": {
+            "stepInstanceId": "process_new_commodities",
+            "displayName": "8. Create New Commodities",
+            "stepType": "PARALLEL_FORK_MANAGER",
+            "itemsPath": "$.newCommodityNames",
+            "aggregationConfig": { "strategy": "COLLECT_ARRAY", "failOnBranchError": true },
+            "parallelBranches": [{ "branchId": "create_commodity", "stepInstanceId": "generate_new_commodity" }],
+            "outputMappings": { "$.steps_output.newly_created_commodities": "$.aggregatedData" },
+            "defaultNextStepInstanceId": "reconcile_supplier_commodities"
+        },
+        "generate_new_commodity": {
+            "stepInstanceId": "generate_new_commodity",
+            "displayName": "LLM - Generate New Commodity",
+            "stepType": "LLM_INVOCATION",
+            "llmProvider": "GEMINI", "modelId": "gemini-1.5-pro-latest", "promptTemplateId": "optiroq-generate-new-commodity", "customConfig": { "jsonOutputMode": true },
+            "templateContextMappings": {
+                "newCommodityName": { "sourceJsonPath": "$.currentItem" },
+                "existingCommodities": { "sourceJsonPath": "$.steps_output.commodities", "formatAs": "JSON" }
+            },
+            "defaultNextStepInstanceId": "persist_new_commodity"
+        },
+        "persist_new_commodity": {
+            "stepInstanceId": "persist_new_commodity",
+            "displayName": "Save New Commodity",
+            "stepType": "DATA_SAVE",
+            "moduleIdentifier": "system/dynamodb-update-item",
+            "customConfig": {
+                "tableName": "{{flow_variables.EntityGraphTableName}}",
+                "key": {
+                    "PK": "CONFIG#COMMODITIES",
+                    "SK": "COMMODITY#{{commodityId}}"
+                },
+                "updateExpression": "SET entityType = :type, commodityId = :cid, #name = :name, description = :desc, category = :cat, categoryDescription = :catDesc",
+                "expressionAttributeNames": {
+                    "#name": "name"
+                },
+                "expressionAttributeValues": { ":type": "COMMODITY" }
+            },
+            "inputMappings": {
+                "expressionAttributeValues.:cid": "$.commodityId",
+                "expressionAttributeValues.:name": "$.name",
+                "expressionAttributeValues.:desc": "$.description",
+                "expressionAttributeValues.:cat": "$.category",
+                "expressionAttributeValues.:catDesc": "$.categoryDescription"
+            }
+        },
+        "reconcile_supplier_commodities": {
+            "stepInstanceId": "reconcile_supplier_commodities",
+            "displayName": "9. Reconcile Supplier Commodities",
+            "stepType": "CUSTOM_LAMBDA_INVOKE",
+            "lambdaFunctionArnTemplate": "{{flow_variables.ReconcileSupplierCommoditiesLambdaArn}}",
+            "inputMappings": {
+                "suppliersToProcess": "$.steps_output.validation_result.validatedData",
+                "newlyCreatedCommodities": "$.steps_output.newly_created_commodities"
+            },
+            "outputMappings": { "$.steps_output.final_suppliers": "$." },
+            "defaultNextStepInstanceId": "persist_suppliers_in_parallel"
+        },
+        "persist_suppliers_in_parallel": {
+          "stepInstanceId": "persist_suppliers_in_parallel",
+          "displayName": "10. Persist Suppliers",
+          "stepType": "PARALLEL_FORK_MANAGER",
+          "itemsPath": "$.steps_output.final_suppliers",
+          "aggregationConfig": { "strategy": "COLLECT_ARRAY", "failOnBranchError": true, "maxConcurrency": 5 },
+          "parallelBranches": [{ "branchId": "persist_supplier", "stepInstanceId": "persist_supplier" }],
+          "defaultNextStepInstanceId": "notify_user_of_completion"
+        },
+        "persist_supplier": {
+          "stepInstanceId": "persist_supplier",
+          "stepType": "CUSTOM_LAMBDA_INVOKE",
+          "lambdaFunctionArnTemplate": "{{flow_variables.PersistSupplierLambdaArn}}",
+          "inputMappings": { "supplier": "$.currentItem", "correlationId": "$.flowExecutionId" }
+        },
+        "notify_user_of_completion": {
+          "stepInstanceId": "notify_user_of_completion",
+          "displayName": "11a. Notify User (Success)",
+          "stepType": "EMAIL",
+          "from": "{{flow_variables.FromEmail}}", "to": "{{userEmail}}",
+          "subject": "Supplier list has been imported",
+          "body": "Your supplier list has been successfully processed and imported into Optiroq.",
+          "defaultNextStepInstanceId": "end_flow"
+        },
+        "notify_user_of_failure": {
+          "stepInstanceId": "notify_user_of_failure",
+          "displayName": "11b. Notify User (Failure)",
+          "stepType": "EMAIL",
+          "from": "{{flow_variables.FromEmail}}", "to": "{{userEmail}}",
+          "subject": "[ERROR] Supplier list import failed",
+          "body": "Your supplier list could not be imported. The system reported the following issues:\n\n{{steps_output.validation_result.errors}}",
+          "defaultNextStepInstanceId": "end_flow"
+        },
+        "end_flow": { "stepInstanceId": "end_flow", "stepType": "END_FLOW" }
+      }
+    }
+  ],
+  "promptTemplates": [
+    {
+      "id": "optiroq-analyze-supplier-structure",
+      "name": "Optiroq - Analyze Supplier Sheet Structure",
+      "description": "Analyzes a text representation of an Excel workbook to identify the main supplier data table.",
+      "createdAt": "2026-01-24T22:00:00.000Z",
+      "updatedAt": "2026-01-24T22:00:00.000Z",
+      "version": 1,
+      "isPublished": true,
+      "tags": [ "optiroq", "supplier", "analysis", "planning" ],
+      "content": "You are an expert data analyst AI specializing in parsing procurement documents. You will be given a text summary of an Excel workbook. Your task is to analyze this structure and produce a JSON plan to guide data extraction. Find the main table containing a list of suppliers. Do NOT output the data itself, only JSON instructions on how to find it.\n\n**INPUT WORKBOOK (Text Summary):**\n```text\n{{workbookSummary}}\n```\n\n**INSTRUCTIONS:**\n1.  **Identify Primary Sheet:** Determine which sheet contains the main supplier data table. This is usually the sheet with the largest grid of data containing headers like 'Supplier Name', 'Commodity', 'Contact Person', etc. Name this the `primarySheetName`.\n2.  **Locate Data Table:** Within the `primarySheetName`, identify the main table of suppliers.\n    *   `headerRow`: Specify the row number where the column headers are located.\n    *   `dataStartRow`: Specify the row number where the first row of actual supplier data begins.\n    *   `dataEndRow`: Specify the row number of the **last row** of supplier data. This is typically just before an empty row or a summary row.\n3.  **Provide Reasoning:** Briefly explain your choices for `primarySheetName` and the table boundaries.\n\n**CRITICAL:** Your entire response must be ONLY a single, valid JSON object conforming to the output format below. Do not include any explanatory text or markdown.\n\n**JSON OUTPUT FORMAT:**\n```json\n{\n  \"analysis\": {\n    \"primarySheetName\": \"string\",\n    \"confidence\": 0.98,\n    \"reasoning\": \"string\",\n    \"projectMetadata\": [],\n    \"dataTable\": {\n      \"sheetName\": \"string\",\n      \"headerRow\": 2,\n      \"dataStartRow\": 3,\n      \"dataEndRow\": 50\n    }\n  }\n}\n```"
+    },
+    {
+      "id": "optiroq-plan-supplier-mapping",
+      "name": "Optiroq - Plan Supplier Header Mapping",
+      "description": "Analyzes raw Excel headers from a supplier list and creates a JSON mapping plan against the Supplier Field List.",
+      "createdAt": "2026-01-24T22:00:00.000Z",
+      "updatedAt": "2026-02-06T18:00:00.000Z",
+      "version": 1,
+      "isPublished": true,
+      "tags": [ "optiroq", "supplier", "mapping", "planning" ],
+      "content": "You are an expert procurement data mapping AI. Your task is to analyze raw column headers from a supplier list and create a JSON plan that maps each header to its canonical field in the provided Supplier Field List.\n\n**RAW EXCEL HEADERS (JSON Array):**\n```json\n{{rawHeaders}}\n```\n\n**FIRST FEW DATA ROWS (for context):**\n```json\n{{firstDataRows}}\n```\n\n**SUPPLIER FIELD LIST (Canonical Schema):**\n```json\n{{supplierFields}}\n```\n\n**EXISTING COMMODITIES (for context):**\n```json\n{{existingCommodities}}\n```\n\n**INSTRUCTIONS:**\n1.  For each `rawHeader`, find the single best matching field from the `Supplier Field List` based on semantic similarity.\n2.  Use the `firstDataRows` for context to resolve ambiguity (e.g., a column named 'Category' with values like 'Casting' should map to 'commodityIds').\n3.  For the `commodityIds` field, you are expecting a comma-separated list of commodity names (e.g., 'Hot-Rolled Steel, Aluminum'). Use the `existingCommodities` list to help identify which column contains this information. Map any column containing these codes or their names to `commodityIds`.\n4.  Provide a `confidence` score from 0.0 to 1.0 for each mapping.\n5.  If a `rawHeader` cannot be confidently matched (confidence < 0.5), map it to `null`.\n\n**CRITICAL:** Your entire response must be ONLY a valid JSON object where keys are the raw headers. Do not include any explanatory text or markdown.\n\n**Example Output Format:**\n```json\n{\n  \"Supplier Name\": { \"mapsTo\": \"supplierName\", \"confidence\": 0.99 },\n  \"Commodities\": { \"mapsTo\": \"commodityIds\", \"confidence\": 0.98 },\n  \"Contact person\": { \"mapsTo\": \"contactName\", \"confidence\": 0.92 },\n  \"Internal ID\": { \"mapsTo\": null, \"confidence\": 0.2 }\n}\n```"
+    },
+    {
+      "id": "optiroq-generate-new-commodity",
+      "name": "Optiroq - Generate New Commodity",
+      "description": "Analyzes a new commodity name and generates a structured commodity object, assigning it to an existing category.",
+      "version": 1,
+      "isPublished": true,
+      "tags": ["optiroq", "commodity", "generation"],
+      "createdAt": "2026-02-06T18:00:00.000Z",
+      "updatedAt": "2026-02-06T18:00:00.000Z",
+      "content": "You are an expert procurement data specialist AI. Your task is to create a new, structured commodity object based on a user-provided name. You must categorize it correctly based on a list of existing commodities and their categories.\n\n**NEW COMMODITY NAME:**\n`{{newCommodityName}}`\n\n**EXISTING COMMODITIES AND CATEGORIES (for context):**\n```json\n{{existingCommodities}}\n```\n\n**INSTRUCTIONS:**\n1.  **Analyze the `newCommodityName`:** Understand its meaning in a manufacturing context.\n2.  **Assign a Category:** Review the `category` and `categoryDescription` of the `existingCommodities`. Assign the `newCommodityName` to the most logical existing category. You MUST use an existing category name exactly as provided.\n3.  **Generate a `commodityId`:** Create a unique, machine-friendly ID for the new commodity. It should be uppercase, use underscores instead of spaces, and be a concise representation of the commodity name (e.g., 'Aluminum Casting' becomes 'ALUMINUM_CASTING').\n4.  **Create a `name`:** Use a clean, well-formatted version of the input name (e.g., 'aluminum casting' becomes 'Aluminum Casting').\n5.  **Write a `description`:** Provide a brief, one-sentence description of the commodity.\n\n**CRITICAL:** Your entire response must be ONLY a single, valid JSON object conforming to the output format below. Do not include any explanatory text, preamble, or markdown formatting.\n\n**JSON OUTPUT FORMAT:**\n```json\n{\n  \"commodityId\": \"string\",\n  \"name\": \"string\",\n  \"description\": \"string\",\n  \"category\": \"string\",\n  \"categoryDescription\": \"string\"\n}\n```\n\n**Example for input 'Aluminum Die Casting':**\n```json\n{\n  \"commodityId\": \"ALUMINUM_DIE_CASTING\",\n  \"name\": \"Aluminum Die Casting\",\n  \"description\": \"Manufacturing process for producing accurately dimensioned, sharply defined, smooth or textured-surface aluminum parts.\",\n  \"category\": \"Non-Ferrous Metals\",\n  \"categoryDescription\": \"Metals that do not contain iron, valued for properties like light weight and conductivity.\"\n}\n```"
+    }
+  ]
+}

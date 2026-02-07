@@ -1,0 +1,12 @@
+{
+    "pageTitle": "Supplier Details",
+    "errorLoadingTitle": "Failed to load supplier details",
+    "backToList": "Back to Suppliers",
+    "save": "Save Changes",
+    "archive": "Archive Supplier",
+    "unarchive": "Restore Supplier",
+    "archived": "Archived",
+    "active": "Active",
+    "createTitle": "New Supplier",
+    "create": "Create Supplier"
+}

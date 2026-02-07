@@ -1,0 +1,20 @@
+{
+  "analysis": {
+    "primarySheetName": "BOM-DOOR",
+    "confidence": 0.98,
+    "reasoning": "The 'BOM-DOOR' sheet was selected as primary because its name and content, including a hierarchical 'LEVEL' column, clearly define it as a Bill of Materials. The 'WEIGHT CHART' sheet contains supplementary calculation data. The data table boundaries were identified by locating the header row with standard BOM columns ('PART NAME', 'QTY'), and the data ends just before the 'TOTAL WEIGHT' summary row and subsequent notes.",
+    "projectMetadata": [
+      {
+        "key": "projectName",
+        "label": "BOM - DOOR",
+        "valueCellAddress": "A1"
+      }
+    ],
+    "dataTable": {
+      "sheetName": "BOM-DOOR",
+      "headerRow": 2,
+      "dataStartRow": 3,
+      "dataEndRow": 28
+    }
+  }
+}

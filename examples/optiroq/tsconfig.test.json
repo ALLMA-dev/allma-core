@@ -1,0 +1,13 @@
+{
+  // Inherit from your main tsconfig to reduce duplication
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // This is the key change: it brings in the Jest global types
+    "types": ["jest", "node"]
+  },
+  // Make sure to include your test files and source files
+  "include": [
+    "src/**/*.ts",
+    "cdk/**/*.ts"
+  ]
+}

@@ -1,0 +1,300 @@
+{
+  "project": {
+    "projectName": "BOM - DOOR"
+  },
+  "parts": [
+    {
+      "LEVEL": 1,
+      "PART NAME": "ASSY., DOOR",
+      "IMAGE": null,
+      "MATERIAL": "-",
+      "THK": "-",
+      "QTY": "-",
+      "WEIGHT (g)": "-",
+      "TOTAL WEIGHT (g)": "-",
+      "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/ab9b0eff-395b-40a4-a714-d9978c5fc684.png"
+    },
+    {
+      "LEVEL": 2,
+      "PART NAME": "PANEL , OUTER",
+      "IMAGE": null,
+      "MATERIAL": "MJAC340H-OC-45/45",
+      "THK": 0.6,
+      "QTY": 1,
+      "WEIGHT (g)": 4840.492469047201,
+      "TOTAL WEIGHT (g)": 4840.492469047201,
+      "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/923bc10d-df46-4443-90bd-d4ed489aff4f.png"
+    },
+    {
+      "LEVEL": 2,
+      "PART NAME": "ASSY., INNER",
+      "IMAGE": null,
+      "MATERIAL": "-",
+      "THK": "-",
+      "QTY": "-",
+      "WEIGHT (g)": "-",
+      "TOTAL WEIGHT (g)": "-",
+      "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/e60db974-7e73-4485-8022-fc05a07fd358.png"
+    },
+    {
+      "LEVEL": 3,
+      "PART NAME": "PANEL, INNER",
+      "IMAGE": null,
+      "MATERIAL": "MJAC270D-OC-45/45",
+      "THK": 0.65,
+      "QTY": 1,
+      "WEIGHT (g)": 5411.813358478801,
+      "TOTAL WEIGHT (g)": 5411.813358478801,
+      "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/b7246556-7972-4b65-b440-b221d9338c7d.png"
+    },
+    {
+      "LEVEL": 3,
+      "PART NAME": "REINFORCEMENT HINGE UPR",
+      "IMAGE": null,
+      "MATERIAL": "MJAC270D-OC-45/45",
+      "THK": 1,
+      "QTY": 1,
+      "WEIGHT (g)": 296.37620648999996,
+      "TOTAL WEIGHT (g)": 296.37620648999996,
+      "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/7b5c82b3-c8e9-4035-bd58-d0c7a535ec97.png"
+    },
+    {
+      "LEVEL": 3,
+      "PART NAME": "REINFORCEMENT HINGE LWR",
+      "IMAGE": null,
+      "MATERIAL": "MJAC270D-OC-45/45",
+      "THK": 1,
+      "QTY": 1,
+      "WEIGHT (g)": 125.561532642,
+      "TOTAL WEIGHT (g)": 125.561532642,
+      "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/1020d60d-7e76-4857-9576-9247c4cfa379.png"
+    },
+    {
+      "LEVEL": 3,
+      "PART NAME": "REINFORCEMENT LATCH",
+      "IMAGE": null,
+      "MATERIAL": "MJAC270C-OC-45/45",
+      "THK": 1,
+      "QTY": 1,
+      "WEIGHT (g)": 92.393506926,
+      "TOTAL WEIGHT (g)": 92.393506926,
+      "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/d3e3d9a6-ae07-4383-9bfd-c66909a8ef51.png"
+    },
+    {
+      "LEVEL": 3,
+      "PART NAME": "STIFFNER 1",
+      "IMAGE": null,
+      "MATERIAL": "MJAC270D-OC-45/45",
+      "THK": 0.65,
+      "QTY": 1,
+      "WEIGHT (g)": 530.9005870077001,
+      "TOTAL WEIGHT (g)": 530.9005870077001,
+      "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/1a4c8775-578f-44cf-aa94-41723c14eb5e.png"
+    },
+    {
+      "LEVEL": 3,
+      "PART NAME": "STIFFNER 2",
+      "IMAGE": null,
+      "MATERIAL": "MJAC270D-OC-45/45",
+      "THK": 0.65,
+      "QTY": 1,
+      "WEIGHT (g)": 550.6708919712,
+      "TOTAL WEIGHT (g)": 550.6708919712,
+      "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/291e719d-13e4-42d4-a445-9e16a560b7eb.png"
+    },
+    {
+      "LEVEL": 3,
+      "PART NAME": "REINFORCEMENT BELTLINE",
+      "IMAGE": null,
+      "MATERIAL": "MJSC270D-OC-45/45",
+      "THK": 1.2,
+      "QTY": 1,
+      "WEIGHT (g)": 1504.7345236896,
+      "TOTAL WEIGHT (g)": 1504.7345236896,
+      "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/defe8f5a-5968-4b8b-a1bb-b9763395e30c.png"
+    },
+    {
+      "LEVEL": 3,
+      "PART NAME": "REINFORCEMENT SILL",
+      "IMAGE": null,
+      "MATERIAL": "MJSC270D-OC-45/45",
+      "THK": 1.2,
+      "QTY": 1,
+      "WEIGHT (g)": 625.5027466632,
+      "TOTAL WEIGHT (g)": 625.5027466632,
+      "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/02eaf887-bf8d-44cb-bab1-4c98231289b8.png"
+    },
+    {
+      "LEVEL": 3,
+      "PART NAME": "ASSY, SASH FR FR",
+      "IMAGE": null,
+      "MATERIAL": "-",
+      "THK": "-",
+      "QTY": "-",
+      "WEIGHT (g)": "-",
+      "TOTAL WEIGHT (g)": "-",
+      "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/1535b55b-c488-40fd-897f-ac25f2717c7c.png"
+    },
+    {
+      "LEVEL": 4,
+      "PART NAME": "SASH FR FR",
+      "IMAGE": null,
+      "MATERIAL": "MJSC270D-OC",
+      "THK": 0.8,
+      "QTY": 1,
+      "WEIGHT (g)": 256.6409472,
+      "TOTAL WEIGHT (g)": 256.6409472,
+      "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/328ec5d3-d7ec-4081-beb6-c30333812f41.png"
+    },
+    {
+      "LEVEL": 4,
+      "PART NAME": "BRACKET 01",
+      "IMAGE": null,
+      "MATERIAL": "MJAC270D-OC-45/45",
+      "THK": 1,
+      "QTY": 1,
+      "WEIGHT (g)": 34.81010862,
+      "TOTAL WEIGHT (g)": 34.81010862,
+      "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/d7215419-0e35-4c04-b6f7-0cb410a4b2a7.png"
+    },
+    {
+      "LEVEL": 4,
+      "PART NAME": "BRACKET 02",
+      "IMAGE": null,
+      "MATERIAL": "MJAC270D-OC-45/45",
+      "THK": 1,
+      "QTY": 1,
+      "WEIGHT (g)": 24.417567888,
+      "TOTAL WEIGHT (g)": 24.417567888,
+      "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/5b53e278-bdf6-4764-8afc-b24a6a65e23f.png"
+    },
+    {
+      "LEVEL": 3,
+      "PART NAME": "ASSY, SASH FR RR",
+      "IMAGE": null,
+      "MATERIAL": "-",
+      "THK": "-",
+      "QTY": "-",
+      "WEIGHT (g)": "-",
+      "TOTAL WEIGHT (g)": "-",
+      "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/69ce3114-47d6-4265-85b1-6371ceab9ef8.png"
+    },
+    {
+      "LEVEL": 4,
+      "PART NAME": "SASH FR RR",
+      "IMAGE": null,
+      "MATERIAL": "MJSC270D-OC",
+      "THK": 0.8,
+      "QTY": 1,
+      "WEIGHT (g)": 180.88249440000004,
+      "TOTAL WEIGHT (g)": 180.88249440000004,
+      "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/e6333ec1-a892-4e83-bd5a-2bb6aa8ec7da.png"
+    },
+    {
+      "LEVEL": 4,
+      "PART NAME": "BRACKET 03",
+      "IMAGE": null,
+      "MATERIAL": "MJAC270D-OC-45/45",
+      "THK": 1,
+      "QTY": 1,
+      "WEIGHT (g)": 5.472146148,
+      "TOTAL WEIGHT (g)": 5.472146148,
+      "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/cda97a87-ff21-46a0-9905-4f96d84da626.png"
+    },
+    {
+      "LEVEL": 4,
+      "PART NAME": "BRACKET 04",
+      "IMAGE": null,
+      "MATERIAL": "MJAC270D-OC-45/45",
+      "THK": 1,
+      "QTY": 1,
+      "WEIGHT (g)": 6.108050802,
+      "TOTAL WEIGHT (g)": 6.108050802,
+      "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/f279f1f1-2b0f-453d-b3f3-9d46fd7398e8.png"
+    },
+    {
+      "LEVEL": 3,
+      "PART NAME": "ASSY, SASH FR RR LWR",
+      "IMAGE": null,
+      "MATERIAL": "-",
+      "THK": "-",
+      "QTY": "-",
+      "WEIGHT (g)": "-",
+      "TOTAL WEIGHT (g)": "-",
+      "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/3c4b7396-5906-4315-8aab-59049648d78a.png"
+    },
+    {
+      "LEVEL": 4,
+      "PART NAME": "SASH FR RR LWR",
+      "IMAGE": null,
+      "MATERIAL": "MJSC270D-OC",
+      "THK": 0.8,
+      "QTY": 1,
+      "WEIGHT (g)": 189.910176,
+      "TOTAL WEIGHT (g)": 189.910176,
+      "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/a8c71b8e-b015-4d5c-a203-b8637a5aea2e.png"
+    },
+    {
+      "LEVEL": 4,
+      "PART NAME": "BRACKET 05\n  + M6 WELD NUT\n  + M6 BOLT",
+      "IMAGE": null,
+      "MATERIAL": "MJAC270D-OC-45/45",
+      "THK": 1,
+      "QTY": 1,
+      "WEIGHT (g)": 16.781735412,
+      "TOTAL WEIGHT (g)": 16.781735412,
+      "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/cab655fd-e6a8-4d65-9f5a-b4a5d45a9bed.png"
+    },
+    {
+      "LEVEL": 4,
+      "PART NAME": "BRACKET 06\n  + M6 WELD NUT\n  + M6 BOLT",
+      "IMAGE": null,
+      "MATERIAL": "MJAC270D-OC-45/45",
+      "THK": 1,
+      "QTY": 1,
+      "WEIGHT (g)": 22.26485805,
+      "TOTAL WEIGHT (g)": 22.26485805,
+      "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/bb0b745b-40de-4bf2-97e0-1bc7758c043f.png"
+    },
+    {
+      "LEVEL": 1,
+      "PART NAME": "HINGE UPR",
+      "IMAGE": "NA",
+      "MATERIAL": "SS",
+      "THK": 5,
+      "QTY": 1,
+      "WEIGHT (g)": 2500,
+      "TOTAL WEIGHT (g)": 2500
+    },
+    {
+      "LEVEL": 1,
+      "PART NAME": "HINGE LWR",
+      "IMAGE": "NA",
+      "MATERIAL": "SS",
+      "THK": 5,
+      "QTY": 1,
+      "WEIGHT (g)": 2500,
+      "TOTAL WEIGHT (g)": 2500
+    },
+    {
+      "LEVEL": 1,
+      "PART NAME": "LATCH",
+      "IMAGE": "NA",
+      "MATERIAL": "SS",
+      "THK": "-",
+      "QTY": 1,
+      "WEIGHT (g)": 500,
+      "TOTAL WEIGHT (g)": 500
+    }
+  ],
+  "headers": [
+    "LEVEL",
+    "PART NAME",
+    "IMAGE",
+    "MATERIAL",
+    "THK",
+    "QTY",
+    "WEIGHT (g)",
+    "TOTAL WEIGHT (g)"
+  ]
+}

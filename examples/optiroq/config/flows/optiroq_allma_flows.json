@@ -1,0 +1,485 @@
+{
+    "formatVersion": "1.0",
+    "exportedAt": "2024-12-24T10:00:00.000Z",
+    "flows": [
+        {
+            "id": "optiroq-generate-and-email-comparison-board",
+            "name": "Optiroq - Generate and Email Comparison Board",
+            "description": "Loads all approved quotes for an RFQ, generates an Excel comparison board, and emails it to the buyer.",
+            "version": 1,
+            "isPublished": true,
+            "createdAt": "2024-12-24T10:00:00.000Z",
+            "updatedAt": "2024-12-24T10:00:00.000Z",
+            "startStepInstanceId": "load_approved_quotes",
+            "enableExecutionLogs": true,
+            "flowVariables": {
+                "OptiroqEntityGraphTable": "OptiroqEntityGraph-{{stage}}",
+                "FromEmail": "rfq-agent@optiroq.com",
+                "GenerateComparisonBoardLambdaArn": "arn:aws:lambda:{{region}}:{{accountId}}:function:optiroq-GenerateComparisonBoardStep-{{stage}}"
+            },
+            "steps": {
+                "load_approved_quotes": {
+                    "stepInstanceId": "load_approved_quotes",
+                    "displayName": "1. Load Approved Quotes",
+                    "stepType": "DATA_LOAD",
+                    "moduleIdentifier": "system/dynamodb-data-loader",
+                    "customConfig": {
+                        "operation": "QUERY",
+                        "tableName": "{{flow_variables.OptiroqEntityGraphTable}}",
+                        "keyConditionExpression": "PK = :pk AND begins_with(SK, :skPrefix)",
+                        "filterExpression": "#status = :status",
+                        "expressionAttributeNames": {
+                            "#status": "status"
+                        },
+                        "expressionAttributeValues": {
+                            ":pk": "RFQ#{{initialContextData.rfqId}}",
+                            ":skPrefix": "QUOTE#",
+                            ":status": "APPROVED"
+                        }
+                    },
+                    "outputMappings": {
+                        "$.steps_output.approved_quotes": "$.content"
+                    },
+                    "defaultNextStepInstanceId": "generate_excel_workbook"
+                },
+                "generate_excel_workbook": {
+                    "stepInstanceId": "generate_excel_workbook",
+                    "displayName": "2. Generate Excel Workbook",
+                    "stepType": "CUSTOM_LAMBDA_INVOKE",
+                    "lambdaFunctionArnTemplate": "{{flow_variables.GenerateComparisonBoardLambdaArn}}",
+                    "inputMappings": {
+                        "approvedQuotes": "$.steps_output.approved_quotes"
+                    },
+                    "outputMappings": {
+                        "$.steps_output.excel_s3_pointer": "$."
+                    },
+                    "defaultNextStepInstanceId": "send_comparison_board_email"
+                },
+                "send_comparison_board_email": {
+                    "stepInstanceId": "send_comparison_board_email",
+                    "displayName": "3. Send Comparison Board Email",
+                    "stepType": "EMAIL",
+                    "from": "{{flow_variables.FromEmail}}",
+                    "to": "{{initialContextData.recipientEmail}}",
+                    "subject": "Comparison Board Update for RFQ {{initialContextData.rfqId}}",
+                    "body": "Please find the latest comparison board attached.",
+                    "attachments": [
+                        {
+                            "filename": "Comparison_Board_{{initialContextData.rfqId}}.xlsx",
+                            "s3Pointer": {
+                                "bucket": "{{steps_output.excel_s3_pointer._s3_output_pointer.bucket}}",
+                                "key": "{{steps_output.excel_s3_pointer._s3_output_pointer.key}}"
+                            }
+                        }
+                    ],
+                    "defaultNextStepInstanceId": "end_flow"
+                },
+                "end_flow": {
+                    "stepInstanceId": "end_flow",
+                    "stepType": "END_FLOW"
+                }
+            }
+        },
+        {
+            "id": "optiroq-request-rfq-approval",
+            "name": "Optiroq - Request RFQ Approval",
+            "description": "Manages the governance workflow for RFQ sign-off by determining and notifying the approval chain.",
+            "version": 1,
+            "isPublished": true,
+            "createdAt": "2024-12-24T10:00:00.000Z",
+            "updatedAt": "2024-12-24T10:00:00.000Z",
+            "startStepInstanceId": "load_rfq_and_decision_data",
+            "enableExecutionLogs": true,
+            "flowVariables": {
+                "LoadRfqDecisionDataLambdaArn": "arn:aws:lambda:{{region}}:{{accountId}}:function:optiroq-LoadRfqDecisionData-{{stage}}",
+                "DetermineApprovalChainLambdaArn": "arn:aws:lambda:{{region}}:{{accountId}}:function:optiroq-DetermineApprovalChain-{{stage}}",
+                "PublicApiBaseUrl": "https://{{optiroqApiDomain}}",
+                "FromEmail": "approvals@optiroq.com"
+            },
+            "steps": {
+                "load_rfq_and_decision_data": {
+                    "stepInstanceId": "load_rfq_and_decision_data",
+                    "displayName": "1. Load RFQ & Decision Data",
+                    "stepType": "CUSTOM_LAMBDA_INVOKE",
+                    "lambdaFunctionArnTemplate": "{{flow_variables.LoadRfqDecisionDataLambdaArn}}",
+                    "inputMappings": {
+                        "rfqId": "$.initialContextData.rfqId",
+                        "decisionId": "$.initialContextData.decisionId"
+                    },
+                    "outputMappings": {
+                        "$.steps_output.decision_data": "$."
+                    },
+                    "defaultNextStepInstanceId": "determine_approval_chain"
+                },
+                "determine_approval_chain": {
+                    "stepInstanceId": "determine_approval_chain",
+                    "displayName": "2. Determine Approval Chain",
+                    "stepType": "CUSTOM_LAMBDA_INVOKE",
+                    "lambdaFunctionArnTemplate": "{{flow_variables.DetermineApprovalChainLambdaArn}}",
+                    "inputMappings": {
+                        "rfqValue": "$.steps_output.decision_data.rfqValue",
+                        "rfqId": "$.initialContextData.rfqId",
+                        "decisionId": "$.initialContextData.decisionId"
+                    },
+                    "outputMappings": {
+                        "$.steps_output.approval_chain": "$."
+                    },
+                    "defaultNextStepInstanceId": "send_approval_requests"
+                },
+                "send_approval_requests": {
+                    "stepInstanceId": "send_approval_requests",
+                    "displayName": "3. Send Approval Requests",
+                    "stepType": "PARALLEL_FORK_MANAGER",
+                    "itemsPath": "$.steps_output.approval_chain.approvers",
+                    "parallelBranches": [
+                        {
+                            "branchId": "send_email_branch",
+                            "stepInstanceId": "send_single_approval_email"
+                        }
+                    ],
+                    "defaultNextStepInstanceId": "wait_for_approvals"
+                },
+                "send_single_approval_email": {
+                    "stepInstanceId": "send_single_approval_email",
+                    "stepType": "EMAIL",
+                    "from": "{{flow_variables.FromEmail}}",
+                    "to": "{{currentItem.email}}",
+                    "subject": "Approval Requested for RFQ {{initialContextData.rfqId}}",
+                    "body": "Hello {{currentItem.name}},\n\nYour approval is requested for the sourcing decision on RFQ {{initialContextData.rfqId}}.\n\nPlease review the decision and click one of the links below:\n\nApprove: {{flow_variables.PublicApiBaseUrl}}/approve/{{currentItem.approvalToken}}?decision=approved\nReject: {{flow_variables.PublicApiBaseUrl}}/approve/{{currentItem.approvalToken}}?decision=rejected"
+                },
+                "wait_for_approvals": {
+                    "stepInstanceId": "wait_for_approvals",
+                    "displayName": "4. Wait for All Approvals",
+                    "stepType": "WAIT_FOR_EXTERNAL_EVENT",
+                    "correlationKeyTemplate": "rfq-approval:{{initialContextData.rfqId}}",
+                    "maxWaitTimeSeconds": 604800,
+                    "defaultNextStepInstanceId": "finalize_or_escalate"
+                },
+                "finalize_or_escalate": {
+                    "stepInstanceId": "finalize_or_escalate",
+                    "displayName": "5. Finalize or Escalate",
+                    "stepType": "NO_OP",
+                    "comment": "This step would be a CONDITIONAL_ROUTER that checks the final status from the resume payload and updates the DECISION entity accordingly.",
+                    "defaultNextStepInstanceId": "end_flow"
+                },
+                "end_flow": {
+                    "stepInstanceId": "end_flow",
+                    "stepType": "END_FLOW"
+                }
+            }
+        },
+        {
+            "id": "optiroq-initiate-follow-up",
+            "name": "Optiroq - Initiate Follow-Up",
+            "description": "Sends the initial follow-up email and sets the first reminder deadline in the database. Triggered by user action.",
+            "version": 1,
+            "isPublished": true,
+            "createdAt": "2024-12-24T10:00:00.000Z",
+            "updatedAt": "2024-12-24T10:00:00.000Z",
+            "startStepInstanceId": "send_initial_email",
+            "enableExecutionLogs": true,
+            "flowVariables": {
+                "OptiroqEntityGraphTable": "OptiroqEntityGraph-{{stage}}",
+                "FromEmail": "rfq-agent@optiroq.com",
+                "DefaultReminderDelaySeconds": 259200
+            },
+            "steps": {
+                "send_initial_email": {
+                    "stepInstanceId": "send_initial_email",
+                    "displayName": "1. Send Initial Email",
+                    "stepType": "EMAIL",
+                    "from": "{{flow_variables.FromEmail}}",
+                    "to": "{{initialContextData.recipientEmail}}",
+                    "subject": "{{initialContextData.subject}}",
+                    "body": "{{initialContextData.body}}",
+                    "defaultNextStepInstanceId": "calculate_initial_deadline"
+                },
+                "calculate_initial_deadline": {
+                    "stepInstanceId": "calculate_initial_deadline",
+                    "displayName": "2. Calculate Initial Deadline",
+                    "stepType": "DATA_TRANSFORMATION",
+                    "moduleIdentifier": "system/date-time-calculator",
+                    "literals": {
+                        "operation": "add"
+                    },
+                    "inputMappings": {
+                        "baseTime": "$._internal.currentStepStartTime",
+                        "offsetSeconds": "$.initialContextData.reminderDelaySeconds | default: flow_variables.DefaultReminderDelaySeconds"
+                    },
+                    "outputMappings": {
+                        "$.steps_output.follow_up_deadline": "$.result"
+                    },
+                    "defaultNextStepInstanceId": "update_quote_status_in_db"
+                },
+                "update_quote_status_in_db": {
+                    "stepInstanceId": "update_quote_status_in_db",
+                    "displayName": "3. Set Deadline in DB",
+                    "stepType": "DATA_SAVE",
+                    "moduleIdentifier": "system/dynamodb-update-item",
+                    "customConfig": {
+                        "tableName": "{{flow_variables.OptiroqEntityGraphTable}}",
+                        "updateExpression": "SET #status = :status, #deadline = :deadline, #sentAt = :sentAt",
+                        "expressionAttributeNames": {
+                            "#status": "followUpStatus",
+                            "#deadline": "followUpDeadline",
+                            "#sentAt": "followUpSentAt"
+                        },
+                        "expressionAttributeValues": {
+                            ":status": "SENT"
+                        }
+                    },
+                    "inputMappings": {
+                        "key.PK": "$.initialContextData.rfqId | prepend: 'RFQ#'",
+                        "key.SK": "$.initialContextData.quoteId | prepend: 'QUOTE#'",
+                        "expressionAttributeValues.:deadline": "$.steps_output.follow_up_deadline",
+                        "expressionAttributeValues.:sentAt": "$._internal.currentStepStartTime"
+                    },
+                    "defaultNextStepInstanceId": "end_flow"
+                },
+                "end_flow": {
+                    "stepInstanceId": "end_flow",
+                    "stepType": "END_FLOW"
+                }
+            }
+        },
+        {
+            "id": "optiroq-scheduled-supplier-reminder",
+            "name": "Optiroq - Scheduled Supplier Reminder",
+            "description": "Runs daily to find and send reminders for all quotes with overdue follow-up deadlines.",
+            "version": 1,
+            "isPublished": true,
+            "createdAt": "2024-12-24T10:00:00.000Z",
+            "updatedAt": "2024-12-24T10:00:00.000Z",
+            "startStepInstanceId": "trigger_schedule",
+            "enableExecutionLogs": true,
+            "flowVariables": {
+                "OptiroqEntityGraphTable": "OptiroqEntityGraph-{{stage}}",
+                "FromEmail": "rfq-agent@optiroq.com",
+                "ReminderSchedule": "cron(0 9 * * ? *)",
+                "NextReminderDelaySeconds": 259200
+            },
+            "steps": {
+                "trigger_schedule": {
+                    "stepInstanceId": "trigger_schedule",
+                    "displayName": "Run Daily at 9 AM UTC",
+                    "stepType": "SCHEDULE_START_POINT",
+                    "scheduleExpression": "{{flow_variables.ReminderSchedule}}",
+                    "enabled": true,
+                    "defaultNextStepInstanceId": "query_overdue_follow_ups"
+                },
+                "query_overdue_follow_ups": {
+                    "stepInstanceId": "query_overdue_follow_ups",
+                    "displayName": "1. Query for Overdue Follow-ups",
+                    "stepType": "DATA_LOAD",
+                    "moduleIdentifier": "system/dynamodb-data-loader",
+                    "customConfig": {
+                        "operation": "QUERY",
+                        "tableName": "{{flow_variables.OptiroqEntityGraphTable}}",
+                        "indexName": "FollowUpStatusIndex",
+                        "keyConditionExpression": "#status = :status AND #deadline <= :now",
+                        "expressionAttributeNames": {
+                            "#status": "followUpStatus",
+                            "#deadline": "followUpDeadline"
+                        },
+                        "expressionAttributeValues": {
+                            ":status": "SENT"
+                        }
+                    },
+                    "inputMappings": {
+                        "expressionAttributeValues.:now": "$._internal.currentStepStartTime"
+                    },
+                    "outputMappings": {
+                        "$.steps_output.overdue_items": "$.content"
+                    },
+                    "defaultNextStepInstanceId": "process_reminders_in_parallel"
+                },
+                "process_reminders_in_parallel": {
+                    "stepInstanceId": "process_reminders_in_parallel",
+                    "displayName": "2. Process Reminders in Parallel",
+                    "stepType": "PARALLEL_FORK_MANAGER",
+                    "itemsPath": "$.steps_output.overdue_items",
+                    "parallelBranches": [
+                        {
+                            "branchId": "send_and_update_branch",
+                            "stepInstanceId": "send_reminder_email"
+                        }
+                    ],
+                    "defaultNextStepInstanceId": "end_flow"
+                },
+                "send_reminder_email": {
+                    "stepInstanceId": "send_reminder_email",
+                    "displayName": "Send Reminder Email",
+                    "stepType": "EMAIL",
+                    "from": "{{flow_variables.FromEmail}}",
+                    "to": "{{currentItem.recipientEmail}}",
+                    "subject": "Reminder: Follow-up for RFQ {{currentItem.rfqId}}",
+                    "body": "This is a friendly reminder regarding our previous request for information on your quote for RFQ {{currentItem.rfqId}}. Please provide the requested details at your earliest convenience.",
+                    "defaultNextStepInstanceId": "calculate_next_deadline"
+                },
+                "calculate_next_deadline": {
+                    "stepInstanceId": "calculate_next_deadline",
+                    "displayName": "Calculate Next Deadline",
+                    "stepType": "DATA_TRANSFORMATION",
+                    "moduleIdentifier": "system/date-time-calculator",
+                    "literals": {
+                        "operation": "add"
+                    },
+                    "inputMappings": {
+                        "baseTime": "$._internal.currentStepStartTime",
+                        "offsetSeconds": "$.flow_variables.NextReminderDelaySeconds"
+                    },
+                    "outputMappings": {
+                        "$.steps_output.next_deadline": "$.result"
+                    },
+                    "defaultNextStepInstanceId": "update_quote_deadline_in_db"
+                },
+                "update_quote_deadline_in_db": {
+                    "stepInstanceId": "update_quote_deadline_in_db",
+                    "displayName": "Update Deadline in DB",
+                    "stepType": "DATA_SAVE",
+                    "moduleIdentifier": "system/dynamodb-update-item",
+                    "customConfig": {
+                        "tableName": "{{flow_variables.OptiroqEntityGraphTable}}",
+                        "updateExpression": "SET #status = :status, #deadline = :deadline",
+                        "expressionAttributeNames": {
+                            "#status": "followUpStatus",
+                            "#deadline": "followUpDeadline"
+                        },
+                        "expressionAttributeValues": {
+                            ":status": "REMINDED"
+                        }
+                    },
+                    "inputMappings": {
+                        "key.PK": "$.currentItem.PK",
+                        "key.SK": "$.currentItem.SK",
+                        "expressionAttributeValues.:deadline": "$.steps_output.next_deadline"
+                    }
+                },
+                "end_flow": {
+                    "stepInstanceId": "end_flow",
+                    "stepType": "END_FLOW"
+                }
+            }
+        },
+        {
+            "id": "optiroq-send-rejection-notifications",
+            "name": "Optiroq - Send Rejection Notifications",
+            "description": "Sends batch rejection notifications to non-selected suppliers and logs communication events.",
+            "version": 1,
+            "isPublished": true,
+            "createdAt": "2024-12-24T10:00:00.000Z",
+            "updatedAt": "2024-12-24T10:00:00.000Z",
+            "startStepInstanceId": "load_rejection_data",
+            "enableExecutionLogs": true,
+            "flowVariables": {
+                "OptiroqEntityGraphTable": "OptiroqEntityGraph-{{stage}}"
+            },
+            "steps": {
+                "load_rejection_data": {
+                    "stepInstanceId": "load_rejection_data",
+                    "displayName": "1. Load Rejection Data",
+                    "stepType": "DATA_LOAD",
+                    "moduleIdentifier": "system/dynamodb-data-loader",
+                    "customConfig": {
+                        "operation": "GET",
+                        "tableName": "{{flow_variables.OptiroqEntityGraphTable}}",
+                        "key": {
+                            "PK": "RFQ#{{initialContextData.rfqId}}",
+                            "SK": "REJECTION#{{initialContextData.rejectionBatchId}}"
+                        }
+                    },
+                    "outputMappings": {
+                        "$.steps_output.rejection_data": "$.content"
+                    },
+                    "defaultNextStepInstanceId": "send_emails_in_parallel"
+                },
+                "send_emails_in_parallel": {
+                    "stepInstanceId": "send_emails_in_parallel",
+                    "displayName": "2. Send Emails in Parallel",
+                    "stepType": "PARALLEL_FORK_MANAGER",
+                    "itemsPath": "$.steps_output.rejection_data.rejectedSuppliers",
+                    "parallelBranches": [
+                        {
+                            "branchId": "send_rejection_email",
+                            "stepInstanceId": "send_single_rejection_email"
+                        }
+                    ],
+                    "aggregationConfig": {
+                        "failOnBranchError": false
+                    },
+                    "defaultNextStepInstanceId": "log_communication_events"
+                },
+                "send_single_rejection_email": {
+                    "stepInstanceId": "send_single_rejection_email",
+                    "stepType": "EMAIL",
+                    "from": "{{flow_variables.FromEmail}}",
+                    "to": "{{currentItem.email}}",
+                    "subject": "Update on your quotation for RFQ {{initialContextData.rfqId}}",
+                    "body": "{{currentItem.rejectionMessage}}"
+                },
+                "log_communication_events": {
+                    "stepInstanceId": "log_communication_events",
+                    "displayName": "3. Log Communication Events",
+                    "stepType": "PARALLEL_FORK_MANAGER",
+                    "itemsPath": "$.steps_output.rejection_data.rejectedSuppliers",
+                    "parallelBranches": [
+                        {
+                            "branchId": "log_event",
+                            "stepInstanceId": "save_comm_log_item"
+                        }
+                    ],
+                    "defaultNextStepInstanceId": "finalize_rfq_status"
+                },
+                "save_comm_log_item": {
+                    "stepInstanceId": "save_comm_log_item",
+                    "stepType": "DATA_SAVE",
+                    "moduleIdentifier": "system/dynamodb-update-item",
+                    "customConfig": {
+                        "tableName": "{{flow_variables.OptiroqEntityGraphTable}}",
+                        "key": {
+                            "PK": "RFQ#{{initialContextData.rfqId}}",
+                            "SK": "COMM#{{_internal.currentStepStartTime}}#SUPPLIER#{{currentItem.supplierId}}"
+                        },
+                        "updateExpression": "SET #type = :type, #details = :details",
+                        "expressionAttributeNames": {
+                            "#type": "eventType",
+                            "#details": "details"
+                        },
+                        "expressionAttributeValues": {
+                            ":type": "REJECTION_SENT",
+                            ":details": {
+                                "to": "{{currentItem.email}}"
+                            }
+                        }
+                    }
+                },
+                "finalize_rfq_status": {
+                    "stepInstanceId": "finalize_rfq_status",
+                    "displayName": "4. Finalize RFQ Status",
+                    "stepType": "DATA_SAVE",
+                    "moduleIdentifier": "system/dynamodb-update-item",
+                    "customConfig": {
+                        "tableName": "{{flow_variables.OptiroqEntityGraphTable}}",
+                        "key": {
+                            "PK": "RFQ#{{initialContextData.rfqId}}",
+                            "SK": "METADATA"
+                        },
+                        "updateExpression": "SET #status = :status",
+                        "expressionAttributeNames": {
+                            "#status": "status"
+                        },
+                        "expressionAttributeValues": {
+                            ":status": "COMPLETED"
+                        }
+                    },
+                    "defaultNextStepInstanceId": "end_flow"
+                },
+                "end_flow": {
+                    "stepInstanceId": "end_flow",
+                    "stepType": "END_FLOW"
+                }
+            }
+        }
+    ],
+    "promptTemplates": []
+}

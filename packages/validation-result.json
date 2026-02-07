@@ -1,0 +1,779 @@
+{
+  "isValid": false,
+  "errors": [
+    "Part \"ASSY., DOOR\": Field 'Annual Quantity' must be a number, but received \"-\".",
+    "Part \"ASSY., DOOR\": Field 'Annual Quantity' must be a whole number, but received \"-\".",
+    "Part \"ASSY., DOOR\": Missing required field 'Part Target Price'.",
+    "Part \"ASSY., DOOR\": Field 'Target Weight' must be a number, but received \"-\".",
+    "Part \"ASSY., DOOR\": Missing required field 'Material Cost'.",
+    "Part \"ASSY., DOOR\": Missing required field 'Process Cost'.",
+    "Part \"ASSY., DOOR\": Missing required field 'Tooling Investment'.",
+    "Part \"ASSY., DOOR\": Missing required field 'Amortization in Price'.",
+    "Part \"ASSY., DOOR\": Missing required field 'Lead Time: Sample A'.",
+    "Part \"ASSY., DOOR\": Missing required field 'Lead Time: PPAP'.",
+    "Part \"ASSY., DOOR\": Missing required field 'Lead Time: SOP'.",
+    "Part \"ASSY., DOOR\": Missing required field 'Incoterms'.",
+    "Part \"ASSY., DOOR\": Missing required field 'Delivery Location'.",
+    "Part \"PANEL , OUTER\": Missing required field 'Part Target Price'.",
+    "Part \"PANEL , OUTER\": Missing required field 'Material Cost'.",
+    "Part \"PANEL , OUTER\": Missing required field 'Process Cost'.",
+    "Part \"PANEL , OUTER\": Missing required field 'Tooling Investment'.",
+    "Part \"PANEL , OUTER\": Missing required field 'Amortization in Price'.",
+    "Part \"PANEL , OUTER\": Missing required field 'Lead Time: Sample A'.",
+    "Part \"PANEL , OUTER\": Missing required field 'Lead Time: PPAP'.",
+    "Part \"PANEL , OUTER\": Missing required field 'Lead Time: SOP'.",
+    "Part \"PANEL , OUTER\": Missing required field 'Incoterms'.",
+    "Part \"PANEL , OUTER\": Missing required field 'Delivery Location'.",
+    "Part \"ASSY., INNER\": Field 'Annual Quantity' must be a number, but received \"-\".",
+    "Part \"ASSY., INNER\": Field 'Annual Quantity' must be a whole number, but received \"-\".",
+    "Part \"ASSY., INNER\": Missing required field 'Part Target Price'.",
+    "Part \"ASSY., INNER\": Field 'Target Weight' must be a number, but received \"-\".",
+    "Part \"ASSY., INNER\": Missing required field 'Material Cost'.",
+    "Part \"ASSY., INNER\": Missing required field 'Process Cost'.",
+    "Part \"ASSY., INNER\": Missing required field 'Tooling Investment'.",
+    "Part \"ASSY., INNER\": Missing required field 'Amortization in Price'.",
+    "Part \"ASSY., INNER\": Missing required field 'Lead Time: Sample A'.",
+    "Part \"ASSY., INNER\": Missing required field 'Lead Time: PPAP'.",
+    "Part \"ASSY., INNER\": Missing required field 'Lead Time: SOP'.",
+    "Part \"ASSY., INNER\": Missing required field 'Incoterms'.",
+    "Part \"ASSY., INNER\": Missing required field 'Delivery Location'.",
+    "Part \"PANEL, INNER\": Missing required field 'Part Target Price'.",
+    "Part \"PANEL, INNER\": Missing required field 'Material Cost'.",
+    "Part \"PANEL, INNER\": Missing required field 'Process Cost'.",
+    "Part \"PANEL, INNER\": Missing required field 'Tooling Investment'.",
+    "Part \"PANEL, INNER\": Missing required field 'Amortization in Price'.",
+    "Part \"PANEL, INNER\": Missing required field 'Lead Time: Sample A'.",
+    "Part \"PANEL, INNER\": Missing required field 'Lead Time: PPAP'.",
+    "Part \"PANEL, INNER\": Missing required field 'Lead Time: SOP'.",
+    "Part \"PANEL, INNER\": Missing required field 'Incoterms'.",
+    "Part \"PANEL, INNER\": Missing required field 'Delivery Location'.",
+    "Part \"REINFORCEMENT HINGE UPR\": Missing required field 'Part Target Price'.",
+    "Part \"REINFORCEMENT HINGE UPR\": Missing required field 'Material Cost'.",
+    "Part \"REINFORCEMENT HINGE UPR\": Missing required field 'Process Cost'.",
+    "Part \"REINFORCEMENT HINGE UPR\": Missing required field 'Tooling Investment'.",
+    "Part \"REINFORCEMENT HINGE UPR\": Missing required field 'Amortization in Price'.",
+    "Part \"REINFORCEMENT HINGE UPR\": Missing required field 'Lead Time: Sample A'.",
+    "Part \"REINFORCEMENT HINGE UPR\": Missing required field 'Lead Time: PPAP'.",
+    "Part \"REINFORCEMENT HINGE UPR\": Missing required field 'Lead Time: SOP'.",
+    "Part \"REINFORCEMENT HINGE UPR\": Missing required field 'Incoterms'.",
+    "Part \"REINFORCEMENT HINGE UPR\": Missing required field 'Delivery Location'.",
+    "Part \"REINFORCEMENT HINGE LWR\": Missing required field 'Part Target Price'.",
+    "Part \"REINFORCEMENT HINGE LWR\": Missing required field 'Material Cost'.",
+    "Part \"REINFORCEMENT HINGE LWR\": Missing required field 'Process Cost'.",
+    "Part \"REINFORCEMENT HINGE LWR\": Missing required field 'Tooling Investment'.",
+    "Part \"REINFORCEMENT HINGE LWR\": Missing required field 'Amortization in Price'.",
+    "Part \"REINFORCEMENT HINGE LWR\": Missing required field 'Lead Time: Sample A'.",
+    "Part \"REINFORCEMENT HINGE LWR\": Missing required field 'Lead Time: PPAP'.",
+    "Part \"REINFORCEMENT HINGE LWR\": Missing required field 'Lead Time: SOP'.",
+    "Part \"REINFORCEMENT HINGE LWR\": Missing required field 'Incoterms'.",
+    "Part \"REINFORCEMENT HINGE LWR\": Missing required field 'Delivery Location'.",
+    "Part \"REINFORCEMENT LATCH\": Missing required field 'Part Target Price'.",
+    "Part \"REINFORCEMENT LATCH\": Missing required field 'Material Cost'.",
+    "Part \"REINFORCEMENT LATCH\": Missing required field 'Process Cost'.",
+    "Part \"REINFORCEMENT LATCH\": Missing required field 'Tooling Investment'.",
+    "Part \"REINFORCEMENT LATCH\": Missing required field 'Amortization in Price'.",
+    "Part \"REINFORCEMENT LATCH\": Missing required field 'Lead Time: Sample A'.",
+    "Part \"REINFORCEMENT LATCH\": Missing required field 'Lead Time: PPAP'.",
+    "Part \"REINFORCEMENT LATCH\": Missing required field 'Lead Time: SOP'.",
+    "Part \"REINFORCEMENT LATCH\": Missing required field 'Incoterms'.",
+    "Part \"REINFORCEMENT LATCH\": Missing required field 'Delivery Location'.",
+    "Part \"STIFFNER 1\": Missing required field 'Part Target Price'.",
+    "Part \"STIFFNER 1\": Missing required field 'Material Cost'.",
+    "Part \"STIFFNER 1\": Missing required field 'Process Cost'.",
+    "Part \"STIFFNER 1\": Missing required field 'Tooling Investment'.",
+    "Part \"STIFFNER 1\": Missing required field 'Amortization in Price'.",
+    "Part \"STIFFNER 1\": Missing required field 'Lead Time: Sample A'.",
+    "Part \"STIFFNER 1\": Missing required field 'Lead Time: PPAP'.",
+    "Part \"STIFFNER 1\": Missing required field 'Lead Time: SOP'.",
+    "Part \"STIFFNER 1\": Missing required field 'Incoterms'.",
+    "Part \"STIFFNER 1\": Missing required field 'Delivery Location'.",
+    "Part \"STIFFNER 2\": Missing required field 'Part Target Price'.",
+    "Part \"STIFFNER 2\": Missing required field 'Material Cost'.",
+    "Part \"STIFFNER 2\": Missing required field 'Process Cost'.",
+    "Part \"STIFFNER 2\": Missing required field 'Tooling Investment'.",
+    "Part \"STIFFNER 2\": Missing required field 'Amortization in Price'.",
+    "Part \"STIFFNER 2\": Missing required field 'Lead Time: Sample A'.",
+    "Part \"STIFFNER 2\": Missing required field 'Lead Time: PPAP'.",
+    "Part \"STIFFNER 2\": Missing required field 'Lead Time: SOP'.",
+    "Part \"STIFFNER 2\": Missing required field 'Incoterms'.",
+    "Part \"STIFFNER 2\": Missing required field 'Delivery Location'.",
+    "Part \"REINFORCEMENT BELTLINE\": Missing required field 'Part Target Price'.",
+    "Part \"REINFORCEMENT BELTLINE\": Missing required field 'Material Cost'.",
+    "Part \"REINFORCEMENT BELTLINE\": Missing required field 'Process Cost'.",
+    "Part \"REINFORCEMENT BELTLINE\": Missing required field 'Tooling Investment'.",
+    "Part \"REINFORCEMENT BELTLINE\": Missing required field 'Amortization in Price'.",
+    "Part \"REINFORCEMENT BELTLINE\": Missing required field 'Lead Time: Sample A'.",
+    "Part \"REINFORCEMENT BELTLINE\": Missing required field 'Lead Time: PPAP'.",
+    "Part \"REINFORCEMENT BELTLINE\": Missing required field 'Lead Time: SOP'.",
+    "Part \"REINFORCEMENT BELTLINE\": Missing required field 'Incoterms'.",
+    "Part \"REINFORCEMENT BELTLINE\": Missing required field 'Delivery Location'.",
+    "Part \"REINFORCEMENT SILL\": Missing required field 'Part Target Price'.",
+    "Part \"REINFORCEMENT SILL\": Missing required field 'Material Cost'.",
+    "Part \"REINFORCEMENT SILL\": Missing required field 'Process Cost'.",
+    "Part \"REINFORCEMENT SILL\": Missing required field 'Tooling Investment'.",
+    "Part \"REINFORCEMENT SILL\": Missing required field 'Amortization in Price'.",
+    "Part \"REINFORCEMENT SILL\": Missing required field 'Lead Time: Sample A'.",
+    "Part \"REINFORCEMENT SILL\": Missing required field 'Lead Time: PPAP'.",
+    "Part \"REINFORCEMENT SILL\": Missing required field 'Lead Time: SOP'.",
+    "Part \"REINFORCEMENT SILL\": Missing required field 'Incoterms'.",
+    "Part \"REINFORCEMENT SILL\": Missing required field 'Delivery Location'.",
+    "Part \"ASSY, SASH FR FR\": Field 'Annual Quantity' must be a number, but received \"-\".",
+    "Part \"ASSY, SASH FR FR\": Field 'Annual Quantity' must be a whole number, but received \"-\".",
+    "Part \"ASSY, SASH FR FR\": Missing required field 'Part Target Price'.",
+    "Part \"ASSY, SASH FR FR\": Field 'Target Weight' must be a number, but received \"-\".",
+    "Part \"ASSY, SASH FR FR\": Missing required field 'Material Cost'.",
+    "Part \"ASSY, SASH FR FR\": Missing required field 'Process Cost'.",
+    "Part \"ASSY, SASH FR FR\": Missing required field 'Tooling Investment'.",
+    "Part \"ASSY, SASH FR FR\": Missing required field 'Amortization in Price'.",
+    "Part \"ASSY, SASH FR FR\": Missing required field 'Lead Time: Sample A'.",
+    "Part \"ASSY, SASH FR FR\": Missing required field 'Lead Time: PPAP'.",
+    "Part \"ASSY, SASH FR FR\": Missing required field 'Lead Time: SOP'.",
+    "Part \"ASSY, SASH FR FR\": Missing required field 'Incoterms'.",
+    "Part \"ASSY, SASH FR FR\": Missing required field 'Delivery Location'.",
+    "Part \"SASH FR FR\": Missing required field 'Part Target Price'.",
+    "Part \"SASH FR FR\": Missing required field 'Material Cost'.",
+    "Part \"SASH FR FR\": Missing required field 'Process Cost'.",
+    "Part \"SASH FR FR\": Missing required field 'Tooling Investment'.",
+    "Part \"SASH FR FR\": Missing required field 'Amortization in Price'.",
+    "Part \"SASH FR FR\": Missing required field 'Lead Time: Sample A'.",
+    "Part \"SASH FR FR\": Missing required field 'Lead Time: PPAP'.",
+    "Part \"SASH FR FR\": Missing required field 'Lead Time: SOP'.",
+    "Part \"SASH FR FR\": Missing required field 'Incoterms'.",
+    "Part \"SASH FR FR\": Missing required field 'Delivery Location'.",
+    "Part \"BRACKET 01\": Missing required field 'Part Target Price'.",
+    "Part \"BRACKET 01\": Missing required field 'Material Cost'.",
+    "Part \"BRACKET 01\": Missing required field 'Process Cost'.",
+    "Part \"BRACKET 01\": Missing required field 'Tooling Investment'.",
+    "Part \"BRACKET 01\": Missing required field 'Amortization in Price'.",
+    "Part \"BRACKET 01\": Missing required field 'Lead Time: Sample A'.",
+    "Part \"BRACKET 01\": Missing required field 'Lead Time: PPAP'.",
+    "Part \"BRACKET 01\": Missing required field 'Lead Time: SOP'.",
+    "Part \"BRACKET 01\": Missing required field 'Incoterms'.",
+    "Part \"BRACKET 01\": Missing required field 'Delivery Location'.",
+    "Part \"BRACKET 02\": Missing required field 'Part Target Price'.",
+    "Part \"BRACKET 02\": Missing required field 'Material Cost'.",
+    "Part \"BRACKET 02\": Missing required field 'Process Cost'.",
+    "Part \"BRACKET 02\": Missing required field 'Tooling Investment'.",
+    "Part \"BRACKET 02\": Missing required field 'Amortization in Price'.",
+    "Part \"BRACKET 02\": Missing required field 'Lead Time: Sample A'.",
+    "Part \"BRACKET 02\": Missing required field 'Lead Time: PPAP'.",
+    "Part \"BRACKET 02\": Missing required field 'Lead Time: SOP'.",
+    "Part \"BRACKET 02\": Missing required field 'Incoterms'.",
+    "Part \"BRACKET 02\": Missing required field 'Delivery Location'.",
+    "Part \"ASSY, SASH FR RR\": Field 'Annual Quantity' must be a number, but received \"-\".",
+    "Part \"ASSY, SASH FR RR\": Field 'Annual Quantity' must be a whole number, but received \"-\".",
+    "Part \"ASSY, SASH FR RR\": Missing required field 'Part Target Price'.",
+    "Part \"ASSY, SASH FR RR\": Field 'Target Weight' must be a number, but received \"-\".",
+    "Part \"ASSY, SASH FR RR\": Missing required field 'Material Cost'.",
+    "Part \"ASSY, SASH FR RR\": Missing required field 'Process Cost'.",
+    "Part \"ASSY, SASH FR RR\": Missing required field 'Tooling Investment'.",
+    "Part \"ASSY, SASH FR RR\": Missing required field 'Amortization in Price'.",
+    "Part \"ASSY, SASH FR RR\": Missing required field 'Lead Time: Sample A'.",
+    "Part \"ASSY, SASH FR RR\": Missing required field 'Lead Time: PPAP'.",
+    "Part \"ASSY, SASH FR RR\": Missing required field 'Lead Time: SOP'.",
+    "Part \"ASSY, SASH FR RR\": Missing required field 'Incoterms'.",
+    "Part \"ASSY, SASH FR RR\": Missing required field 'Delivery Location'.",
+    "Part \"SASH FR RR\": Missing required field 'Part Target Price'.",
+    "Part \"SASH FR RR\": Missing required field 'Material Cost'.",
+    "Part \"SASH FR RR\": Missing required field 'Process Cost'.",
+    "Part \"SASH FR RR\": Missing required field 'Tooling Investment'.",
+    "Part \"SASH FR RR\": Missing required field 'Amortization in Price'.",
+    "Part \"SASH FR RR\": Missing required field 'Lead Time: Sample A'.",
+    "Part \"SASH FR RR\": Missing required field 'Lead Time: PPAP'.",
+    "Part \"SASH FR RR\": Missing required field 'Lead Time: SOP'.",
+    "Part \"SASH FR RR\": Missing required field 'Incoterms'.",
+    "Part \"SASH FR RR\": Missing required field 'Delivery Location'.",
+    "Part \"BRACKET 03\": Missing required field 'Part Target Price'.",
+    "Part \"BRACKET 03\": Missing required field 'Material Cost'.",
+    "Part \"BRACKET 03\": Missing required field 'Process Cost'.",
+    "Part \"BRACKET 03\": Missing required field 'Tooling Investment'.",
+    "Part \"BRACKET 03\": Missing required field 'Amortization in Price'.",
+    "Part \"BRACKET 03\": Missing required field 'Lead Time: Sample A'.",
+    "Part \"BRACKET 03\": Missing required field 'Lead Time: PPAP'.",
+    "Part \"BRACKET 03\": Missing required field 'Lead Time: SOP'.",
+    "Part \"BRACKET 03\": Missing required field 'Incoterms'.",
+    "Part \"BRACKET 03\": Missing required field 'Delivery Location'.",
+    "Part \"BRACKET 04\": Missing required field 'Part Target Price'.",
+    "Part \"BRACKET 04\": Missing required field 'Material Cost'.",
+    "Part \"BRACKET 04\": Missing required field 'Process Cost'.",
+    "Part \"BRACKET 04\": Missing required field 'Tooling Investment'.",
+    "Part \"BRACKET 04\": Missing required field 'Amortization in Price'.",
+    "Part \"BRACKET 04\": Missing required field 'Lead Time: Sample A'.",
+    "Part \"BRACKET 04\": Missing required field 'Lead Time: PPAP'.",
+    "Part \"BRACKET 04\": Missing required field 'Lead Time: SOP'.",
+    "Part \"BRACKET 04\": Missing required field 'Incoterms'.",
+    "Part \"BRACKET 04\": Missing required field 'Delivery Location'.",
+    "Part \"ASSY, SASH FR RR LWR\": Field 'Annual Quantity' must be a number, but received \"-\".",
+    "Part \"ASSY, SASH FR RR LWR\": Field 'Annual Quantity' must be a whole number, but received \"-\".",
+    "Part \"ASSY, SASH FR RR LWR\": Missing required field 'Part Target Price'.",
+    "Part \"ASSY, SASH FR RR LWR\": Field 'Target Weight' must be a number, but received \"-\".",
+    "Part \"ASSY, SASH FR RR LWR\": Missing required field 'Material Cost'.",
+    "Part \"ASSY, SASH FR RR LWR\": Missing required field 'Process Cost'.",
+    "Part \"ASSY, SASH FR RR LWR\": Missing required field 'Tooling Investment'.",
+    "Part \"ASSY, SASH FR RR LWR\": Missing required field 'Amortization in Price'.",
+    "Part \"ASSY, SASH FR RR LWR\": Missing required field 'Lead Time: Sample A'.",
+    "Part \"ASSY, SASH FR RR LWR\": Missing required field 'Lead Time: PPAP'.",
+    "Part \"ASSY, SASH FR RR LWR\": Missing required field 'Lead Time: SOP'.",
+    "Part \"ASSY, SASH FR RR LWR\": Missing required field 'Incoterms'.",
+    "Part \"ASSY, SASH FR RR LWR\": Missing required field 'Delivery Location'.",
+    "Part \"SASH FR RR LWR\": Missing required field 'Part Target Price'.",
+    "Part \"SASH FR RR LWR\": Missing required field 'Material Cost'.",
+    "Part \"SASH FR RR LWR\": Missing required field 'Process Cost'.",
+    "Part \"SASH FR RR LWR\": Missing required field 'Tooling Investment'.",
+    "Part \"SASH FR RR LWR\": Missing required field 'Amortization in Price'.",
+    "Part \"SASH FR RR LWR\": Missing required field 'Lead Time: Sample A'.",
+    "Part \"SASH FR RR LWR\": Missing required field 'Lead Time: PPAP'.",
+    "Part \"SASH FR RR LWR\": Missing required field 'Lead Time: SOP'.",
+    "Part \"SASH FR RR LWR\": Missing required field 'Incoterms'.",
+    "Part \"SASH FR RR LWR\": Missing required field 'Delivery Location'.",
+    "Part \"BRACKET 05\n  + M6 WELD NUT\n  + M6 BOLT\": Missing required field 'Part Target Price'.",
+    "Part \"BRACKET 05\n  + M6 WELD NUT\n  + M6 BOLT\": Missing required field 'Material Cost'.",
+    "Part \"BRACKET 05\n  + M6 WELD NUT\n  + M6 BOLT\": Missing required field 'Process Cost'.",
+    "Part \"BRACKET 05\n  + M6 WELD NUT\n  + M6 BOLT\": Missing required field 'Tooling Investment'.",
+    "Part \"BRACKET 05\n  + M6 WELD NUT\n  + M6 BOLT\": Missing required field 'Amortization in Price'.",
+    "Part \"BRACKET 05\n  + M6 WELD NUT\n  + M6 BOLT\": Missing required field 'Lead Time: Sample A'.",
+    "Part \"BRACKET 05\n  + M6 WELD NUT\n  + M6 BOLT\": Missing required field 'Lead Time: PPAP'.",
+    "Part \"BRACKET 05\n  + M6 WELD NUT\n  + M6 BOLT\": Missing required field 'Lead Time: SOP'.",
+    "Part \"BRACKET 05\n  + M6 WELD NUT\n  + M6 BOLT\": Missing required field 'Incoterms'.",
+    "Part \"BRACKET 05\n  + M6 WELD NUT\n  + M6 BOLT\": Missing required field 'Delivery Location'.",
+    "Part \"BRACKET 06\n  + M6 WELD NUT\n  + M6 BOLT\": Missing required field 'Part Target Price'.",
+    "Part \"BRACKET 06\n  + M6 WELD NUT\n  + M6 BOLT\": Missing required field 'Material Cost'.",
+    "Part \"BRACKET 06\n  + M6 WELD NUT\n  + M6 BOLT\": Missing required field 'Process Cost'.",
+    "Part \"BRACKET 06\n  + M6 WELD NUT\n  + M6 BOLT\": Missing required field 'Tooling Investment'.",
+    "Part \"BRACKET 06\n  + M6 WELD NUT\n  + M6 BOLT\": Missing required field 'Amortization in Price'.",
+    "Part \"BRACKET 06\n  + M6 WELD NUT\n  + M6 BOLT\": Missing required field 'Lead Time: Sample A'.",
+    "Part \"BRACKET 06\n  + M6 WELD NUT\n  + M6 BOLT\": Missing required field 'Lead Time: PPAP'.",
+    "Part \"BRACKET 06\n  + M6 WELD NUT\n  + M6 BOLT\": Missing required field 'Lead Time: SOP'.",
+    "Part \"BRACKET 06\n  + M6 WELD NUT\n  + M6 BOLT\": Missing required field 'Incoterms'.",
+    "Part \"BRACKET 06\n  + M6 WELD NUT\n  + M6 BOLT\": Missing required field 'Delivery Location'.",
+    "Part \"HINGE UPR\": Missing required field 'Part Target Price'.",
+    "Part \"HINGE UPR\": Missing required field 'Material Cost'.",
+    "Part \"HINGE UPR\": Missing required field 'Process Cost'.",
+    "Part \"HINGE UPR\": Missing required field 'Tooling Investment'.",
+    "Part \"HINGE UPR\": Missing required field 'Amortization in Price'.",
+    "Part \"HINGE UPR\": Missing required field 'Lead Time: Sample A'.",
+    "Part \"HINGE UPR\": Missing required field 'Lead Time: PPAP'.",
+    "Part \"HINGE UPR\": Missing required field 'Lead Time: SOP'.",
+    "Part \"HINGE UPR\": Missing required field 'Incoterms'.",
+    "Part \"HINGE UPR\": Missing required field 'Delivery Location'.",
+    "Part \"HINGE LWR\": Missing required field 'Part Target Price'.",
+    "Part \"HINGE LWR\": Missing required field 'Material Cost'.",
+    "Part \"HINGE LWR\": Missing required field 'Process Cost'.",
+    "Part \"HINGE LWR\": Missing required field 'Tooling Investment'.",
+    "Part \"HINGE LWR\": Missing required field 'Amortization in Price'.",
+    "Part \"HINGE LWR\": Missing required field 'Lead Time: Sample A'.",
+    "Part \"HINGE LWR\": Missing required field 'Lead Time: PPAP'.",
+    "Part \"HINGE LWR\": Missing required field 'Lead Time: SOP'.",
+    "Part \"HINGE LWR\": Missing required field 'Incoterms'.",
+    "Part \"HINGE LWR\": Missing required field 'Delivery Location'.",
+    "Part \"LATCH\": Missing required field 'Part Target Price'.",
+    "Part \"LATCH\": Missing required field 'Material Cost'.",
+    "Part \"LATCH\": Missing required field 'Process Cost'.",
+    "Part \"LATCH\": Missing required field 'Tooling Investment'.",
+    "Part \"LATCH\": Missing required field 'Amortization in Price'.",
+    "Part \"LATCH\": Missing required field 'Lead Time: Sample A'.",
+    "Part \"LATCH\": Missing required field 'Lead Time: PPAP'.",
+    "Part \"LATCH\": Missing required field 'Lead Time: SOP'.",
+    "Part \"LATCH\": Missing required field 'Incoterms'.",
+    "Part \"LATCH\": Missing required field 'Delivery Location'."
+  ],
+  "validatedData": {
+    "project": {
+      "projectName": "BOM - DOOR"
+    },
+    "parts": [
+      {
+        "_mappingConfidence": {
+          "partName": 1,
+          "material": 1,
+          "quantity": 0.98,
+          "targetWeight": 0.9
+        },
+        "partName": "ASSY., DOOR",
+        "material": "-",
+        "quantity": "-",
+        "targetWeight": "-",
+        "customAttributes": {
+          "LEVEL": 1,
+          "IMAGE": null,
+          "THK": "-",
+          "TOTAL WEIGHT (g)": "-",
+          "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/ab9b0eff-395b-40a4-a714-d9978c5fc684.png"
+        }
+      },
+      {
+        "_mappingConfidence": {
+          "partName": 1,
+          "material": 1,
+          "quantity": 0.98,
+          "targetWeight": 0.9
+        },
+        "partName": "PANEL , OUTER",
+        "material": "MJAC340H-OC-45/45",
+        "quantity": 1,
+        "targetWeight": 4840.492469047201,
+        "customAttributes": {
+          "LEVEL": 2,
+          "IMAGE": null,
+          "THK": 0.6,
+          "TOTAL WEIGHT (g)": 4840.492469047201,
+          "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/923bc10d-df46-4443-90bd-d4ed489aff4f.png"
+        }
+      },
+      {
+        "_mappingConfidence": {
+          "partName": 1,
+          "material": 1,
+          "quantity": 0.98,
+          "targetWeight": 0.9
+        },
+        "partName": "ASSY., INNER",
+        "material": "-",
+        "quantity": "-",
+        "targetWeight": "-",
+        "customAttributes": {
+          "LEVEL": 2,
+          "IMAGE": null,
+          "THK": "-",
+          "TOTAL WEIGHT (g)": "-",
+          "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/e60db974-7e73-4485-8022-fc05a07fd358.png"
+        }
+      },
+      {
+        "_mappingConfidence": {
+          "partName": 1,
+          "material": 1,
+          "quantity": 0.98,
+          "targetWeight": 0.9
+        },
+        "partName": "PANEL, INNER",
+        "material": "MJAC270D-OC-45/45",
+        "quantity": 1,
+        "targetWeight": 5411.813358478801,
+        "customAttributes": {
+          "LEVEL": 3,
+          "IMAGE": null,
+          "THK": 0.65,
+          "TOTAL WEIGHT (g)": 5411.813358478801,
+          "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/b7246556-7972-4b65-b440-b221d9338c7d.png"
+        }
+      },
+      {
+        "_mappingConfidence": {
+          "partName": 1,
+          "material": 1,
+          "quantity": 0.98,
+          "targetWeight": 0.9
+        },
+        "partName": "REINFORCEMENT HINGE UPR",
+        "material": "MJAC270D-OC-45/45",
+        "quantity": 1,
+        "targetWeight": 296.37620648999996,
+        "customAttributes": {
+          "LEVEL": 3,
+          "IMAGE": null,
+          "THK": 1,
+          "TOTAL WEIGHT (g)": 296.37620648999996,
+          "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/7b5c82b3-c8e9-4035-bd58-d0c7a535ec97.png"
+        }
+      },
+      {
+        "_mappingConfidence": {
+          "partName": 1,
+          "material": 1,
+          "quantity": 0.98,
+          "targetWeight": 0.9
+        },
+        "partName": "REINFORCEMENT HINGE LWR",
+        "material": "MJAC270D-OC-45/45",
+        "quantity": 1,
+        "targetWeight": 125.561532642,
+        "customAttributes": {
+          "LEVEL": 3,
+          "IMAGE": null,
+          "THK": 1,
+          "TOTAL WEIGHT (g)": 125.561532642,
+          "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/1020d60d-7e76-4857-9576-9247c4cfa379.png"
+        }
+      },
+      {
+        "_mappingConfidence": {
+          "partName": 1,
+          "material": 1,
+          "quantity": 0.98,
+          "targetWeight": 0.9
+        },
+        "partName": "REINFORCEMENT LATCH",
+        "material": "MJAC270C-OC-45/45",
+        "quantity": 1,
+        "targetWeight": 92.393506926,
+        "customAttributes": {
+          "LEVEL": 3,
+          "IMAGE": null,
+          "THK": 1,
+          "TOTAL WEIGHT (g)": 92.393506926,
+          "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/d3e3d9a6-ae07-4383-9bfd-c66909a8ef51.png"
+        }
+      },
+      {
+        "_mappingConfidence": {
+          "partName": 1,
+          "material": 1,
+          "quantity": 0.98,
+          "targetWeight": 0.9
+        },
+        "partName": "STIFFNER 1",
+        "material": "MJAC270D-OC-45/45",
+        "quantity": 1,
+        "targetWeight": 530.9005870077001,
+        "customAttributes": {
+          "LEVEL": 3,
+          "IMAGE": null,
+          "THK": 0.65,
+          "TOTAL WEIGHT (g)": 530.9005870077001,
+          "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/1a4c8775-578f-44cf-aa94-41723c14eb5e.png"
+        }
+      },
+      {
+        "_mappingConfidence": {
+          "partName": 1,
+          "material": 1,
+          "quantity": 0.98,
+          "targetWeight": 0.9
+        },
+        "partName": "STIFFNER 2",
+        "material": "MJAC270D-OC-45/45",
+        "quantity": 1,
+        "targetWeight": 550.6708919712,
+        "customAttributes": {
+          "LEVEL": 3,
+          "IMAGE": null,
+          "THK": 0.65,
+          "TOTAL WEIGHT (g)": 550.6708919712,
+          "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/291e719d-13e4-42d4-a445-9e16a560b7eb.png"
+        }
+      },
+      {
+        "_mappingConfidence": {
+          "partName": 1,
+          "material": 1,
+          "quantity": 0.98,
+          "targetWeight": 0.9
+        },
+        "partName": "REINFORCEMENT BELTLINE",
+        "material": "MJSC270D-OC-45/45",
+        "quantity": 1,
+        "targetWeight": 1504.7345236896,
+        "customAttributes": {
+          "LEVEL": 3,
+          "IMAGE": null,
+          "THK": 1.2,
+          "TOTAL WEIGHT (g)": 1504.7345236896,
+          "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/defe8f5a-5968-4b8b-a1bb-b9763395e30c.png"
+        }
+      },
+      {
+        "_mappingConfidence": {
+          "partName": 1,
+          "material": 1,
+          "quantity": 0.98,
+          "targetWeight": 0.9
+        },
+        "partName": "REINFORCEMENT SILL",
+        "material": "MJSC270D-OC-45/45",
+        "quantity": 1,
+        "targetWeight": 625.5027466632,
+        "customAttributes": {
+          "LEVEL": 3,
+          "IMAGE": null,
+          "THK": 1.2,
+          "TOTAL WEIGHT (g)": 625.5027466632,
+          "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/02eaf887-bf8d-44cb-bab1-4c98231289b8.png"
+        }
+      },
+      {
+        "_mappingConfidence": {
+          "partName": 1,
+          "material": 1,
+          "quantity": 0.98,
+          "targetWeight": 0.9
+        },
+        "partName": "ASSY, SASH FR FR",
+        "material": "-",
+        "quantity": "-",
+        "targetWeight": "-",
+        "customAttributes": {
+          "LEVEL": 3,
+          "IMAGE": null,
+          "THK": "-",
+          "TOTAL WEIGHT (g)": "-",
+          "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/1535b55b-c488-40fd-897f-ac25f2717c7c.png"
+        }
+      },
+      {
+        "_mappingConfidence": {
+          "partName": 1,
+          "material": 1,
+          "quantity": 0.98,
+          "targetWeight": 0.9
+        },
+        "partName": "SASH FR FR",
+        "material": "MJSC270D-OC",
+        "quantity": 1,
+        "targetWeight": 256.6409472,
+        "customAttributes": {
+          "LEVEL": 4,
+          "IMAGE": null,
+          "THK": 0.8,
+          "TOTAL WEIGHT (g)": 256.6409472,
+          "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/328ec5d3-d7ec-4081-beb6-c30333812f41.png"
+        }
+      },
+      {
+        "_mappingConfidence": {
+          "partName": 1,
+          "material": 1,
+          "quantity": 0.98,
+          "targetWeight": 0.9
+        },
+        "partName": "BRACKET 01",
+        "material": "MJAC270D-OC-45/45",
+        "quantity": 1,
+        "targetWeight": 34.81010862,
+        "customAttributes": {
+          "LEVEL": 4,
+          "IMAGE": null,
+          "THK": 1,
+          "TOTAL WEIGHT (g)": 34.81010862,
+          "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/d7215419-0e35-4c04-b6f7-0cb410a4b2a7.png"
+        }
+      },
+      {
+        "_mappingConfidence": {
+          "partName": 1,
+          "material": 1,
+          "quantity": 0.98,
+          "targetWeight": 0.9
+        },
+        "partName": "BRACKET 02",
+        "material": "MJAC270D-OC-45/45",
+        "quantity": 1,
+        "targetWeight": 24.417567888,
+        "customAttributes": {
+          "LEVEL": 4,
+          "IMAGE": null,
+          "THK": 1,
+          "TOTAL WEIGHT (g)": 24.417567888,
+          "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/5b53e278-bdf6-4764-8afc-b24a6a65e23f.png"
+        }
+      },
+      {
+        "_mappingConfidence": {
+          "partName": 1,
+          "material": 1,
+          "quantity": 0.98,
+          "targetWeight": 0.9
+        },
+        "partName": "ASSY, SASH FR RR",
+        "material": "-",
+        "quantity": "-",
+        "targetWeight": "-",
+        "customAttributes": {
+          "LEVEL": 3,
+          "IMAGE": null,
+          "THK": "-",
+          "TOTAL WEIGHT (g)": "-",
+          "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/69ce3114-47d6-4265-85b1-6371ceab9ef8.png"
+        }
+      },
+      {
+        "_mappingConfidence": {
+          "partName": 1,
+          "material": 1,
+          "quantity": 0.98,
+          "targetWeight": 0.9
+        },
+        "partName": "SASH FR RR",
+        "material": "MJSC270D-OC",
+        "quantity": 1,
+        "targetWeight": 180.88249440000004,
+        "customAttributes": {
+          "LEVEL": 4,
+          "IMAGE": null,
+          "THK": 0.8,
+          "TOTAL WEIGHT (g)": 180.88249440000004,
+          "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/e6333ec1-a892-4e83-bd5a-2bb6aa8ec7da.png"
+        }
+      },
+      {
+        "_mappingConfidence": {
+          "partName": 1,
+          "material": 1,
+          "quantity": 0.98,
+          "targetWeight": 0.9
+        },
+        "partName": "BRACKET 03",
+        "material": "MJAC270D-OC-45/45",
+        "quantity": 1,
+        "targetWeight": 5.472146148,
+        "customAttributes": {
+          "LEVEL": 4,
+          "IMAGE": null,
+          "THK": 1,
+          "TOTAL WEIGHT (g)": 5.472146148,
+          "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/cda97a87-ff21-46a0-9905-4f96d84da626.png"
+        }
+      },
+      {
+        "_mappingConfidence": {
+          "partName": 1,
+          "material": 1,
+          "quantity": 0.98,
+          "targetWeight": 0.9
+        },
+        "partName": "BRACKET 04",
+        "material": "MJAC270D-OC-45/45",
+        "quantity": 1,
+        "targetWeight": 6.108050802,
+        "customAttributes": {
+          "LEVEL": 4,
+          "IMAGE": null,
+          "THK": 1,
+          "TOTAL WEIGHT (g)": 6.108050802,
+          "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/f279f1f1-2b0f-453d-b3f3-9d46fd7398e8.png"
+        }
+      },
+      {
+        "_mappingConfidence": {
+          "partName": 1,
+          "material": 1,
+          "quantity": 0.98,
+          "targetWeight": 0.9
+        },
+        "partName": "ASSY, SASH FR RR LWR",
+        "material": "-",
+        "quantity": "-",
+        "targetWeight": "-",
+        "customAttributes": {
+          "LEVEL": 3,
+          "IMAGE": null,
+          "THK": "-",
+          "TOTAL WEIGHT (g)": "-",
+          "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/3c4b7396-5906-4315-8aab-59049648d78a.png"
+        }
+      },
+      {
+        "_mappingConfidence": {
+          "partName": 1,
+          "material": 1,
+          "quantity": 0.98,
+          "targetWeight": 0.9
+        },
+        "partName": "SASH FR RR LWR",
+        "material": "MJSC270D-OC",
+        "quantity": 1,
+        "targetWeight": 189.910176,
+        "customAttributes": {
+          "LEVEL": 4,
+          "IMAGE": null,
+          "THK": 0.8,
+          "TOTAL WEIGHT (g)": 189.910176,
+          "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/a8c71b8e-b015-4d5c-a203-b8637a5aea2e.png"
+        }
+      },
+      {
+        "_mappingConfidence": {
+          "partName": 1,
+          "material": 1,
+          "quantity": 0.98,
+          "targetWeight": 0.9
+        },
+        "partName": "BRACKET 05\n  + M6 WELD NUT\n  + M6 BOLT",
+        "material": "MJAC270D-OC-45/45",
+        "quantity": 1,
+        "targetWeight": 16.781735412,
+        "customAttributes": {
+          "LEVEL": 4,
+          "IMAGE": null,
+          "THK": 1,
+          "TOTAL WEIGHT (g)": 16.781735412,
+          "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/cab655fd-e6a8-4d65-9f5a-b4a5d45a9bed.png"
+        }
+      },
+      {
+        "_mappingConfidence": {
+          "partName": 1,
+          "material": 1,
+          "quantity": 0.98,
+          "targetWeight": 0.9
+        },
+        "partName": "BRACKET 06\n  + M6 WELD NUT\n  + M6 BOLT",
+        "material": "MJAC270D-OC-45/45",
+        "quantity": 1,
+        "targetWeight": 22.26485805,
+        "customAttributes": {
+          "LEVEL": 4,
+          "IMAGE": null,
+          "THK": 1,
+          "TOTAL WEIGHT (g)": 22.26485805,
+          "_imageS3Key": "s3://mock-artefacts-bucket-for-local-test/bom-images/local-test-2026-01-07T21:49:39.816Z/bb0b745b-40de-4bf2-97e0-1bc7758c043f.png"
+        }
+      },
+      {
+        "_mappingConfidence": {
+          "partName": 1,
+          "material": 1,
+          "quantity": 0.98,
+          "targetWeight": 0.9
+        },
+        "partName": "HINGE UPR",
+        "material": "SS",
+        "quantity": 1,
+        "targetWeight": 2500,
+        "customAttributes": {
+          "LEVEL": 1,
+          "IMAGE": "NA",
+          "THK": 5,
+          "TOTAL WEIGHT (g)": 2500
+        }
+      },
+      {
+        "_mappingConfidence": {
+          "partName": 1,
+          "material": 1,
+          "quantity": 0.98,
+          "targetWeight": 0.9
+        },
+        "partName": "HINGE LWR",
+        "material": "SS",
+        "quantity": 1,
+        "targetWeight": 2500,
+        "customAttributes": {
+          "LEVEL": 1,
+          "IMAGE": "NA",
+          "THK": 5,
+          "TOTAL WEIGHT (g)": 2500
+        }
+      },
+      {
+        "_mappingConfidence": {
+          "partName": 1,
+          "material": 1,
+          "quantity": 0.98,
+          "targetWeight": 0.9
+        },
+        "partName": "LATCH",
+        "material": "SS",
+        "quantity": 1,
+        "targetWeight": 500,
+        "customAttributes": {
+          "LEVEL": 1,
+          "IMAGE": "NA",
+          "THK": "-",
+          "TOTAL WEIGHT (g)": 500
+        }
+      }
+    ]
+  },
+  "partsCount": 26
+}

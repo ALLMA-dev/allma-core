@@ -1,0 +1,482 @@
+{
+  "formatVersion": "1.0",
+  "exportedAt": "2026-01-11T15:45:24.719Z",
+  "agents": [],
+  "stepDefinitions": [],
+  "flows": [
+    {
+      "enableExecutionLogs": true,
+      "publishedAt": "2026-01-10T15:25:46.003Z",
+      "updatedAt": "2026-01-10T15:25:46.003Z",
+      "startStepInstanceId": "extract_workbook_data",
+      "version": 1,
+      "id": "optiroq-process-bom-upload",
+      "steps": {
+        "load_existing_contracts": {
+          "defaultNextStepInstanceId": "classify_parts_in_parallel",
+          "stepType": "DATA_LOAD",
+          "customConfig": {
+            "filterExpression": "entityType = :entityType AND partStatus = :partStatus",
+            "operation": "SCAN",
+            "expressionAttributeValues": {
+              ":entityType": "BOM_PART",
+              ":partStatus": "EXISTING"
+            },
+            "tableName": "{{flow_variables.EntityGraphTableName}}",
+            "projectionExpression": "partName, material, description, targetWeight, existingPartDetails"
+          },
+          "stepInstanceId": "load_existing_contracts",
+          "displayName": "8. Load Existing Contracts",
+          "outputMappings": {
+            "$.steps_output.candidate_contracts": "$."
+          },
+          "position": {
+            "x": 607.0571304862264,
+            "y": 898.3030071213179
+          },
+          "moduleIdentifier": "system/dynamodb-data-loader"
+        },
+        "classify_parts_in_parallel": {
+          "defaultNextStepInstanceId": "update_status_on_success",
+          "stepType": "PARALLEL_FORK_MANAGER",
+          "stepInstanceId": "classify_parts_in_parallel",
+          "displayName": "9. Classify & Persist Parts",
+          "position": {
+            "x": 530.8464950572196,
+            "y": 1079.5630701460686
+          },
+          "itemsPath": "$.steps_output.validation_result.validatedData.parts",
+          "aggregationConfig": {
+            "strategy": "COLLECT_ARRAY",
+            "failOnBranchError": true,
+            "maxConcurrency": 10
+          },
+          "parallelBranches": [
+            {
+              "branchId": "classify_part",
+              "stepInstanceId": "semantic_match_with_llm"
+            }
+          ]
+        },
+        "end_flow": {
+          "stepInstanceId": "end_flow",
+          "stepType": "END_FLOW",
+          "position": {
+            "x": 145.851388493444,
+            "y": 1577.6946627395942
+          }
+        },
+        "plan_header_mapping_llm": {
+          "defaultNextStepInstanceId": "map_and_validate_bom_data",
+          "stepType": "LLM_INVOCATION",
+          "modelId": "gemini-flash-latest",
+          "customConfig": {
+            "jsonOutputMode": true
+          },
+          "llmProvider": "GEMINI",
+          "promptTemplateId": "optiroq-plan-bom-mapping",
+          "stepInstanceId": "plan_header_mapping_llm",
+          "displayName": "5. LLM - Plan Header Mapping",
+          "outputMappings": {
+            "$.steps_output.mapping_plan": "$."
+          },
+          "position": {
+            "x": 270.6791534202655,
+            "y": 578.1496480821204
+          },
+          "templateContextMappings": {
+            "rawHeaders": {
+              "formatAs": "JSON",
+              "sourceJsonPath": "$.steps_output.extracted_data.headers",
+              "joinSeparator": "\n"
+            },
+            "masterFields": {
+              "formatAs": "JSON",
+              "sourceJsonPath": "$.steps_output.master_fields.content",
+              "joinSeparator": "\n"
+            },
+            "firstDataRows": {
+              "formatAs": "JSON",
+              "sourceJsonPath": "$.steps_output.extracted_data.parts[0:3]",
+              "joinSeparator": "\n"
+            }
+          }
+        },
+        "email_start_point_d83fd009": {
+          "emailAddress": "agent@mail-beta.optiroq.com",
+          "defaultNextStepInstanceId": "custom_lambda_invoke_6266b806",
+          "stepType": "EMAIL_START_POINT",
+          "stepInstanceId": "email_start_point_d83fd009",
+          "displayName": "Email Start Point",
+          "position": {
+            "x": 700.6196319448117,
+            "y": -266.05058866014946
+          },
+          "fill": "#014206"
+        },
+        "semantic_match_with_llm": {
+          "defaultNextStepInstanceId": "persist_classified_part",
+          "stepType": "LLM_INVOCATION",
+          "modelId": "gemini-flash-latest",
+          "customConfig": {
+            "jsonOutputMode": true
+          },
+          "llmProvider": "GEMINI",
+          "promptTemplateId": "optiroq-classify-part-semantic",
+          "stepInstanceId": "semantic_match_with_llm",
+          "displayName": "LLM - Semantic Match",
+          "outputMappings": {
+            "$.steps_output.classification_result": "$."
+          },
+          "position": {
+            "x": 815.9793896795383,
+            "y": 1325.013875286387
+          },
+          "templateContextMappings": {
+            "candidateContracts": {
+              "formatAs": "JSON",
+              "sourceJsonPath": "$.steps_output.candidate_contracts.content",
+              "joinSeparator": "\n"
+            },
+            "bomPart": {
+              "formatAs": "JSON",
+              "sourceJsonPath": "$.currentItem",
+              "joinSeparator": "\n"
+            }
+          }
+        },
+        "notify_user_of_failure": {
+          "defaultNextStepInstanceId": "end_flow",
+          "stepType": "EMAIL",
+          "subject": "[ERROR] BOM upload failed for Project {{projectId}}",
+          "stepInstanceId": "notify_user_of_failure",
+          "displayName": "11b. Notify User of Failure",
+          "from": "{{flow_variables.FromEmail}}",
+          "to": "{{userEmail}}",
+          "position": {
+            "x": 18.39567062079476,
+            "y": 1293.478439936453
+          },
+          "body": "Your Bill of Materials for project {{projectId}} failed processing and could not be imported. The system reported the following issues:\n\n{{steps_output.validation_result.errors}}"
+        },
+        "update_project_with_bom_data": {
+          "defaultNextStepInstanceId": "load_existing_contracts",
+          "stepType": "CUSTOM_LAMBDA_INVOKE",
+          "customConfig": {
+            "hydrateInputFromS3": true
+          },
+          "lambdaFunctionArnTemplate": "{{flow_variables.UpdateProjectDraftLambdaArn}}",
+          "stepInstanceId": "update_project_with_bom_data",
+          "displayName": "7. Update Project with BOM Data",
+          "inputMappings": {
+            "projectData": "$.steps_output.validation_result.validatedData.project",
+            "bomFileName": "$.bomFileName",
+            "correlationId": "$.flow_variables.flowExecutionId",
+            "partsCount": "$.steps_output.validation_result.partsCount",
+            "projectId": "$.projectId",
+            "userId": "$.userId"
+          },
+          "position": {
+            "x": 595.7097946772307,
+            "y": 751.6166810711369
+          }
+        },
+        "notify_user_of_completion": {
+          "defaultNextStepInstanceId": "end_flow",
+          "stepType": "EMAIL",
+          "subject": "BOM for Project {{projectId}} is ready for review",
+          "stepInstanceId": "notify_user_of_completion",
+          "displayName": "11a. Notify User of Completion",
+          "from": "{{flow_variables.FromEmail}}",
+          "to": "{{userEmail}}",
+          "position": {
+            "x": 291.70277698688824,
+            "y": 1296.4364428564409
+          },
+          "body": "Your Bill of Materials for project {{projectId}} has been processed and is now ready for your review and confirmation in the Optiroq portal.\n\nPlease review the mapped data here: {{flow_variables.PortalBaseUrl}}/projects/{{projectId}}"
+        },
+        "load_master_fields": {
+          "forceS3Offload": true,
+          "defaultNextStepInstanceId": "llm_analyze_workbook_structure",
+          "stepType": "DATA_LOAD",
+          "customConfig": {
+            "operation": "QUERY",
+            "keyConditionExpression": "PK = :pk",
+            "expressionAttributeValues": {
+              ":pk": "CONFIG#MASTER_FIELD_LIST"
+            },
+            "tableName": "{{flow_variables.EntityGraphTableName}}"
+          },
+          "stepInstanceId": "load_master_fields",
+          "displayName": "2. Load Master Fields",
+          "outputMappings": {
+            "$.steps_output.master_fields": "$."
+          },
+          "position": {
+            "x": 320.61025939099403,
+            "y": 441.4960948990737
+          },
+          "moduleIdentifier": "system/dynamodb-data-loader"
+        },
+        "extract_data_from_bom": {
+          "forceS3Offload": true,
+          "defaultNextStepInstanceId": "plan_header_mapping_llm",
+          "stepType": "CUSTOM_LAMBDA_INVOKE",
+          "customConfig": {
+            "hydrateInputFromS3": true
+          },
+          "lambdaFunctionArnTemplate": "{{flow_variables.ExtractDataFromBomLambdaArn}}",
+          "stepInstanceId": "extract_data_from_bom",
+          "displayName": "4. Extract Data Using Plan",
+          "inputMappings": {
+            "workbookData": "$.steps_output.workbook_extraction.fullWorkbookData",
+            "extractionPlan": "$.steps_output.extraction_plan",
+            "correlationId": "$.flow_variables.flowExecutionId"
+          },
+          "outputMappings": {
+            "$.steps_output.extracted_data": "$."
+          },
+          "position": {
+            "x": 294.3307299327158,
+            "y": 260.1673416369541
+          }
+        },
+        "extract_workbook_data": {
+          "defaultNextStepInstanceId": "load_master_fields",
+          "stepType": "CUSTOM_LAMBDA_INVOKE",
+          "lambdaFunctionArnTemplate": "{{flow_variables.ExtractWorkbookDataLambdaArn}}",
+          "stepInstanceId": "extract_workbook_data",
+          "displayName": "1. Extract & Summarize Workbook",
+          "inputMappings": {
+            "s3Bucket": "$.s3Bucket",
+            "correlationId": "$.flow_variables.flowExecutionId",
+            "s3Key": "$.s3Key"
+          },
+          "outputMappings": {
+            "$.steps_output.workbook_extraction": "$."
+          },
+          "position": {
+            "x": -51.146634835959844,
+            "y": -267.3031530249008
+          }
+        },
+        "llm_analyze_workbook_structure": {
+          "defaultNextStepInstanceId": "extract_data_from_bom",
+          "stepType": "LLM_INVOCATION",
+          "modelId": "gemini-flash-latest",
+          "customConfig": {
+            "jsonOutputMode": true
+          },
+          "llmProvider": "GEMINI",
+          "promptTemplateId": "optiroq-analyze-bom-structure",
+          "stepInstanceId": "llm_analyze_workbook_structure",
+          "displayName": "3. LLM - Analyze BOM Structure",
+          "outputMappings": {
+            "$.steps_output.extraction_plan": "$."
+          },
+          "position": {
+            "x": 281.19096520357675,
+            "y": 127.4557178726493
+          },
+          "templateContextMappings": {
+            "workbookSummary": {
+              "formatAs": "RAW",
+              "sourceJsonPath": "$.steps_output.workbook_extraction.workbookSummaryForLlm",
+              "joinSeparator": "\n"
+            },
+            "masterFields": {
+              "formatAs": "JSON",
+              "sourceJsonPath": "$.steps_output.master_fields.content[?(@.group=='Project')]"
+            }
+          }
+        },
+        "map_and_validate_bom_data": {
+          "forceS3Offload": false,
+          "defaultNextStepInstanceId": "update_project_with_bom_data",
+          "stepType": "CUSTOM_LAMBDA_INVOKE",
+          "customConfig": {
+            "hydrateInputFromS3": true
+          },
+          "lambdaFunctionArnTemplate": "{{flow_variables.MapAndValidateBomDataLambdaArn}}",
+          "stepInstanceId": "map_and_validate_bom_data",
+          "displayName": "6. Map, Convert & Validate Data",
+          "inputMappings": {
+            "masterFields": "$.steps_output.master_fields",
+            "mappingPlan": "$.steps_output.mapping_plan",
+            "correlationId": "$.flow_variables.flowExecutionId",
+            "extractedData": "$.steps_output.extracted_data",
+            "projectId": "$.projectId"
+          },
+          "outputMappings": {
+            "$.steps_output.validation_result": "$."
+          },
+          "position": {
+            "x": 209.82315702340043,
+            "y": 726.7801545418549
+          },
+          "transitions": [
+            {
+              "condition": "$.isValid == false",
+              "nextStepInstanceId": "update_status_on_failure"
+            }
+          ]
+        },
+        "custom_lambda_invoke_6266b806": {
+          "defaultNextStepInstanceId": "load_master_fields",
+          "stepType": "CUSTOM_LAMBDA_INVOKE",
+          "lambdaFunctionArnTemplate": "{{flow_variables.ExtractWorkbookDataLambdaArn}}",
+          "stepInstanceId": "custom_lambda_invoke_6266b806",
+          "displayName": "1a. Extract & Summarize Workbook",
+          "inputMappings": {
+            "s3Bucket": "$.triggeringEmail.attachments[0].s3Location.bucket",
+            "correlationId": "$.flow_variables.flowExecutionId",
+            "s3Key": "$.triggeringEmail.attachments[0].s3Location.key"
+          },
+          "position": {
+            "x": 710.9513311265686,
+            "y": -49.30088422131746
+          },
+          "outputMappings": {
+            "$.steps_output.workbook_extraction": "$."
+          },
+          "transitions": []
+        },
+        "persist_classified_part": {
+          "inputMappings": {
+            "classificationResult": "$.steps_output.classification_result",
+            "correlationId": "$.flow_variables.flowExecutionId",
+            "projectId": "$.projectId",
+            "part": "$.currentItem"
+          },
+          "stepType": "CUSTOM_LAMBDA_INVOKE",
+          "position": {
+            "x": 815.9793896795379,
+            "y": 1501.6795679255931
+          },
+          "lambdaFunctionArnTemplate": "{{flow_variables.PersistClassifiedPartLambdaArn}}",
+          "stepInstanceId": "persist_classified_part"
+        },
+        "update_status_on_success": {
+          "stepInstanceId": "update_status_on_success",
+          "displayName": "10a. Finalize Project Status (Success)",
+          "stepType": "DATA_SAVE",
+          "moduleIdentifier": "system/dynamodb-update-item",
+          "defaultNextStepInstanceId": "notify_user_of_completion",
+          "position": {
+            "x": 530.8464950572196,
+            "y": 1296.4364428564409
+          },
+          "customConfig": {
+            "tableName": "{{flow_variables.EntityGraphTableName}}",
+            "key": {
+              "PK": "PROJECT#{{projectId}}",
+              "SK": "METADATA"
+            },
+            "updateExpression": "SET #status = :status, #lastModified = :now REMOVE bomProcessingFlowId, bomProcessingStartedAt",
+            "expressionAttributeNames": {
+              "#status": "status",
+              "#lastModified": "lastModified"
+            },
+            "expressionAttributeValues": {
+              ":status": "DRAFT_AWAITING_REVIEW",
+              ":now": "{{_internal.currentStepStartTime}}"
+            }
+          }
+        },
+        "update_status_on_failure": {
+          "stepInstanceId": "update_status_on_failure",
+          "displayName": "10b. Finalize Project Status (Failure)",
+          "stepType": "DATA_SAVE",
+          "moduleIdentifier": "system/dynamodb-update-item",
+          "defaultNextStepInstanceId": "notify_user_of_failure",
+          "position": {
+            "x": 209.82315702340043,
+            "y": 1000
+          },
+          "customConfig": {
+            "tableName": "{{flow_variables.EntityGraphTableName}}",
+            "key": {
+              "PK": "PROJECT#{{projectId}}",
+              "SK": "METADATA"
+            },
+            "updateExpression": "SET #status = :status, #lastModified = :now REMOVE bomProcessingFlowId, bomProcessingStartedAt",
+            "expressionAttributeNames": {
+              "#status": "status",
+              "#lastModified": "lastModified"
+            },
+            "expressionAttributeValues": {
+              ":status": "DRAFT_FAILED",
+              ":now": "{{_internal.currentStepStartTime}}"
+            }
+          }
+        }
+      },
+      "description": "Resilient BOM processing using a multi-stage LLM analysis and extraction pipeline to handle any Excel format.",
+      "flowVariables": {
+        "PersistClassifiedPartLambdaArn": "arn:aws:lambda:us-west-2:871610744338:function:optiroq-persistclassifiedpart-beta",
+        "ExtractWorkbookDataLambdaArn": "arn:aws:lambda:us-west-2:871610744338:function:optiroq-extractworkbookdata-beta",
+        "MapAndValidateBomDataLambdaArn": "arn:aws:lambda:us-west-2:871610744338:function:optiroq-mapandvalidatebomdata-beta",
+        "ExtractDataFromBomLambdaArn": "arn:aws:lambda:us-west-2:871610744338:function:optiroq-extractdatafrombom-beta",
+        "UpdateProjectDraftLambdaArn": "arn:aws:lambda:us-west-2:871610744338:function:optiroq-updateprojectwithbomdata-beta",
+        "PortalBaseUrl": "https://portal-beta.optiroq.com",
+        "FromEmail": "agent@mail-beta.optiroq.com",
+        "EntityGraphTableName": "OptiroqEntityGraph-Beta"
+      },
+      "createdAt": "2024-10-27T10:00:00.000Z",
+      "isPublished": true,
+      "name": "Optiroq - Process BOM Upload"
+    }
+  ],
+  "promptTemplates": [
+    {
+      "publishedAt": "2026-01-10T15:25:42.683Z",
+      "updatedAt": "2026-01-10T15:25:42.683Z",
+      "content": "You are an expert procurement data mapping AI. Your task is to analyze a list of raw column headers from a Bill of Materials (BOM) Excel file and create a JSON plan that maps each raw header to its canonical field in the provided Master Field List. Your matching should be robust to common variations in naming.\n\n**RAW EXCEL HEADERS (JSON Array):**\n```json\n{{rawHeaders}}\n```\n\n**FIRST FEW DATA ROWS (for context):**\n```json\n{{firstDataRows}}\n```\n\n**MASTER FIELD LIST (Canonical Schema):**\n```json\n{{masterFields}}\n```\n\n**INSTRUCTIONS:**\n1.  For each `rawHeader` in the input array, find the single best matching field from the `Master Field List`.\n2.  Matching should be based on semantic similarity between the `rawHeader` and the master field's `key`, `displayName`, and `llm_description`.\n3.  **If a header is ambiguous (e.g., 'Info', 'Code'), examine the values in the `firstDataRows` and the `llm_description` of potential master fields to infer its meaning. For instance, if a column 'Code' has values like 'Steel' and the `llm_description` for the `material` field is 'The specific material the component is made of', you should map 'Code' to `material`. The `llm_description` provides crucial context; use it to resolve ambiguity.**\n4.  For each mapping, provide a `confidence` score from 0.0 to 1.0, where 1.0 is a perfect match and 0.0 is no match.\n5.  If a `rawHeader` cannot be confidently matched to any master field (e.g., confidence < 0.5), map it to `null`.\n\n**CRITICAL:** Your entire response must be ONLY a valid JSON object where keys are the raw headers. Do not include any explanatory text, preamble, or markdown formatting.\n\n**Example Output Format:**\n```json\n{\n  \"Part-Name\": { \"mapsTo\": \"partName\", \"confidence\": 0.99 },\n  \"Annual Volume\": { \"mapsTo\": \"quantity\", \"confidence\": 0.98 },\n  \"Material Spec\": { \"mapsTo\": \"material\", \"confidence\": 0.92 },\n  \"Internal Code\": { \"mapsTo\": null, \"confidence\": 0.2 }\n}\n```",
+      "isPublished": true,
+      "description": "Analyzes raw Excel headers and creates a JSON mapping plan against the Master Field List.",
+      "version": 1,
+      "tags": [
+        "optiroq",
+        "bom",
+        "planning"
+      ],
+      "name": "Optiroq - Plan BOM Header Mapping",
+      "id": "optiroq-plan-bom-mapping",
+      "createdAt": "2024-10-27T10:00:00.000Z"
+    },
+    {
+      "createdAt": "2024-10-27T10:00:00.000Z",
+      "isPublished": true,
+      "tags": [
+        "optiroq",
+        "classification",
+        "llm"
+      ],
+      "content": "You are a senior procurement expert AI with deep knowledge of manufacturing parts and materials. Your task is to determine if a given BOM Part is a definitive match for any of the provided Candidate Contracts from previous projects. Consider variations in naming conventions, material grades, and specifications.\n\n**BOM PART TO CLASSIFY:**\n```json\n{{bomPart}}\n```\n\n**CANDIDATE CONTRACTS FROM DATABASE:**\n```json\n{{candidateContracts}}\n```\n\n**INSTRUCTIONS:**\n1.  Carefully compare the `bomPart` against each `candidateContract`.\n2.  **Focus your comparison on the most critical fields: `partName` and `material`. A match is highly likely if these are semantically identical. Use other fields like `description` or `targetWeight` to increase or decrease your confidence.**\n3.  A 'MATCH' requires a very high degree of certainty. Minor differences in description are acceptable, but the core part name and material must be semantically equivalent (e.g., 'Aluminum 6061-T6' matches 'Al-6061', but 'Steel 1045' does not match 'Stainless Steel 304').\n4.  If a definitive match is found, identify the single best one.\n5.  Provide a `confidenceScore` from 0.0 to 1.0 for your decision.\n6.  Provide a brief `reasoning` for your decision.\n\n**CRITICAL:** Your entire response must be ONLY a valid JSON object. Do not add any text before or after the JSON object.\n\n**JSON OUTPUT FORMAT:**\n{\n  \"matchStatus\": \"MATCH\" | \"NO_MATCH\",\n  \"confidenceScore\": number, // e.g., 0.95\n  \"matchedContractId\": \"string | null\", // The PK of the matched contract, or null\n  \"reasoning\": \"string\" // A brief explanation\n}\n\n**Example 1 (Match):**\n`{\"matchStatus\": \"MATCH\", \"confidenceScore\": 0.98, \"matchedContractId\": \"CONTRACT#CTR-2024-S-A-45\", \"reasoning\": \"The part name 'ALU-BRACKET-001' is an exact match and the material 'Alu 6061' is semantically equivalent to 'Aluminum 6061-T6'.\"}`\n\n**Example 2 (No Match):**\n`{\"matchStatus\": \"NO_MATCH\", \"confidenceScore\": 0.99, \"matchedContractId\": null, \"reasoning\": \"No candidate contract matches the core part name or material. The closest candidate is for a different bracket type.\"}`",
+      "id": "optiroq-classify-part-semantic",
+      "publishedAt": "2026-01-10T15:25:42.863Z",
+      "updatedAt": "2026-01-10T15:25:42.863Z",
+      "version": 1,
+      "description": "Compares a BOM part to candidate contracts and determines if there is a definitive match.",
+      "name": "Optiroq - Classify Part via Semantic Match"
+    },
+    {
+      "isPublished": true,
+      "tags": [
+        "optiroq",
+        "bom",
+        "analysis",
+        "planning"
+      ],
+      "createdAt": "2024-10-27T10:00:00.000Z",
+      "version": 3,
+      "description": "Analyzes a text representation of an Excel workbook to identify project metadata and the main data table.",
+      "publishedAt": "2026-02-05T11:06:00.000Z",
+      "updatedAt": "2026-02-05T11:06:00.000Z",
+      "name": "Optiroq - Analyze BOM Excel Structure",
+      "content": "You are an expert data analyst AI specializing in parsing unstructured procurement documents, particularly Bill of Materials (BOM) Excel files. You will be given a simplified text representation of an entire Excel workbook and a list of master data fields.\n\n**INPUT WORKBOOK (Text Summary):**\n```text\n{{workbookSummary}}\n```\n\n**MASTER FIELD LIST (Canonical Schema):**\n```json\n{{masterFields}}\n```\n\n**YOUR TASK:**\nYour task is to analyze the workbook structure and produce a JSON plan that will guide a script to extract the meaningful data. **You MUST NOT output the data itself, only JSON instructions on how to find it and some requested values.**\n\n**INSTRUCTIONS:**\n1.  **Locate Project Metadata:**\n    *   First, identify all fields from the `MASTER FIELD LIST` where `group` is 'Project'.\n    *   Search the ENTIRE `INPUT WORKBOOK` summary (across all sheets) for labels that semantically match the `displayName` or `key` of these project fields. The `llm_description` provides crucial context for matching. Pay special attention to extracting any specified default currency or default weight unit for the project.\n    *   For each piece of metadata you find, provide its inferred canonical `key`, the `label` found in the sheet, the exact `value` of the data, and an approximate `valueCellAddress` (if possible, otherwise use a descriptive location like \"Sheet 'Info', Row 3\"). Extract the value exactly as it appears.\n\n2.  **Identify Primary Data Sheet:** Determine which sheet contains the main BOM data table. This is usually the sheet with the largest, most structured grid of part data. Name this the `primarySheetName`.\n\n3.  **Locate Data Table:** Within the `primarySheetName`, identify the main table of parts.\n    *   `headerRow`: Specify the row number where the column headers (e.g., 'Part Name', 'Quantity') are located.\n    *   `dataStartRow`: Specify the row number where the first row of actual part data begins.\n    *   `dataEndRow`: Specify the row number of the **last row** of part data. This is typically just before a completely empty row or a row containing totals.\n\n4.  **Provide Reasoning:** Briefly explain your choices, especially for `primarySheetName` and the table boundaries.\n\n**CRITICAL:** Your entire response must be ONLY a single, valid JSON object conforming to the output format below. Do not include any explanatory text, preamble, or markdown formatting outside of the JSON structure.\n\n**JSON OUTPUT FORMAT:**\n```json\n{\n  \"analysis\": {\n    \"primarySheetName\": \"string\",\n    \"confidence\": 0.98,\n    \"reasoning\": \"string\",\n    \"projectMetadata\": [\n      {\n        \"key\": \"projectName\",\n        \"label\": \"Project Name:\",\n        \"value\": \"Project Apollo\",\n        \"valueCellAddress\": \"Sheet 'Metadata', B1\"\n      },\n      {\n        \"key\": \"sopDate\",\n        \"label\": \"SOP\",\n        \"value\": \"2027-10-01\",\n        \"valueCellAddress\": \"Sheet 'Timeline', C5\"\n      }\n    ],\n    \"dataTable\": {\n      \"sheetName\": \"string\",\n      \"headerRow\": 5,\n      \"dataStartRow\": 6,\n      \"dataEndRow\": 55\n    }\n  }\n}\n```",
+      "id": "optiroq-analyze-bom-structure"
+    }
+  ],
+  "mcpConnections": []
+}

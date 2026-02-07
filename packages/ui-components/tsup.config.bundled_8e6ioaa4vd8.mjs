@@ -1,0 +1,24 @@
+// tsup.config.ts
+import { defineConfig } from "tsup";
+var tsup_config_default = defineConfig({
+  entry: ["src/index.ts"],
+  // The entry point of our package
+  format: ["cjs", "esm"],
+  // Output both CommonJS and ES Modules
+  dts: true,
+  // Generate TypeScript declaration files (.d.ts)
+  splitting: false,
+  sourcemap: true,
+  clean: true,
+  // Clean the 'dist' directory before building
+  // Add this banner to the top of all ESM files. This is crucial for
+  // components to work correctly in modern React frameworks (like Next.js App Router).
+  // It's a best practice for any new component library.
+  banner: {
+    js: "'use client'"
+  }
+});
+export {
+  tsup_config_default as default
+};
+//# sourceMappingURL=data:application/json;base64,ewogICJ2ZXJzaW9uIjogMywKICAic291cmNlcyI6IFsidHN1cC5jb25maWcudHMiXSwKICAic291cmNlc0NvbnRlbnQiOiBbImNvbnN0IF9faW5qZWN0ZWRfZmlsZW5hbWVfXyA9IFwiL2hvbWUvdXNlci9hbGxtYS1jb3JlL3BhY2thZ2VzL3VpLWNvbXBvbmVudHMvdHN1cC5jb25maWcudHNcIjtjb25zdCBfX2luamVjdGVkX2Rpcm5hbWVfXyA9IFwiL2hvbWUvdXNlci9hbGxtYS1jb3JlL3BhY2thZ2VzL3VpLWNvbXBvbmVudHNcIjtjb25zdCBfX2luamVjdGVkX2ltcG9ydF9tZXRhX3VybF9fID0gXCJmaWxlOi8vL2hvbWUvdXNlci9hbGxtYS1jb3JlL3BhY2thZ2VzL3VpLWNvbXBvbmVudHMvdHN1cC5jb25maWcudHNcIjtpbXBvcnQgeyBkZWZpbmVDb25maWcgfSBmcm9tICd0c3VwJztcblxuZXhwb3J0IGRlZmF1bHQgZGVmaW5lQ29uZmlnKHtcbiAgZW50cnk6IFsnc3JjL2luZGV4LnRzJ10sIC8vIFRoZSBlbnRyeSBwb2ludCBvZiBvdXIgcGFja2FnZVxuICBmb3JtYXQ6IFsnY2pzJywgJ2VzbSddLCAgICAvLyBPdXRwdXQgYm90aCBDb21tb25KUyBhbmQgRVMgTW9kdWxlc1xuICBkdHM6IHRydWUsICAgICAgICAgICAgICAgICAvLyBHZW5lcmF0ZSBUeXBlU2NyaXB0IGRlY2xhcmF0aW9uIGZpbGVzICguZC50cylcbiAgc3BsaXR0aW5nOiBmYWxzZSxcbiAgc291cmNlbWFwOiB0cnVlLFxuICBjbGVhbjogdHJ1ZSwgICAgICAgICAgICAgICAvLyBDbGVhbiB0aGUgJ2Rpc3QnIGRpcmVjdG9yeSBiZWZvcmUgYnVpbGRpbmdcbiAgLy8gQWRkIHRoaXMgYmFubmVyIHRvIHRoZSB0b3Agb2YgYWxsIEVTTSBmaWxlcy4gVGhpcyBpcyBjcnVjaWFsIGZvclxuICAvLyBjb21wb25lbnRzIHRvIHdvcmsgY29ycmVjdGx5IGluIG1vZGVybiBSZWFjdCBmcmFtZXdvcmtzIChsaWtlIE5leHQuanMgQXBwIFJvdXRlcikuXG4gIC8vIEl0J3MgYSBiZXN0IHByYWN0aWNlIGZvciBhbnkgbmV3IGNvbXBvbmVudCBsaWJyYXJ5LlxuICBiYW5uZXI6IHtcbiAgICBqczogXCIndXNlIGNsaWVudCdcIixcbiAgfSxcbn0pOyJdLAogICJtYXBwaW5ncyI6ICI7QUFBa1IsU0FBUyxvQkFBb0I7QUFFL1MsSUFBTyxzQkFBUSxhQUFhO0FBQUEsRUFDMUIsT0FBTyxDQUFDLGNBQWM7QUFBQTtBQUFBLEVBQ3RCLFFBQVEsQ0FBQyxPQUFPLEtBQUs7QUFBQTtBQUFBLEVBQ3JCLEtBQUs7QUFBQTtBQUFBLEVBQ0wsV0FBVztBQUFBLEVBQ1gsV0FBVztBQUFBLEVBQ1gsT0FBTztBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUEsRUFJUCxRQUFRO0FBQUEsSUFDTixJQUFJO0FBQUEsRUFDTjtBQUNGLENBQUM7IiwKICAibmFtZXMiOiBbXQp9Cg==
