@@ -1,5 +1,11 @@
 # @allma/core-types
 
+## 1.1.1
+
+### Patch Changes
+
+- 4d6f2f4: Email send attachments improvements and cc, bcc added
+
 ## 1.1.0
 
 ### Minor Changes

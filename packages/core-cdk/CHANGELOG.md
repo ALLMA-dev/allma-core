@@ -1,5 +1,13 @@
 # @allma/core-cdk
 
+## 1.1.5
+
+### Patch Changes
+
+- 4d6f2f4: Email send attachments improvements and cc, bcc added
+- Updated dependencies [4d6f2f4]
+  - @allma/core-types@1.1.1
+
 ## 1.1.4
 
 ### Patch Changes
