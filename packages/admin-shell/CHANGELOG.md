@@ -1,5 +1,12 @@
 # @allma/admin-shell
 
+## 2.0.2
+
+### Patch Changes
+
+- Updated dependencies [4d6f2f4]
+  - @allma/core-types@1.1.1
+
 ## 2.0.1
 
 ### Patch Changes
