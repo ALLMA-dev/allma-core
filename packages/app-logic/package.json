@@ -15,8 +15,8 @@
     "src/"
   ],
   "dependencies": {
-    "@allma/core-sdk": "^1.0.8",
-    "@allma/core-types": "^1.1.0",
+    "@allma/core-sdk": "^1.0.9",
+    "@allma/core-types": "^1.1.1",
     "@aws-sdk/client-bedrock-runtime": "^3.614.0",
     "@aws-sdk/client-dynamodb": "^3.500.0",
     "@aws-sdk/client-scheduler": "^3.614.0",

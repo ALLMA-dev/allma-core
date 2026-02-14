@@ -1,5 +1,16 @@
 # @allma/core-cdk
 
+## 1.1.5
+
+### Patch Changes
+
+- 4d6f2f4: Email send attachments improvements and cc, bcc added
+- 4706c67: Email send has CC and fromName parameters now
+- Updated dependencies [4d6f2f4]
+- Updated dependencies [4706c67]
+  - @allma/core-types@1.1.1
+  - @allma/core-sdk@1.0.9
+
 ## 1.1.4
 
 ### Patch Changes

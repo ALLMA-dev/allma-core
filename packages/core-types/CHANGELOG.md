@@ -1,5 +1,12 @@
 # @allma/core-types
 
+## 1.1.1
+
+### Patch Changes
+
+- 4d6f2f4: Email send attachments improvements and cc, bcc added
+- 4706c67: Email send has CC and fromName parameters now
+
 ## 1.1.0
 
 ### Minor Changes
