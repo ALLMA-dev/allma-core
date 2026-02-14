@@ -40,6 +40,7 @@ function extractEmail(input: string): string {
  */
 async function buildRawEmail(params: {
     from: string;
+    fromName?: string;
     to: string | string[];
     cc?: string | string[];
     bcc?: string | string[];
@@ -49,10 +50,14 @@ async function buildRawEmail(params: {
     attachments: RenderedEmailAttachment[];
     correlationId: string;
 }): Promise<string> {
-    const { from, to, cc, bcc, replyTo, subject, body, attachments, correlationId } = params;
+    const { from, fromName, to, cc, bcc, replyTo, subject, body, attachments, correlationId } = params;
     const boundary = `----=_Part_${uuidv4().replace(/-/g, '')}`;
 
-    let rawMessage = `From: ${from}\r\n`;
+    const fromHeader = fromName
+        ? `"${fromName.replace(/"/g, '\\"')}" <${from}>`
+        : from;
+    let rawMessage = `From: ${fromHeader}\r\n`;
+
     rawMessage += `To: ${Array.isArray(to) ? to.join(', ') : to}\r\n`;
     if (cc) {
         rawMessage += `Cc: ${Array.isArray(cc) ? cc.join(', ') : cc}\r\n`;
@@ -167,7 +172,7 @@ export const executeSendEmail: StepHandler = async (
       return finalAddresses.length === 1 ? finalAddresses[0] : finalAddresses;
   };
 
-  const { from, to: rawTo, cc: rawCc, bcc: rawBcc, replyTo: rawReplyTo, subject, body, attachments: staticAttachments, attachmentsPath } = structuralValidation.data;
+  const { from, fromName, to: rawTo, cc: rawCc, bcc: rawBcc, replyTo: rawReplyTo, subject, body, attachments: staticAttachments, attachmentsPath } = structuralValidation.data;
 
     let finalAttachments: RenderedEmailAttachment[] | undefined;
 
@@ -203,7 +208,8 @@ export const executeSendEmail: StepHandler = async (
   if (body === undefined || body === null) throw new Error("The 'body' field is missing or resolved to an empty value after template rendering.");
 
   const cleanedParams = {
-    from: extractEmail(from),
+    from: from,
+    fromName: fromName,
     to: Array.isArray(to) ? to.map(extractEmail) : extractEmail(to as string),
     cc: cc ? (Array.isArray(cc) ? cc.map(extractEmail) : extractEmail(cc as string)) : undefined,
     bcc: bcc ? (Array.isArray(bcc) ? bcc.map(extractEmail) : extractEmail(bcc as string)) : undefined,
@@ -226,7 +232,7 @@ export const executeSendEmail: StepHandler = async (
   }
 
   const validatedEmailParams = runtimeValidation.data;
-  const { from: validFrom, to: validTo, cc: validCc, bcc: validBcc, replyTo: validReplyTo, subject: validSubject, body: validBody, attachments: validAttachments } = validatedEmailParams;
+  const { from: validFrom, fromName: validFromName, to: validTo, cc: validCc, bcc: validBcc, replyTo: validReplyTo, subject: validSubject, body: validBody, attachments: validAttachments } = validatedEmailParams;
   
   try {
     if (validAttachments && validAttachments.length > 0) {
@@ -235,6 +241,7 @@ export const executeSendEmail: StepHandler = async (
 
        const buildParams = {
             from: validFrom,
+            ...(validFromName && { fromName: validFromName }),
             to: validTo,
             subject: validSubject,
             body: validBody,
@@ -266,10 +273,14 @@ export const executeSendEmail: StepHandler = async (
         const bccAddresses = validBcc ? (Array.isArray(validBcc) ? validBcc.map(extractEmail) : [extractEmail(validBcc as string)]) : undefined;
         const replyToAddresses = validReplyTo ? (Array.isArray(validReplyTo) ? validReplyTo.map(extractEmail) : [extractEmail(validReplyTo as string)]) : undefined;
 
-        log_info(`Sending simple email via SES`, { from: validFrom, to: toAddresses, cc: ccAddresses, replyTo: replyToAddresses, subject: validSubject }, correlationId);
+        log_info(`Sending simple email via SES`, { from: validFrom, fromName: validFromName, to: toAddresses, cc: ccAddresses, replyTo: replyToAddresses, subject: validSubject }, correlationId);
+
+        const fromAddress = validFromName
+            ? `"${validFromName.replace(/"/g, '\\"')}" <${validFrom}>`
+            : validFrom;
 
         const command = new SendEmailCommand({
-            FromEmailAddress: extractEmail(validFrom),
+            FromEmailAddress: fromAddress,
             Destination: { 
                 ToAddresses: toAddresses,
                 CcAddresses: ccAddresses,

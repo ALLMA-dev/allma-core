@@ -22,6 +22,7 @@ export const EmailSendStepPayloadSchema = z.object({
     stepType: z.literal(StepTypeSchema.enum.EMAIL),
     moduleIdentifier: z.undefined().optional(),
     from: z.string().describe("From Address|text|The sender's email address (must be a verified SES identity). Supports templates."),
+    fromName: z.string().optional().describe("From Name|text|Optional: The display name for the sender (e.g., 'Allma Support')."),
     to: z.union([z.string(), z.array(z.string())]).describe("To Address(es)|json|A single email, comma-separated emails, or a template/JSONPath returning an array/string."),
     cc: z.union([z.string(), z.array(z.string())]).optional().describe("CC Address(es)|json|Optional: Carbon copy recipients. Supports templates."),
     bcc: z.union([z.string(), z.array(z.string())]).optional().describe("BCC Address(es)|json|Optional: Blind carbon copy recipients. Supports templates."),
@@ -44,6 +45,8 @@ export type RenderedEmailAttachment = z.infer<typeof RenderedEmailAttachmentSche
 // This schema is for strict runtime validation AFTER templates have been rendered.
 export const RenderedEmailParamsSchema = z.object({
     from: z.string().email({ message: "Rendered 'from' address is not a valid email." }),
+    // NEW: Added optional fromName to the rendered parameters.
+    fromName: z.string().optional(),
     to: z.union([
         z.string().email({ message: "Rendered 'to' address is not a valid email." }), 
         z.array(z.string().email({ message: "One or more 'to' addresses are not valid emails." })).min(1)

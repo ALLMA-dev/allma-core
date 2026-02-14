@@ -9,3 +9,4 @@ export * from './tokenEstimator.js';
 export * from './storageUtils.js';
 export * from './objectUtils.js';
 export * from './config-validator.js';
+export * from './objectUtils.js';

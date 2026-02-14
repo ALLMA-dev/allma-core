@@ -38,3 +38,18 @@ export function deepMerge<T extends Record<string, any>>(target: T, source: Reco
     }
     return output;
 }
+
+export function unwrapConfidenceTrackedValues(payload: Record<string, any>): Record<string, any> {
+  const newPayload: Record<string, any> = {};
+  for (const key in payload) {
+    if (Object.prototype.hasOwnProperty.call(payload, key)) {
+      const value = payload[key];
+      if (value && typeof value === 'object' && 'value' in value) {
+        newPayload[key] = value.value;
+      } else {
+        newPayload[key] = value;
+      }
+    }
+  }
+  return newPayload;
+}
