@@ -48,9 +48,10 @@ async function buildRawEmail(params: {
     subject: string;
     body: string;
     attachments: RenderedEmailAttachment[];
+    customHeaders?: { name: string; value: string }[];
     correlationId: string;
 }): Promise<string> {
-    const { from, fromName, to, cc, bcc, replyTo, subject, body, attachments, correlationId } = params;
+    const { from, fromName, to, cc, bcc, replyTo, subject, body, attachments, customHeaders, correlationId } = params;
     const boundary = `----=_Part_${uuidv4().replace(/-/g, '')}`;
 
     const fromHeader = fromName
@@ -69,6 +70,13 @@ async function buildRawEmail(params: {
         rawMessage += `Reply-To: ${Array.isArray(replyTo) ? replyTo.join(', ') : replyTo}\r\n`;
     }
     rawMessage += `Subject: ${subject}\r\n`;
+
+    if (customHeaders) {
+        for (const header of customHeaders) {
+            rawMessage += `${header.name}: ${header.value}\r\n`;
+        }
+    }
+
     rawMessage += `MIME-Version: 1.0\r\n`;
     rawMessage += `Content-Type: multipart/mixed; boundary="${boundary}"\r\n\r\n`;
 
@@ -172,7 +180,7 @@ export const executeSendEmail: StepHandler = async (
       return finalAddresses.length === 1 ? finalAddresses[0] : finalAddresses;
   };
 
-  const { from, fromName, to: rawTo, cc: rawCc, bcc: rawBcc, replyTo: rawReplyTo, subject, body, attachments: staticAttachments, attachmentsPath } = structuralValidation.data;
+  const { from, fromName, to: rawTo, cc: rawCc, bcc: rawBcc, replyTo: rawReplyTo, subject, body, attachments: staticAttachments, attachmentsPath, customHeaders } = structuralValidation.data;
 
     let finalAttachments: RenderedEmailAttachment[] | undefined;
 
@@ -216,6 +224,7 @@ export const executeSendEmail: StepHandler = async (
     replyTo: replyTo ? (Array.isArray(replyTo) ? replyTo.map(extractEmail) : extractEmail(replyTo as string)) : undefined,
     subject,
     body,
+    customHeaders,
     attachments: finalAttachments,
   };
 
@@ -232,7 +241,7 @@ export const executeSendEmail: StepHandler = async (
   }
 
   const validatedEmailParams = runtimeValidation.data;
-  const { from: validFrom, fromName: validFromName, to: validTo, cc: validCc, bcc: validBcc, replyTo: validReplyTo, subject: validSubject, body: validBody, attachments: validAttachments } = validatedEmailParams;
+  const { from: validFrom, fromName: validFromName, to: validTo, cc: validCc, bcc: validBcc, replyTo: validReplyTo, subject: validSubject, body: validBody, customHeaders: validCustomHeaders, attachments: validAttachments } = validatedEmailParams;
   
   try {
     if (validAttachments && validAttachments.length > 0) {
@@ -246,6 +255,7 @@ export const executeSendEmail: StepHandler = async (
             subject: validSubject,
             body: validBody,
             attachments: validAttachments,
+            ...(validCustomHeaders && { customHeaders: validCustomHeaders }),
             correlationId,
             ...(validCc && { cc: validCc }),
             ...(validBcc && { bcc: validBcc }),
@@ -291,6 +301,7 @@ export const executeSendEmail: StepHandler = async (
                 Simple: {
                     Subject: { Data: validSubject },
                     Body: { Html: { Data: validBody } },
+                    Headers: validCustomHeaders?.map(h => ({ Name: h.name, Value: h.value })),
                 },
             },
         });

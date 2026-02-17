@@ -29,6 +29,10 @@ export const EmailSendStepPayloadSchema = z.object({
     replyTo: z.union([z.string(), z.array(z.string())]).optional().describe("Reply-To Address(es)|json|Optional: Email(s) for replies. Supports templates."),
     subject: z.string().describe("Subject|text|The email subject. Supports templates."),
     body: z.string().describe("Body|textarea|The email body (HTML is supported). Supports templates."),
+    customHeaders: z.union([
+        z.array(z.object({ name: z.string(), value: z.string() })), 
+        z.string()
+    ]).optional().describe("Custom Headers|json|A list of custom headers, a JSONPath string to an array, or a Handlebars template."),
     attachments: z.array(EmailAttachmentS3PointerSchema).optional().describe("Static Attachments|json|A static list of files to attach from S3. Use 'attachmentsPath' for a dynamic list."),
     attachmentsPath: JsonPathStringSchema.optional().describe("Dynamic Attachments Path|text|A JSONPath to an array of attachment objects in the context (e.g., `$.steps_output.my_step.files`). Use this for a dynamic list."),
   }).passthrough();
@@ -45,7 +49,6 @@ export type RenderedEmailAttachment = z.infer<typeof RenderedEmailAttachmentSche
 // This schema is for strict runtime validation AFTER templates have been rendered.
 export const RenderedEmailParamsSchema = z.object({
     from: z.string().email({ message: "Rendered 'from' address is not a valid email." }),
-    // NEW: Added optional fromName to the rendered parameters.
     fromName: z.string().optional(),
     to: z.union([
         z.string().email({ message: "Rendered 'to' address is not a valid email." }), 
@@ -53,17 +56,18 @@ export const RenderedEmailParamsSchema = z.object({
     ]),
     cc: z.union([
         z.string().email({ message: "Rendered 'cc' address is not a valid email." }), 
-        z.array(z.string().email({ message: "One or more 'cc' addresses are not valid emails." })).min(1)
+        z.array(z.string().email({ message: "One or more 'cc' addresses are not valid emails." }))
     ]).optional(),
     bcc: z.union([
         z.string().email({ message: "Rendered 'bcc' address is not a valid email." }), 
-        z.array(z.string().email({ message: "One or more 'bcc' addresses are not valid emails." })).min(1)
+        z.array(z.string().email({ message: "One or more 'bcc' addresses are not valid emails." }))
     ]).optional(),
     replyTo: z.union([
         z.string().email({ message: "Rendered 'replyTo' address is not a valid email." }), 
-        z.array(z.string().email({ message: "One or more 'replyTo' addresses are not valid emails." })).min(1)
+        z.array(z.string().email({ message: "One or more 'replyTo' addresses are not valid emails." }))
     ]).optional(),
     subject: z.string(),
     body: z.string(),
+    customHeaders: z.array(z.object({ name: z.string(), value: z.string() })).optional(),
     attachments: z.array(RenderedEmailAttachmentSchema).optional(),
 });
