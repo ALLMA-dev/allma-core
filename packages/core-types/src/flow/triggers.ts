@@ -17,8 +17,16 @@ export const TriggeringEmailContextSchema = z.object({
   senderEmailPrefix: z.string().optional(),
   /** The recipient's email address that triggered the flow. */
   to: z.string().email(),
+  /** An array of CC recipient email addresses. */
+  cc: z.array(z.string().email()).optional(),
+  /** An array of BCC recipient email addresses. This is only available if the recipient was in the BCC field. */
+  bcc: z.array(z.string().email()).optional(),
+  /** An array of Reply-To email addresses. */
+  replyTo: z.array(z.string().email()).optional(),
   /** The subject of the email. */
   subject: z.string().optional(),
+  /** All email headers as an array of key-value pairs. */
+  headers: z.array(z.object({ key: z.string(), value: z.string() })).optional(),
   /** The plain text body of the email. */
   body: z.string(),
   /** The HTML body of the email, if available. */
