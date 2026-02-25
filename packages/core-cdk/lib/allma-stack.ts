@@ -111,7 +111,7 @@ export class AllmaStack extends cdk.Stack {
     // feedback on configuration errors, preventing a slow and costly deployment failure.
     if (stageConfig.initialAllmaConfigPath) {
       console.log(`[Allma CDK] Pre-validating initial configuration from: ${stageConfig.initialAllmaConfigPath}`);
-      this._preValidateInitialConfig(stageConfig.initialAllmaConfigPath);
+      this._preValidateInitialConfig(stageConfig.initialAllmaConfigPath, stageConfig);
       console.log(`[Allma CDK] Pre-validation successful. Proceeding with deployment.`);
     }
 
@@ -361,6 +361,12 @@ export class AllmaStack extends cdk.Stack {
           // These properties are accessible via event.ResourceProperties in the Lambda
           S3Bucket: configAsset.s3BucketName,
           S3Key: configAsset.s3ObjectKey,
+          // NEW: Pass deployment parameters to the Lambda
+          DeploymentParameters: {
+            stage: stageConfig.stage,
+            accountId: this.account,
+            region: this.region,
+          }
         },
         // Helps identify this resource in CloudFormation
         resourceType: 'Custom::AllmaConfigImporter',
@@ -378,8 +384,9 @@ export class AllmaStack extends cdk.Stack {
    * If any file is invalid, it throws an error, failing the `cdk deploy` command early.
    *
    * @param configPath The local filesystem path to a config file or directory.
+   * @param stageConfig The resolved stage configuration for template rendering.
    */
-  private _preValidateInitialConfig(configPath: string): void {
+  private _preValidateInitialConfig(configPath: string, stageConfig: StageConfig): void {
     if (!fs.existsSync(configPath)) {
       throw new Error(`[Allma CDK Pre-validation] Error: initialAllmaConfigPath not found at '${configPath}'.`);
     }
@@ -416,7 +423,9 @@ export class AllmaStack extends cdk.Stack {
     for (const file of filesToValidate) {
       try {
         const jsonData = JSON.parse(file.content);
-        const validationResult = validateAllmaConfig(jsonData, file.name);
+        // NEW: Render templates before validation
+        const renderedJsonData = this._renderTemplatesInConfig(jsonData, stageConfig);
+        const validationResult = validateAllmaConfig(renderedJsonData, file.name);
 
         if (!validationResult.success) {
           const errorDetails = validationResult.error;
@@ -441,5 +450,57 @@ export class AllmaStack extends cdk.Stack {
         throw e;
       }
     }
+  }
+
+  /**
+   * Recursively renders deployment parameter templates (e.g., {{stage}}) in the configuration data.
+   * This is specifically applied to flowVariables before validation and import.
+   * @param config The raw configuration object from a JSON file.
+   * @param stageConfig The resolved stage configuration.
+   * @returns The configuration object with templates rendered.
+   */
+  private _renderTemplatesInConfig(config: any, stageConfig: StageConfig): any {
+    if (!config || typeof config !== 'object') {
+        return config;
+    }
+
+    const deploymentParams = {
+        stage: stageConfig.stage,
+        accountId: this.account,
+        region: this.region,
+    };
+
+    // Recursive renderer
+    const render = (value: any): any => {
+        if (typeof value === 'string') {
+            return value
+                .replace(/{{stage}}/g, deploymentParams.stage)
+                .replace(/{{accountId}}/g, deploymentParams.accountId)
+                .replace(/{{region}}/g, deploymentParams.region);
+        }
+        if (Array.isArray(value)) {
+            return value.map(item => render(item));
+        }
+        if (isObject(value)) {
+            const newObj: { [key: string]: any } = {};
+            for (const key in value) {
+                if (Object.prototype.hasOwnProperty.call(value, key)) {
+                    newObj[key] = render(value[key]);
+                }
+            }
+            return newObj;
+        }
+        return value;
+    };
+
+    if (config.flows && Array.isArray(config.flows)) {
+        config.flows.forEach((flow: any) => {
+            if (flow.flowVariables) {
+                flow.flowVariables = render(flow.flowVariables);
+            }
+        });
+    }
+    
+    return config;
   }
 }

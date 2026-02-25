@@ -1,6 +1,6 @@
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { AllmaImporterService } from '../services/allma-importer.service.js';
-import { AllmaExportFormat, StepDefinition, FlowDefinition, PromptTemplate, McpConnection } from '@allma/core-types';
+import { AllmaExportFormat, StepDefinition, FlowDefinition, PromptTemplate, McpConnection, Agent } from '@allma/core-types';
 import { sendCloudFormationResponse, CloudFormationEvent } from '@allma/core-sdk';
 import fs from 'fs';
 import path from 'path';
@@ -40,6 +40,7 @@ async function downloadAsset(bucket: string, key: string): Promise<string> {
  * @param allFlows Accumulator for flows.
  * @param allPromptTemplates Accumulator for prompt templates.
  * @param allMcpConnections Accumulator for MCP connections.
+ * @param allAgents Accumulator for agents.
  * @param sourceFileName The name of the file for error reporting.
  */
 function aggregateConfigData(
@@ -48,6 +49,7 @@ function aggregateConfigData(
   allFlows: FlowDefinition[],
   allPromptTemplates: PromptTemplate[],
   allMcpConnections: McpConnection[],
+  allAgents: Agent[],
   sourceFileName: string
 ): void {
   const importer = new AllmaImporterService();
@@ -78,11 +80,22 @@ function aggregateConfigData(
   if (config.mcpConnections) {
     allMcpConnections.push(...config.mcpConnections);
   }
+  if (config.agents) {
+    allAgents.push(...config.agents);
+  }
 }
+
+/**
+ * A utility to check if an item is a non-array, non-null object.
+ */
+function isObject(item: any): item is Record<string, any> {
+  return (item && typeof item === 'object' && !Array.isArray(item));
+}
+
 
 export async function handler(event: CloudFormationEvent): Promise<void> {
   const { RequestType, ResourceProperties } = event;
-  const { S3Bucket, S3Key } = ResourceProperties;
+  const { S3Bucket, S3Key, DeploymentParameters } = ResourceProperties;
 
   try {
     if (RequestType === 'Delete') {
@@ -93,10 +106,35 @@ export async function handler(event: CloudFormationEvent): Promise<void> {
     if (RequestType === 'Create' || RequestType === 'Update') {
       const localAssetPath = await downloadAsset(S3Bucket, S3Key);
 
+      // Recursive renderer function to replace placeholders in config files.
+      const renderTemplates = (value: any): any => {
+        if (!DeploymentParameters) return value; // No-op if params aren't passed
+        if (typeof value === 'string') {
+            return value
+                .replace(/{{stage}}/g, DeploymentParameters.stage)
+                .replace(/{{accountId}}/g, DeploymentParameters.accountId)
+                .replace(/{{region}}/g, DeploymentParameters.region);
+        }
+        if (Array.isArray(value)) {
+            return value.map(item => renderTemplates(item));
+        }
+        if (isObject(value)) {
+            const newObj: { [key: string]: any } = {};
+            for (const key in value) {
+              if (Object.prototype.hasOwnProperty.call(value, key)) {
+                newObj[key] = renderTemplates(value[key]);
+              }
+            }
+            return newObj;
+        }
+        return value;
+      };
+
       const allStepDefinitions: StepDefinition[] = [];
       const allFlows: FlowDefinition[] = [];
       const allPromptTemplates: PromptTemplate[] = [];
       const allMcpConnections: McpConnection[] = [];
+      const allAgents: Agent[] = [];
 
       if (S3Key.endsWith('.zip')) {
         const zip = new AdmZip(localAssetPath);
@@ -105,14 +143,33 @@ export async function handler(event: CloudFormationEvent): Promise<void> {
         for (const entry of zipEntries) {
           if (!entry.isDirectory && entry.entryName.endsWith('.json')) {
             const fileContent = entry.getData().toString('utf8');
-            const jsonData = JSON.parse(fileContent);
-            aggregateConfigData(jsonData, allStepDefinitions, allFlows, allPromptTemplates, allMcpConnections, entry.entryName);
+            let jsonData = JSON.parse(fileContent);
+
+            // Apply rendering to flowVariables
+            if (jsonData.flows && Array.isArray(jsonData.flows)) {
+                jsonData.flows.forEach((flow: any) => {
+                    if (flow.flowVariables) {
+                        flow.flowVariables = renderTemplates(flow.flowVariables);
+                    }
+                });
+            }
+
+            aggregateConfigData(jsonData, allStepDefinitions, allFlows, allPromptTemplates, allMcpConnections, allAgents, entry.entryName);
           }
         }
       } else {
         const fileContent = fs.readFileSync(localAssetPath, 'utf8');
-        const jsonData = JSON.parse(fileContent);
-        aggregateConfigData(jsonData, allStepDefinitions, allFlows, allPromptTemplates, allMcpConnections, path.basename(S3Key));
+        let jsonData = JSON.parse(fileContent);
+
+        // Apply rendering to flowVariables
+        if (jsonData.flows && Array.isArray(jsonData.flows)) {
+            jsonData.flows.forEach((flow: any) => {
+                if (flow.flowVariables) {
+                    flow.flowVariables = renderTemplates(flow.flowVariables);
+                }
+            });
+        }
+        aggregateConfigData(jsonData, allStepDefinitions, allFlows, allPromptTemplates, allMcpConnections, allAgents, path.basename(S3Key));
       }
 
       const finalConfig: AllmaExportFormat = {
@@ -122,6 +179,7 @@ export async function handler(event: CloudFormationEvent): Promise<void> {
         flows: allFlows,
         promptTemplates: allPromptTemplates,
         mcpConnections: allMcpConnections,
+        agents: allAgents,
       };
 
       const importer = new AllmaImporterService();
