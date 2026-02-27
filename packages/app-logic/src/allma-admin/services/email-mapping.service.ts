@@ -10,6 +10,7 @@ import {
 } from '@allma/core-types';
 import { z } from 'zod';
 import { log_info } from '@allma/core-sdk';
+import { TemplateService } from '../../allma-core/template-service.js';
 
 type EmailStartPointStepPayload = z.infer<typeof EmailStartPointStepPayloadSchema>;
 
@@ -18,26 +19,43 @@ const EMAIL_MAPPING_TABLE_NAME = process.env[ENV_VAR_NAMES.EMAIL_TO_FLOW_MAPPING
 
 export const EmailMappingService = {
   async syncMappingsForFlowVersion(flowId: string, oldVersion?: FlowDefinition, newVersion?: FlowDefinition) {
-    const getNormalizedMappings = (
+    const getNormalizedMappings = async (
       flow?: FlowDefinition,
-    ): Map<string, StepInstance & EmailStartPointStepPayload & { keyword: string }> => {
-      const map = new Map<string, StepInstance & EmailStartPointStepPayload & { keyword: string }>();
+    ): Promise<Map<string, StepInstance & EmailStartPointStepPayload & { keyword: string; renderedEmailAddress: string }>> => {
+      const map = new Map<string, StepInstance & EmailStartPointStepPayload & { keyword: string; renderedEmailAddress: string }>();
       if (!flow?.steps) {
         return map;
       }
       const steps = Object.values(flow.steps).filter(
         (step): step is StepInstance & EmailStartPointStepPayload => step.stepType === StepType.EMAIL_START_POINT,
       );
+
+      const templateService = TemplateService.getInstance();
+      // Use flow-level variables as the context for rendering.
+      const templateContext = { flow_variables: flow.flowVariables || {} };
+
       for (const step of steps) {
+        // Render the email address in case it's a template.
+        const renderedEmail = await templateService.render(step.emailAddress, templateContext, flow.id);
+
+        // Validate the *rendered* email address.
+        if (!z.string().email().safeParse(renderedEmail).success) {
+          throw new PermanentStepError(
+            `The emailAddress template '${step.emailAddress}' for step '${step.stepInstanceId}' resolved to an invalid email address: '${renderedEmail}'. Please correct the template or the value in flowVariables.`,
+          );
+        }
+
         const keyword = step.keyword || '#DEFAULT';
-        const key = `${step.emailAddress}#${keyword}`;
-        map.set(key, { ...step, keyword });
+        const key = `${renderedEmail}#${keyword}`;
+        map.set(key, { ...step, keyword, renderedEmailAddress: renderedEmail });
       }
       return map;
     };
 
-    const oldMappingsMap = getNormalizedMappings(oldVersion);
-    const newMappingsMap = getNormalizedMappings(newVersion);
+    const [oldMappingsMap, newMappingsMap] = await Promise.all([
+      getNormalizedMappings(oldVersion),
+      getNormalizedMappings(newVersion),
+    ]);
 
     const transactions: any[] = [];
 
@@ -48,7 +66,7 @@ export const EmailMappingService = {
           Delete: {
             TableName: EMAIL_MAPPING_TABLE_NAME,
             Key: {
-              emailAddress: oldMapping.emailAddress,
+              emailAddress: oldMapping.renderedEmailAddress,
               keyword: oldMapping.keyword,
             },
             ConditionExpression: 'flowDefinitionId = :flowId',
@@ -61,7 +79,7 @@ export const EmailMappingService = {
     // Find mappings to add or update (upsert)
     for (const [, newMapping] of newMappingsMap.entries()) {
       const itemToPut: { [key: string]: any } = {
-        emailAddress: newMapping.emailAddress,
+        emailAddress: newMapping.renderedEmailAddress,
         keyword: newMapping.keyword,
         flowDefinitionId: flowId,
         stepInstanceId: newMapping.stepInstanceId,

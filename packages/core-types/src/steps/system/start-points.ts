@@ -1,12 +1,30 @@
 import { z } from 'zod';
 import { StepTypeSchema } from '../../common/enums.js';
 
-export const EmailStartPointStepPayloadSchema = z.object({
-  stepType: z.literal(StepTypeSchema.enum.EMAIL_START_POINT),
-  emailAddress: z.string().email('Must be a valid email address.').describe("Email Address|text|The unique email address that will trigger this start point."),
-  triggerMessagePattern: z.string().optional().describe("Trigger Pattern|text|Optional: A regex pattern to match against the email body (for future use)."),
-  keyword: z.string().optional().describe("Keyword/Code|text|An optional, unique code to distinguish between multiple start points for the same email address. The flow will start here if this keyword is found in the email body."),
-}).passthrough();
+export const EmailStartPointStepPayloadSchema = z
+  .object({
+    stepType: z.literal(StepTypeSchema.enum.EMAIL_START_POINT),
+    emailAddress: z
+      .string()
+      .min(1, 'Email address cannot be empty.')
+      .refine(
+        (val) => {
+          // If it looks like a template, bypass email validation for now.
+          if (val.includes('{{') && val.includes('}}')) {
+            return true;
+          }
+          // Otherwise, it must be a valid email.
+          return z.string().email().safeParse(val).success;
+        },
+        {
+          message: "Must be a valid email address or a template string (e.g., {{flow_variables.my_email}}).",
+        },
+      )
+      .describe("Email Address|text|The unique email address that will trigger this start point."),
+    triggerMessagePattern: z.string().optional().describe("Trigger Pattern|text|Optional: A regex pattern to match against the email body (for future use)."),
+    keyword: z.string().optional().describe("Keyword/Code|text|An optional, unique code to distinguish between multiple start points for the same email address. The flow will start here if this keyword is found in the email body."),
+  })
+  .passthrough();
 
 export const ScheduleStartPointStepPayloadSchema = z.object({
   stepType: z.literal(StepTypeSchema.enum.SCHEDULE_START_POINT),

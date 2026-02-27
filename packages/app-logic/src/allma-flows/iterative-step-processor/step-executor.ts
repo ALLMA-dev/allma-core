@@ -100,13 +100,16 @@ export const executeStandardStep = async (
   }
 
   // --- CENTRALIZED TEMPLATE RENDERING ---
-  const customConfig = (stepDef as any).customConfig || {};
+  // Create a comprehensive context for rendering.
   const templateContext = { ...runtimeState.currentContextData, ...runtimeState, ...finalStepInput };
-  const renderedCustomConfig = await renderNestedTemplates(customConfig, templateContext, correlationId);
-  const finalStepDefForHandler = {
-    ...stepDef,
-    customConfig: renderedCustomConfig,
-  } as unknown as StepDefinition;
+
+  // Render the entire step definition object. This handles templates in customConfig
+  // AND top-level properties like `flowDefinitionId` in START_FLOW_EXECUTION steps.
+  const finalStepDefForHandler = (await renderNestedTemplates(
+    stepDef as Record<string, any>,
+    templateContext,
+    correlationId
+  )) as unknown as StepDefinition;
   // --- END CENTRALIZED RENDERING ---
 
   const baseRecord = {

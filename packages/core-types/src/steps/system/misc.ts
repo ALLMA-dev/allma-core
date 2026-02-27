@@ -37,7 +37,6 @@ export const CustomLambdaInvokeStepPayloadSchema = z.object({
   moduleIdentifier: z.undefined().optional(),
   lambdaFunctionArnTemplate: z.string().min(1).describe("Lambda Function ARN|text|ARN of the function to invoke. Supports templates."),
   payloadTemplate: z.record(z.string()).optional().describe("Payload Template|json|Map context data to the Lambda's input payload."),
-  // MODIFIED: Add customConfig to allow for the new hydration flag.
   customConfig: z.object({
     hydrateInputFromS3: z.boolean().optional().describe("If true, automatically resolve S3 pointers in the step's input before invoking the Lambda."),
   }).passthrough().optional(),
@@ -79,7 +78,9 @@ export const DataSaveStepPayloadSchema = z.object({
 export const StartFlowExecutionStepPayloadSchema = z.object({
   stepType: z.literal(StepTypeSchema.enum.START_FLOW_EXECUTION),
   moduleIdentifier: z.literal(SystemModuleIdentifiers.START_FLOW_EXECUTION),
-  customConfig: z.record(z.any()).optional().describe("Custom Config|json|Module-specific configuration object."),
+  flowDefinitionId: z.string().min(1).describe("The ID of the flow to start. Supports templates."),
+  flowVersion: z.string().optional().default('LATEST_PUBLISHED').describe("The version to start (e.g., '1', 'LATEST_PUBLISHED'). Supports templates."),
+  customConfig: z.record(z.any()).optional().describe("Custom Config|json|Additional module-specific configuration."),
 }).passthrough();
 
 
