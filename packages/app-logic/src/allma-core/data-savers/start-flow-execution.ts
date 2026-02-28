@@ -12,6 +12,8 @@ import {
 } from '@allma/core-types';
 import { log_error, log_info } from '@allma/core-sdk';
 import { v4 as uuidv4 } from 'uuid';
+import { TemplateService } from '../template-service.js';
+import { renderNestedTemplates } from '../utils/template-renderer.js';
 
 const sqsClient = new SQSClient({});
 const FLOW_START_QUEUE_URL = process.env[ENV_VAR_NAMES.ALLMA_FLOW_START_REQUEST_QUEUE_URL];
@@ -21,7 +23,7 @@ const FLOW_START_QUEUE_URL = process.env[ENV_VAR_NAMES.ALLMA_FLOW_START_REQUEST_
  * by sending a message to the central flow start SQS queue.
  * This is a "trigger and forget" operation.
  *
- * @param stepInput The pre-rendered configuration object, which should match StartFlowExecutionInput.
+ * @param stepInput The mapped inputs for the new flow configuration.
  * @param runtimeState The current flow runtime state for context and logging.
  * @returns A StepHandlerOutput containing the SQS MessageId on success.
  */
@@ -36,8 +38,7 @@ export const executeStartFlowExecution: StepHandler = async (
     throw new Error('Configuration error: ALLMA_FLOW_START_REQUEST_QUEUE_URL is not set. Cannot start a new flow.');
   }
 
-  // 1. Parse the step's own configuration from the (already rendered) stepDefinition.
-  // The step-executor ensures that template strings in these fields are resolved.
+  // 1. Parse the step's own configuration
   const stepConfigValidation = StartFlowExecutionStepPayloadSchema.safeParse(stepDefinition);
   if (!stepConfigValidation.success) {
     log_error("Invalid step definition for system/start-flow-execution module.", {
@@ -47,16 +48,26 @@ export const executeStartFlowExecution: StepHandler = async (
   }
   const { flowDefinitionId, flowVersion } = stepConfigValidation.data;
 
-  // 2. The `stepInput` contains data from `inputMappings`. `initialContextData` is expected here.
-  // Any other properties from `inputMappings` are passed through.
+  // 2. Perform Explicit Sub-Rendering
+  // We manually evaluate templates for the string fields belonging strictly to this logic's configuration.
+  const templateService = TemplateService.getInstance();
+  const templateContext = { ...runtimeState.currentContextData, ...runtimeState, ...stepInput };
+
+  const renderedFlowDefId = await templateService.render(flowDefinitionId, templateContext, correlationId);
+  const renderedFlowVersion = await templateService.render(flowVersion, templateContext, correlationId);
+  
+  const rawCustomConfig = (stepDefinition as any).customConfig || {};
+  const renderedCustomConfig = await renderNestedTemplates(rawCustomConfig, templateContext, correlationId) || {};
+
+  // 3. Construct Payload
+  // The `stepInput` contains data from `inputMappings`. `initialContextData` is expected here.
   const { initialContextData, ...restOfStepInput } = stepInput;
 
-  // 3. Construct the final payload for SQS, which must match StartFlowExecutionInputSchema.
-  // We combine the configuration from the step definition with the dynamic data from input mappings.
   const payloadForSqs: Partial<StartFlowExecutionInput> = {
+    ...renderedCustomConfig,
     ...restOfStepInput,
-    flowDefinitionId,
-    flowVersion,
+    flowDefinitionId: renderedFlowDefId,
+    flowVersion: renderedFlowVersion,
     initialContextData: initialContextData || {},
   };
 

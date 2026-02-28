@@ -19,7 +19,6 @@ import { invokeExternalStep } from './external-step-invoker.js';
 import { validateLlmOutput } from '../../allma-core/security-validator.js';
 import { processStepOutput, setByDotNotation } from '../../allma-core/data-mapper.js';
 import { executionLoggerClient } from '../../allma-core/execution-logger-client.js';
-import { renderNestedTemplates } from '../../allma-core/utils/template-renderer.js';
 import { resolveNextStep } from './transition-resolver.js';
 
 const EXECUTION_TRACES_BUCKET_NAME = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME]!;
@@ -99,18 +98,11 @@ export const executeStandardStep = async (
     }
   }
 
-  // --- CENTRALIZED TEMPLATE RENDERING ---
-  // Create a comprehensive context for rendering.
+  // Pass the raw Step Definition directly to the handler. 
+  // It is the specific handler's responsibility to evaluate template strings 
+  // where appropriate to prevent corrupting strictly formatted JSONPath properties.
+  const finalStepDefForHandler = stepDef;
   const templateContext = { ...runtimeState.currentContextData, ...runtimeState, ...finalStepInput };
-
-  // Render the entire step definition object. This handles templates in customConfig
-  // AND top-level properties like `flowDefinitionId` in START_FLOW_EXECUTION steps.
-  const finalStepDefForHandler = (await renderNestedTemplates(
-    stepDef as Record<string, any>,
-    templateContext,
-    correlationId
-  )) as unknown as StepDefinition;
-  // --- END CENTRALIZED RENDERING ---
 
   const baseRecord = {
     flowExecutionId: correlationId,
@@ -276,7 +268,7 @@ export const executeStandardStep = async (
             inputMappingResult: finalStepInput,
             mappingEvents: inputMappingEvents,
             inputMappingContext: inputContext,
-            templateContextMappingContext: { ...inputContext, ...finalStepInput },
+            templateContextMappingContext: templateContext,
             stepInstanceConfig: stepInstanceConfig,
           });
         }
@@ -348,7 +340,7 @@ export const executeStandardStep = async (
           inputMappingContext: inputContext,
           outputMappingContext: inputContext, // No new context generated on failure
           logDetails: error.details?.logDetails,
-          templateContextMappingContext: { ...inputContext, ...finalStepInput },
+          templateContextMappingContext: templateContext,
           stepInstanceConfig: stepInstanceConfig,
         });
       }

@@ -10,6 +10,7 @@ import { log_error } from '@allma/core-sdk';
 import { executeDynamoDBUpdate } from '../data-savers/dynamodb-update-item.js';
 import { executeDynamoDBQueryAndUpdate } from '../data-savers/dynamodb-query-and-update.js';
 import { executeS3Saver } from '../data-savers/s3-saver.js';
+import { renderNestedTemplates } from '../../allma-core/utils/template-renderer.js';
 
 const dataSaveModuleRegistry = SYSTEM_STEP_DEFINITIONS
     .filter(def => def.stepType === StepType.DATA_SAVE)
@@ -38,32 +39,27 @@ export const handleDataSave: StepHandler = async (
   runtimeState: FlowRuntimeState,
 ) => {
   const correlationId = runtimeState.flowExecutionId;
-  
-  const customConfig = (stepDefinition as any).customConfig;
   const moduleIdentifier = (stepDefinition as any).moduleIdentifier;
 
   if (typeof moduleIdentifier !== 'string' || !moduleIdentifier) {
     const errorMessage = `Module identifier is missing for DATA_SAVE step ${stepDefinition.id}.`;
-    log_error(errorMessage, { stepInstanceId: runtimeState.currentStepInstanceId, config: customConfig }, correlationId);
+    log_error(errorMessage, { stepInstanceId: runtimeState.currentStepInstanceId }, correlationId);
     throw new Error(errorMessage);
   }
 
   const handler = dataSaveModuleRegistry[moduleIdentifier];
 
   if (handler) {
+    // Isolate templating string resolution to the customConfig only
+    const rawCustomConfig = (stepDefinition as any).customConfig || {};
+    const templateContext = { ...runtimeState.currentContextData, ...runtimeState, ...stepInput };
+    const renderedCustomConfig = await renderNestedTemplates(rawCustomConfig, templateContext, correlationId) || {};
+
     const combinedInput = {
-        ...(customConfig || {}),
+        ...renderedCustomConfig,
         ...stepInput,
     };
 
-    console.log(`Executing DATA_SAVE step with moduleIdentifier: ${moduleIdentifier}`, {
-      stepDefinitionId: stepDefinition.id,
-      combinedInput,
-      correlationId,
-    });
-    console.log(`customConfig input for ${moduleIdentifier}:`, customConfig, correlationId);
-    console.log(`stepInput for ${moduleIdentifier}:`, stepInput, correlationId);
-    
     return handler(stepDefinition, combinedInput, runtimeState);
   } else {
     log_error(`Unsupported moduleIdentifier for DATA_SAVE step: '${moduleIdentifier}'`, {}, correlationId);

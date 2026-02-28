@@ -124,7 +124,7 @@ async function buildRawEmail(params: {
 
 /**
  * A standard StepHandler for sending an email via AWS SES.
- * It expects a pre-rendered configuration object.
+ * It manually resolves templates while strictly preserving configuration mappings.
  */
 export const executeSendEmail: StepHandler = async (
   stepDefinition: StepDefinition,
@@ -132,10 +132,16 @@ export const executeSendEmail: StepHandler = async (
   runtimeState: FlowRuntimeState,
 ): Promise<StepHandlerOutput> => {
   const correlationId = runtimeState.flowExecutionId;
-  const templateObject = stepDefinition;
   const templateContext = { ...runtimeState.currentContextData, ...runtimeState, ...stepInput };
   
-  const renderedInput = await renderNestedTemplates(templateObject, templateContext, correlationId);
+  // Protect attachmentsPath from being resolved if it's a JSONPath
+  const { attachmentsPath, ...restOfStepDef } = stepDefinition as any;
+  const renderedRest = await renderNestedTemplates(restOfStepDef, templateContext, correlationId) as any;
+
+  const renderedInput = {
+    ...renderedRest,
+    ...(attachmentsPath && { attachmentsPath })
+  };
   
   const structuralValidation = EmailSendStepPayloadSchema.safeParse(renderedInput);
 
@@ -143,7 +149,6 @@ export const executeSendEmail: StepHandler = async (
     log_error("Invalid structural input for system/email-send module after rendering.", { 
         errors: structuralValidation.error.flatten(), 
         receivedStepInput: stepInput,
-        templateObjectBeforeRender: templateObject,
         finalInputAfterRender: renderedInput,
     }, correlationId);
     throw new Error(`Invalid input structure for email-send: ${structuralValidation.error.message}`);
@@ -180,25 +185,25 @@ export const executeSendEmail: StepHandler = async (
       return finalAddresses.length === 1 ? finalAddresses[0] : finalAddresses;
   };
 
-  const { from, fromName, to: rawTo, cc: rawCc, bcc: rawBcc, replyTo: rawReplyTo, subject, body, attachments: staticAttachments, attachmentsPath, customHeaders } = structuralValidation.data;
+  const { from, fromName, to: rawTo, cc: rawCc, bcc: rawBcc, replyTo: rawReplyTo, subject, body, attachments: staticAttachments, attachmentsPath: validationProtectedAttachmentsPath, customHeaders } = structuralValidation.data;
 
     let finalAttachments: RenderedEmailAttachment[] | undefined;
 
     if (staticAttachments) {
         log_debug('Using static attachments list from step configuration.', { count: staticAttachments.length }, correlationId);
         finalAttachments = staticAttachments;
-    } else if (attachmentsPath) {
-        log_debug(`Resolving dynamic attachments from path: ${attachmentsPath}`, {}, correlationId);
-        const dynamicAttachmentsValue = JSONPath({ path: attachmentsPath, json: templateContext, wrap: false });
+    } else if (validationProtectedAttachmentsPath) {
+        log_debug(`Resolving dynamic attachments from path: ${validationProtectedAttachmentsPath}`, {}, correlationId);
+        const dynamicAttachmentsValue = JSONPath({ path: validationProtectedAttachmentsPath, json: templateContext, wrap: false });
 
         if (dynamicAttachmentsValue === undefined) {
-            log_warn(`attachmentsPath '${attachmentsPath}' resolved to undefined. No attachments will be sent.`, {}, correlationId);
+            log_warn(`attachmentsPath '${validationProtectedAttachmentsPath}' resolved to undefined. No attachments will be sent.`, {}, correlationId);
             finalAttachments = [];
         } else {
             const attachmentsValidation = z.array(EmailAttachmentS3PointerSchema).safeParse(dynamicAttachmentsValue);
             if (!attachmentsValidation.success) {
-                log_error(`The value at attachmentsPath '${attachmentsPath}' is not a valid array of attachment objects.`, { errors: attachmentsValidation.error.flatten(), valuePreview: JSON.stringify(dynamicAttachmentsValue).substring(0, 500) }, correlationId);
-                throw new PermanentStepError(`The data found at attachmentsPath '${attachmentsPath}' is not a valid array of attachment objects: ${attachmentsValidation.error.message}`);
+                log_error(`The value at attachmentsPath '${validationProtectedAttachmentsPath}' is not a valid array of attachment objects.`, { errors: attachmentsValidation.error.flatten(), valuePreview: JSON.stringify(dynamicAttachmentsValue).substring(0, 500) }, correlationId);
+                throw new PermanentStepError(`The data found at attachmentsPath '${validationProtectedAttachmentsPath}' is not a valid array of attachment objects: ${attachmentsValidation.error.message}`);
             }
             finalAttachments = attachmentsValidation.data;
             log_info(`Successfully resolved ${finalAttachments.length} dynamic attachments.`, {}, correlationId);

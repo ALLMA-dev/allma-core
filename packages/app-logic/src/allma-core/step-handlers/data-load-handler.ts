@@ -5,6 +5,7 @@ import {
 } from '@allma/core-types';
 import { log_error } from '@allma/core-sdk';
 import { getModuleHandler } from '../module-registry.js';
+import { renderNestedTemplates } from '../../allma-core/utils/template-renderer.js';
 
 /**
  * Handler for DATA_LOAD steps.
@@ -32,15 +33,16 @@ export const handleDataLoad: StepHandler = async (
   const moduleHandler = getModuleHandler(moduleIdentifier);
 
   if (moduleHandler) {
-    // Per the new standardized pattern, we combine the static (but rendered)
-    // customConfig from the step definition with the dynamic input from the
-    // previous step. This combined object becomes the definitive input for the module.
-    const customConfig = (stepDefinition as any).customConfig || {};
-    const combinedInput = { ...customConfig, ...stepInput };
+    // Isolate templating string resolution to the customConfig only
+    const rawCustomConfig = (stepDefinition as any).customConfig || {};
+    const templateContext = { ...runtimeState.currentContextData, ...runtimeState, ...stepInput };
+    const renderedCustomConfig = await renderNestedTemplates(rawCustomConfig, templateContext, correlationId) || {};
 
-    // We now pass the authoritative `stepDefinition` down to the module handler,
-    // but the module handler should source all its data and config from the
-    // `combinedInput`.
+    // Combine the rendered static customConfig with the dynamic input from the mappings.
+    const combinedInput = { ...renderedCustomConfig, ...stepInput };
+
+    // We pass the authoritative `stepDefinition` down to the module handler,
+    // but the module handler sources all its active data from the `combinedInput`.
     return moduleHandler(stepDefinition, combinedInput, runtimeState);
   } else {
     log_error(`No handler registered in the module registry for identifier: '${moduleIdentifier}'`, {}, correlationId);

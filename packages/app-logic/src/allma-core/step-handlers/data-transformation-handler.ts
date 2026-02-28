@@ -15,6 +15,7 @@ import { executeFlattenArrayTransformer } from '../data-transformers/flatten-arr
 import { executeDateTimeCalculator } from '../data-transformers/date-time-calculator.js';
 import { executeJoinDataTransformer } from '../data-transformers/join-data-transformer.js';
 import { executeGenerateUuidTransformer } from '../data-transformers/generate-uuid-transformer.js';
+import { renderNestedTemplates } from '../../allma-core/utils/template-renderer.js';
 
 const dataTransformationModuleRegistry = SYSTEM_STEP_DEFINITIONS
   .filter(def => def.stepType === StepType.DATA_TRANSFORMATION)
@@ -61,15 +62,19 @@ export const handleDataTransformation: StepHandler = async (
     throw new Error("Invalid StepDefinition for DATA_TRANSFORMATION.");
   }
 
-  const { moduleIdentifier, customConfig } = parsedStepDef.data;
-
+  const { moduleIdentifier } = parsedStepDef.data;
   const handler = moduleIdentifier ? dataTransformationModuleRegistry[moduleIdentifier] : undefined;
 
   if (handler) {
+    // Isolate templating string resolution to the customConfig only
+    const rawCustomConfig = parsedStepDef.data.customConfig || {};
+    const templateContext = { ...runtimeState.currentContextData, ...runtimeState, ...stepInput };
+    const renderedCustomConfig = await renderNestedTemplates(rawCustomConfig, templateContext, correlationId) || {};
+
     // Combine static config with dynamic input to make modules more configurable.
     // stepInput (from mappings) takes precedence over customConfig.
     const combinedInput = {
-      ...(customConfig || {}),
+      ...renderedCustomConfig,
       ...stepInput,
     };
     return handler(stepDefinition, combinedInput, runtimeState);
