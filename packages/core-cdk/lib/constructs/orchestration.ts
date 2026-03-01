@@ -15,13 +15,14 @@ interface AllmaOrchestrationProps {
   iterativeStepProcessorLambda: lambda.IFunction;
   finalizeFlowLambda: lambda.IFunction;
   pollingStateMachineArn: string;
-  branchStateMachineArn: string;
+  predictiveMainSfnArn: string;
   executionTracesBucket: s3.IBucket;
 }
 
 /**
  * Defines the main Step Functions state machine for flow orchestration.
- * This construct orchestrates the entire lifecycle of a flow execution.
+ * This construct dynamically orchestrates the entire lifecycle of a flow execution,
+ * acting recursively for nested loops/parallel execution branches.
  */
 export class AllmaOrchestration extends Construct {
   public readonly flowOrchestratorStateMachine: sfn.StateMachine;
@@ -29,10 +30,9 @@ export class AllmaOrchestration extends Construct {
   constructor(scope: Construct, id: string, props: AllmaOrchestrationProps) {
     super(scope, id);
 
-    const { stageConfig, initializeFlowLambda, iterativeStepProcessorLambda, finalizeFlowLambda, pollingStateMachineArn, branchStateMachineArn, executionTracesBucket } = props;
+    const { stageConfig, initializeFlowLambda, iterativeStepProcessorLambda, finalizeFlowLambda, pollingStateMachineArn, predictiveMainSfnArn, executionTracesBucket } = props;
 
     // Common retry policy for transient Lambda service errors like throttling (429).
-    // Configured to retry at approximately 1s, 3s, 9s, 27s, 81s.
     const lambdaServiceErrorRetryPolicy = {
       errors: [
         'Lambda.TooManyRequestsException',
@@ -54,18 +54,14 @@ export class AllmaOrchestration extends Construct {
     iterativeStepProcessorLambda.grantInvoke(stateMachineRole);
     finalizeFlowLambda.grantInvoke(stateMachineRole);
     
-    // Grant permission to start the polling sub-state machine
     stateMachineRole.addToPolicy(new iam.PolicyStatement({
         actions: ['states:StartExecution'],
-        resources: [pollingStateMachineArn],
+        resources: [pollingStateMachineArn, predictiveMainSfnArn],
     }));
 
-    // Grant permission to start the branch sub-state machine
-    const branchStateMachine = sfn.StateMachine.fromStateMachineArn(this, 'BranchSubStateMachine', branchStateMachineArn);
-    branchStateMachine.grantStartExecution(stateMachineRole);
-
-    // Grant the State Machine role permission to read from the traces bucket for the Distributed Map state.
     executionTracesBucket.grantRead(stateMachineRole);
+
+    const selfRefStateMachine = sfn.StateMachine.fromStateMachineArn(this, 'SelfRefStateMachine', predictiveMainSfnArn);
 
     // --- Define State Machine Tasks ---
     const initTask = new sfnTasks.LambdaInvoke(this, 'InitializeFlowExecutionTask', {
@@ -74,7 +70,6 @@ export class AllmaOrchestration extends Construct {
       payloadResponseOnly: true,
       resultPath: '$',
     });
-    // Add retry for transient service errors
     initTask.addRetry(lambdaServiceErrorRetryPolicy);
 
     const iterativeStepTask = new sfnTasks.LambdaInvoke(this, 'IterativeStepProcessorTask', {
@@ -112,7 +107,6 @@ export class AllmaOrchestration extends Construct {
       payloadResponseOnly: true,
       resultPath: '$',
     });
-    // Add retry for transient service errors
     finalizeTask.addRetry(lambdaServiceErrorRetryPolicy);
 
     const successState = new sfn.Succeed(this, 'FlowSucceeded');
@@ -155,9 +149,9 @@ export class AllmaOrchestration extends Construct {
             'branchItem.$': '$$.Map.Item.Value',
         },
     });
-    parallelMapState.itemProcessor(this.createBranchProcessorChain('InMemoryMap', branchStateMachine));
+    parallelMapState.itemProcessor(this.createBranchProcessorChain('InMemoryMap', selfRefStateMachine));
 
-    const s3MapProcessorChain = this.createBranchProcessorChain('S3Map', branchStateMachine);
+    const s3MapProcessorChain = this.createBranchProcessorChain('S3Map', selfRefStateMachine);
 
     const parallelMapStateFromS3 = new sfn.DistributedMap(this, 'ExecuteBranchesFromS3', {
         resultPath: '$.mapResultsArray',
@@ -177,8 +171,6 @@ export class AllmaOrchestration extends Construct {
     });
     parallelMapStateFromS3.itemProcessor(s3MapProcessorChain);
     
-    // This state reshapes the output of the S3 map to match the in-memory map's output structure,
-    // ensuring the aggregation step receives a consistent input.
     const transformS3MapOutput = new sfn.Pass(this, 'TransformS3MapOutputToStandard', {
         parameters: {
             'mapContext': {
@@ -225,9 +217,54 @@ export class AllmaOrchestration extends Construct {
     .when(sfn.Condition.stringEquals('$.sfnAction', SfnActionType.PARALLEL_FORK_S3), parallelMapStateFromS3)
     .otherwise(iterativeStepTask);
 
+    const isBranchOrMainChoice = new sfn.Choice(this, 'IsBranchOrMainChoice');
+    const checkBranchStatusChoice = new sfn.Choice(this, 'CheckBranchStatusChoice');
+    const checkFinalOutputChoice = new sfn.Choice(this, 'CheckFinalOutputChoice');
+
+    const extractSpecificOutput = new sfn.Pass(this, 'ExtractBranchOutput', {
+      comment: 'Extracts the final result from $.runtimeState.currentContextData.output to be the sub-flow output.',
+      outputPath: '$.runtimeState.currentContextData.output',
+    });
+    const returnEmptyOutput = new sfn.Pass(this, 'ReturnEmptyOutput', {
+        comment: 'Returns an empty object as the branch output since no specific "output" property was set.',
+        result: sfn.Result.fromObject({}),
+    });
+    const formatLogicalFailureState = new sfn.Pass(this, 'FormatLogicalFailure', {
+        parameters: {
+            'Error.$': '$.runtimeState.errorInfo.errorName',
+            'Cause.$': 'States.JsonToString($.runtimeState.errorInfo)',
+        },
+    });
+
+    const branchSucceededState = new sfn.Succeed(this, 'BranchSucceeded');
+    const branchLogicalFailedState = new sfn.Fail(this, 'BranchLogicalFailed', {
+        errorPath: '$.Error',
+        causePath: '$.Cause',
+    });
+
+    formatLogicalFailureState.next(branchLogicalFailedState);
+    extractSpecificOutput.next(branchSucceededState);
+    returnEmptyOutput.next(branchSucceededState);
+
+    checkFinalOutputChoice
+        .when(sfn.Condition.isPresent('$.runtimeState.currentContextData.output'), extractSpecificOutput)
+        .otherwise(returnEmptyOutput);
+
+    checkBranchStatusChoice
+        .when(sfn.Condition.stringEquals('$.runtimeState.status', 'FAILED'), formatLogicalFailureState)
+        .otherwise(checkFinalOutputChoice);
+
+    isBranchOrMainChoice
+        .when(sfn.Condition.isPresent('$.runtimeState.branchId'), checkBranchStatusChoice)
+        .otherwise(finalizeTask);
+
     const checkISPCompletionChoice = new sfn.Choice(this, 'CheckISPCompletionChoice')
       .when(sfn.Condition.isPresent('$.runtimeState.currentStepInstanceId'), chooseNextSfnTaskType)
-      .otherwise(finalizeTask);
+      .otherwise(isBranchOrMainChoice);
+
+    const checkInitChoice = new sfn.Choice(this, 'IsInitializedChoice')
+        .when(sfn.Condition.isPresent('$.runtimeState'), chooseNextSfnTaskType)
+        .otherwise(initTask);
 
     initTask.next(chooseNextSfnTaskType);
     waitForEventTask.next(processAsyncResultAndContinue);
@@ -255,7 +292,6 @@ export class AllmaOrchestration extends Construct {
     processAsyncResultAndContinue.addCatch(normalizeErrorState, failureCatchConfig);
     parallelMapStateFromS3.addCatch(normalizeErrorState, failureCatchConfig);
 
-    // Add specific throttling retry for main task logic
     iterativeStepTask.addRetry(lambdaServiceErrorRetryPolicy);
     iterativeStepTask.addRetry({
         errors: [
@@ -267,7 +303,7 @@ export class AllmaOrchestration extends Construct {
         backoffRate: 2.0,
     });
   
-    const definition = initTask;
+    const definition = checkInitChoice;
 
     const logGroup = new logs.LogGroup(this, 'AllmaStateMachineLogGroup', {
       logGroupName: `/aws/stepfunctions/AllmaFlowOrchestrator-${stageConfig.stage}`,
@@ -289,15 +325,7 @@ export class AllmaOrchestration extends Construct {
     });
   }
 
-  /**
-   * Factory function to create a reusable but unique chain of states for processing a single branch.
-   * This now includes a robust, multi-step catch block to gracefully handle branch failures and
-   * return a structured error object.
-   * @param idPrefix A unique prefix for the state IDs within this chain.
-   * @param branchStateMachine The sub-state machine to execute.
-   * @returns An IChainable object representing the processing chain with error handling.
-   */
-    private createBranchProcessorChain(idPrefix: string, branchStateMachine: sfn.IStateMachine): sfn.IChainable {
+  private createBranchProcessorChain(idPrefix: string, selfRefStateMachine: sfn.IStateMachine): sfn.IChainable {
         const prepareBranchInput = new sfn.Pass(this, `${idPrefix}PrepareBranchInput`, {
             parameters: {
                 'mapContext.$': '$.mapContext',
@@ -313,7 +341,7 @@ export class AllmaOrchestration extends Construct {
         });
 
         const executeBranch = new sfnTasks.StepFunctionsStartExecution(this, `${idPrefix}ExecuteBranch`, {
-            stateMachine: branchStateMachine,
+            stateMachine: selfRefStateMachine,
             integrationPattern: sfn.IntegrationPattern.RUN_JOB,
             input: sfn.TaskInput.fromObject({
                 'sfnAction': SfnActionType.PROCESS_STEP,
@@ -348,7 +376,6 @@ export class AllmaOrchestration extends Construct {
             },
         });
 
-        // --- MULTI-STEP ERROR HANDLING CHAIN ---
         const formatStringCause = new sfn.Pass(this, `${idPrefix}FormatStringCause`, {
             comment: 'Handles non-JSON error causes (e.g., SFN timeouts) and formats a standard error object.',
             parameters: {
@@ -423,7 +450,6 @@ export class AllmaOrchestration extends Construct {
             .when(sfn.Condition.stringMatches('$.errorInfo.Cause', '{*'), parseJsonCause.next(checkJsonCauseType))
             .otherwise(formatStringCause);
 
-        // Chain the states together for the ItemProcessor workflow
         prepareBranchInput.next(executeBranch);
         executeBranch.next(parseOutput);
 

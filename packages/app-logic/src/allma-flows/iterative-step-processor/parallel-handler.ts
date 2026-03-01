@@ -48,7 +48,7 @@ function aggregateBranchOutputs(
 
     // If no dataPath is specified, log a warning about the potential for data growth.
     if (!aggregationConfig.dataPath) {
-        log_warn(`No 'dataPath' provided in aggregationConfig. The entire branch output context will be aggregated. This can lead to excessive data growth in loops. It is recommended to specify a dataPath (e.g., '$.output').`, { stepInstanceId: runtimeState.currentStepInstanceId }, correlationId);
+        log_warn(`No 'dataPath' provided in aggregationConfig. The entire branch result (from '$.output' of the branch context) will be aggregated.`, { stepInstanceId: runtimeState.currentStepInstanceId }, correlationId);
     }
     
     // Step 1: Process all branch outputs to extract data or preserve errors.
@@ -200,8 +200,12 @@ export const handleParallelAggregation = async (
         return { updatedRuntimeState: runtimeState, nextStepId: undefined };
     }
 
-    if (stepInstanceConfig.outputMappings) {
-        processStepOutput(stepInstanceConfig.outputMappings, aggregationResult, runtimeState.currentContextData, correlationId);
+    const effectiveOutputMappings = stepInstanceConfig.outputMappings === undefined
+        ? { [`$.steps_output.${originalStepId}`]: '$' }
+        : stepInstanceConfig.outputMappings;
+
+    if (Object.keys(effectiveOutputMappings).length > 0) {
+        processStepOutput(effectiveOutputMappings, aggregationResult, runtimeState.currentContextData, correlationId);
     }
     
     const { nextStepId, transitionDetails } = await resolveNextStep(stepInstanceConfig, runtimeState);

@@ -235,12 +235,18 @@ export const executeStandardStep = async (
 
     // Deconstruct the handler result for mapping and logging.
     outputDataForMapping = stepHandlerResult!.outputData || {};
-
+    
     // Extract meta information for logs and remove it from data passed to mapping
     if (outputDataForMapping._meta) {
       logDetailsForRecord = outputDataForMapping._meta;
       delete outputDataForMapping._meta;
     }
+    
+    // Merge the original step input with the output data. The output data takes
+    // precedence in case of key collisions. This makes any value passed via
+    // `inputMappings` available for use in `outputMappings`.
+    outputDataForMapping = { ...finalStepInput, ...outputDataForMapping };
+
   } catch (error: any) {
     const stepEndTime = new Date().toISOString();
     const stepDurationMs = new Date(stepEndTime).getTime() - new Date(stepStartTime).getTime();
