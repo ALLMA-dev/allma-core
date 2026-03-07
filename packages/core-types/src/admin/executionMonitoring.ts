@@ -40,16 +40,18 @@ export type ListFlowExecutionsResponse = z.infer<typeof ListFlowExecutionsRespon
  * A group of steps belonging to a single parallel branch execution.
  */
 export const BranchExecutionGroupSchema = z.object({
-    branchId: z.string(),
+    executionKey: z.string(), // Unique identifier for the branch instance
+    branchId: z.string(),     // Logical branch ID from definition
     steps: z.array(AllmaStepExecutionRecordSchema),
 });
 export type BranchExecutionGroup = z.infer<typeof BranchExecutionGroupSchema>;
 
 /**
- * API response for fetching branch steps, keyed by the unique branchExecutionId.
+ * Paginated API response for fetching branch steps.
  */
-export const BranchStepsResponseSchema = z.record(
-    z.string(),
-    BranchExecutionGroupSchema
-);
+export const BranchStepsResponseSchema = z.object({
+    groups: z.array(BranchExecutionGroupSchema),
+    totalBranches: z.number(),
+    hasMore: z.boolean(),
+});
 export type BranchStepsResponse = z.infer<typeof BranchStepsResponseSchema>;

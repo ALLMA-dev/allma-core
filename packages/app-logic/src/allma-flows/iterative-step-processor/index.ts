@@ -215,12 +215,39 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
                             forkOutput.runtimeState.currentContextData = { _s3_context_pointer: offloadedContext._s3_output_pointer };
                         }
                     }
+                    
+                    // Clear internal state so the aggregator phase gets a new startTime
+                    if (forkOutput.runtimeState._internal) {
+                        delete forkOutput.runtimeState._internal.currentStepStartTime;
+                        delete forkOutput.runtimeState._internal.currentStepHandlerResult;
+                    }
+                    
                     return forkOutput;
                 }
                 const { nextStepId } = await resolveNextStep(stepInstance, runtimeState);
                 runtimeState.currentStepInstanceId = nextStepId;
 
             } else if (stepType === StepType.START_FLOW_EXECUTION && (stepInstance as any).customConfig?.sync === true) {
+                const currentAttempt = (runtimeState.stepRetryAttempts[currentStepInstanceId] || 0) + 1;
+                runtimeState.stepRetryAttempts[currentStepInstanceId] = currentAttempt;
+
+                if (runtimeState.enableExecutionLogs) {
+                    await executionLoggerClient.logStepExecution({
+                        flowExecutionId: correlationId,
+                        branchId: runtimeState.branchId,
+                        branchExecutionId: runtimeState.branchExecutionId,
+                        stepInstanceId: currentStepInstanceId,
+                        stepDefinitionId: stepInstance.stepDefinitionId || 'start_flow_execution',
+                        stepType: stepType,
+                        status: 'STARTED',
+                        eventTimestamp: stepStartTime,
+                        startTime: stepStartTime,
+                        attemptNumber: currentAttempt,
+                        inputMappingContext: runtimeState.currentContextData,
+                        stepInstanceConfig: stepInstance,
+                    });
+                }
+
                 log_info(`Step '${currentStepInstanceId}' is a synchronous START_FLOW_EXECUTION. Preparing sub-flow.`, {}, correlationId);
                 const syncOutput = await handleSyncFlowStart(stepInstance, runtimeState, correlationId);
                 if (EXECUTION_TRACES_BUCKET_NAME) {
@@ -235,6 +262,7 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
                         syncOutput.runtimeState.currentContextData = { _s3_context_pointer: offloadedContext._s3_output_pointer };
                     }
                 }
+                // Intentionally preserving currentStepStartTime so the COMPLETED event binds seamlessly.
                 return syncOutput;
             } else {
                 const stepDef = stepInstance as unknown as StepDefinition; 

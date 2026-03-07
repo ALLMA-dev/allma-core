@@ -1,9 +1,9 @@
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { AttributeValue, DynamoDBClient, QueryCommandOutput } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, QueryCommand, QueryCommandInput } from '@aws-sdk/lib-dynamodb';
 import {
     ENV_VAR_NAMES, FlowExecutionDetails, PaginatedResponse, FlowExecutionSummary, AllmaFlowExecutionRecord, 
     AllmaStepExecutionRecord, ITEM_TYPE_ALLMA_FLOW_EXECUTION_RECORD, ITEM_TYPE_ALLMA_STEP_EXECUTION_RECORD, 
-    StepType, BranchStepsResponse
+    StepType, BranchStepsResponse, BranchExecutionGroup
 } from '@allma/core-types';
 import { log_error, resolveS3Pointer } from '@allma/core-sdk';
 
@@ -15,34 +15,55 @@ const ddbDocClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
  * This is a private helper to avoid redundant queries within the service.
  */
 async function _getExecutionRecords(flowExecutionId: string): Promise<any[]> {
-    const { Items } = await ddbDocClient.send(new QueryCommand({
-        TableName: EXECUTION_LOG_TABLE_NAME,
-        KeyConditionExpression: 'flowExecutionId = :pk',
-        ExpressionAttributeValues: { ':pk': flowExecutionId },
-    }));
-    return Items || [];
+    let allItems: any[] = [];
+    let lastEvaluatedKey: Record<string, AttributeValue> | undefined = undefined;
+
+    do {
+        const result: QueryCommandOutput = await ddbDocClient.send(new QueryCommand({
+            TableName: EXECUTION_LOG_TABLE_NAME,
+            KeyConditionExpression: 'flowExecutionId = :pk',
+            ExpressionAttributeValues: { ':pk': flowExecutionId },
+            ExclusiveStartKey: lastEvaluatedKey,
+        }));
+        if (result.Items) {
+            allItems = allItems.concat(result.Items);
+        }
+        lastEvaluatedKey = result.LastEvaluatedKey;
+    } while (lastEvaluatedKey);
+    
+    return allItems;
 }
 
 /**
  * Fetches full records from S3 for a list of minimal DB records.
+ * Uses a chunking approach to safely resolve arrays of S3 pointers without OOM or hitting 503 limits.
  */
 async function resolveFullStepRecords(
     minimalRecords: AllmaStepExecutionRecord[],
     correlationId: string
 ): Promise<AllmaStepExecutionRecord[]> {
-    const resolutionPromises = minimalRecords.map(async (record) => {
-        if (record.fullRecordS3Pointer) {
-            try {
-                const fullRecordFromS3 = await resolveS3Pointer(record.fullRecordS3Pointer, correlationId);
-                return { ...fullRecordFromS3, ...record };
-            } catch (e: any) {
-                log_error(`Failed to resolve S3 pointer for step record`, { pointer: record.fullRecordS3Pointer, error: e.message }, correlationId);
-                return { ...record, _s3_error: `Failed to load full record from S3: ${e.message}` };
+    const CHUNK_SIZE = 50;
+    const results: AllmaStepExecutionRecord[] = [];
+    
+    for (let i = 0; i < minimalRecords.length; i += CHUNK_SIZE) {
+        const chunk = minimalRecords.slice(i, i + CHUNK_SIZE);
+        const chunkPromises = chunk.map(async (record) => {
+            if (record.fullRecordS3Pointer) {
+                try {
+                    const fullRecordFromS3 = await resolveS3Pointer(record.fullRecordS3Pointer, correlationId);
+                    return { ...fullRecordFromS3, ...record };
+                } catch (e: any) {
+                    log_error(`Failed to resolve S3 pointer for step record`, { pointer: record.fullRecordS3Pointer, error: e.message }, correlationId);
+                    return { ...record, _s3_error: `Failed to load full record from S3: ${e.message}` };
+                }
             }
-        }
-        return record;
-    });
-    return Promise.all(resolutionPromises);
+            return record;
+        });
+        const chunkResults = await Promise.all(chunkPromises);
+        results.push(...chunkResults);
+    }
+    
+    return results;
 }
 
 /**
@@ -74,15 +95,25 @@ function consolidateStepEvents(allFullStepEvents: AllmaStepExecutionRecord[]): A
     for (const step of consolidatedStepsMap.values()) {
         if (step.stepType === StepType.PARALLEL_FORK_MANAGER) {
             const aggregator = Array.from(aggregatorEvents.values()).find(agg =>
-                agg.stepInstanceId === step.stepInstanceId && new Date(agg.startTime) > new Date(step.startTime)
+                agg.stepInstanceId === step.stepInstanceId && new Date(agg.startTime).getTime() >= new Date(step.startTime).getTime()
             );
             if (aggregator) {
                 step.endTime = aggregator.endTime;
                 step.durationMs = aggregator.endTime ? new Date(aggregator.endTime).getTime() - new Date(step.startTime).getTime() : step.durationMs;
-                step.status = 'COMPLETED';
+                step.status = aggregator.status || 'COMPLETED'; // Align status (e.g. FAILED if aggregation failed)
                 const fullAggregatorRecord = aggregator as any;
+                
                 if (fullAggregatorRecord.outputData) (step as any).outputData = fullAggregatorRecord.outputData;
                 if (fullAggregatorRecord.outputMappingContext) (step as any).outputMappingContext = fullAggregatorRecord.outputMappingContext;
+                if (fullAggregatorRecord.errorInfo) (step as any).errorInfo = fullAggregatorRecord.errorInfo;
+                
+                if (fullAggregatorRecord.mappingEvents) {
+                    (step as any).mappingEvents = [...((step as any).mappingEvents || []), ...fullAggregatorRecord.mappingEvents];
+                }
+                if (fullAggregatorRecord.logDetails) {
+                    (step as any).logDetails = { ...((step as any).logDetails || {}), ...fullAggregatorRecord.logDetails };
+                }
+
                 aggregatorEvents.delete(`${aggregator.stepInstanceId}-${aggregator.startTime}`);
             }
         }
@@ -119,36 +150,86 @@ export const ExecutionMonitoringService = {
         return { metadata, steps: consolidatedSteps, resolvedFinalContextData };
     },
 
-    async getBranchSteps(flowExecutionId: string, parentStepInstanceId: string, parentStepStartTime: string, correlationId: string): Promise<BranchStepsResponse> {
+    /**
+     * Fetches branch steps for a specific parallel fork. Includes pagination and smart sorting
+     * (failed branches first) to ensure the API payload stays well within limits.
+     */
+    async getBranchSteps(flowExecutionId: string, parentStepInstanceId: string, parentStepStartTime: string, correlationId: string, limit: number = 30, offset: number = 0): Promise<BranchStepsResponse> {
         const allItems = await _getExecutionRecords(flowExecutionId);
-        if (allItems.length === 0) return {};
+        if (allItems.length === 0) return { groups: [], totalBranches: 0, hasMore: false };
 
         const aggregator = allItems.find(item =>
             item.stepInstanceId === parentStepInstanceId &&
             item.stepType === 'PARALLEL_AGGREGATOR' &&
-            new Date(item.startTime) > new Date(parentStepStartTime)
+            new Date(item.startTime).getTime() >= new Date(parentStepStartTime).getTime()
         );
 
-        const startTime = new Date(parentStepStartTime).getTime();
-        const endTime = aggregator ? new Date(aggregator.startTime).getTime() : Infinity;
+        const startTimeMs = new Date(parentStepStartTime).getTime();
+        const endTimeMs = aggregator?.endTime ? new Date(aggregator.endTime).getTime() : Infinity;
 
         const branchStepEvents = allItems.filter(item =>
             item.branchId &&
-            new Date(item.startTime).getTime() >= startTime &&
-            new Date(item.startTime).getTime() < endTime
+            new Date(item.startTime).getTime() >= startTimeMs &&
+            new Date(item.startTime).getTime() <= endTimeMs
         ) as AllmaStepExecutionRecord[];
 
-        const fullBranchStepEvents = await resolveFullStepRecords(branchStepEvents, correlationId);
-        const consolidatedBranchSteps = consolidateStepEvents(fullBranchStepEvents);
+        // 1. Group raw DB records by branch execution ID to identify complete branches
+        const groupsMap = new Map<string, { branchId: string, executionId: string, steps: AllmaStepExecutionRecord[], hasFailedStep: boolean }>();
 
-        return consolidatedBranchSteps.reduce<BranchStepsResponse>((acc, step) => {
+        for (const step of branchStepEvents) {
             const executionKey = step.branchExecutionId || `${step.branchId}-${step.startTime}`;
-            if (!acc[executionKey]) {
-                acc[executionKey] = { branchId: step.branchId || 'unknown_branch', steps: [] };
+            if (!groupsMap.has(executionKey)) {
+                groupsMap.set(executionKey, { branchId: step.branchId || 'unknown', executionId: executionKey, steps: [], hasFailedStep: false });
             }
-            acc[executionKey].steps.push(step);
-            return acc;
-        }, {});
+            const group = groupsMap.get(executionKey)!;
+            group.steps.push(step);
+            if (step.status === 'FAILED') {
+                group.hasFailedStep = true;
+            }
+        }
+
+        const allGroups = Array.from(groupsMap.values());
+
+        // 2. Smart Sort: Branches with FAILED steps float to the top, then chronological.
+        allGroups.sort((a, b) => {
+            if (a.hasFailedStep && !b.hasFailedStep) return -1;
+            if (!a.hasFailedStep && b.hasFailedStep) return 1;
+            const startTimeA = a.steps[0]?.startTime || '';
+            const startTimeB = b.steps[0]?.startTime || '';
+            return startTimeA.localeCompare(startTimeB);
+        });
+
+        const totalBranches = allGroups.length;
+        
+        // 3. Paginate BEFORE fetching heavy S3 details
+        const slicedGroups = allGroups.slice(offset, offset + limit);
+
+        // 4. Hydrate ONLY the selected page of branches from S3
+        const stepsToHydrate = slicedGroups.flatMap(g => g.steps);
+        const hydratedSteps = await resolveFullStepRecords(stepsToHydrate, correlationId);
+        const consolidatedSteps = consolidateStepEvents(hydratedSteps);
+
+        // 5. Re-assemble the final grouped array, preserving the smart sort order
+        const finalGroupsArray: BranchExecutionGroup[] = [];
+        
+        for (const sg of slicedGroups) {
+            const stepsForThisGroup = consolidatedSteps.filter(s => 
+                (s.branchExecutionId || `${s.branchId}-${s.startTime}`) === sg.executionId
+            );
+            if (stepsForThisGroup.length > 0) {
+                finalGroupsArray.push({
+                    executionKey: sg.executionId,
+                    branchId: sg.branchId,
+                    steps: stepsForThisGroup
+                });
+            }
+        }
+
+        return {
+            groups: finalGroupsArray,
+            totalBranches,
+            hasMore: offset + limit < totalBranches
+        };
     },
 
     /**

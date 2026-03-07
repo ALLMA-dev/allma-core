@@ -227,6 +227,22 @@ export const handleParallelAggregation = async (
     );
 
     if (aggregationResult === null) {
+        // Explicitly log the failure state of the aggregator
+        if (runtimeState.enableExecutionLogs) {
+            await executionLoggerClient.logStepExecution({
+                flowExecutionId: correlationId,
+                stepInstanceId: originalStepId,
+                stepDefinitionId: stepInstanceConfig.stepDefinitionId || 'parallel_fork_manager',
+                stepType: 'PARALLEL_AGGREGATOR',
+                status: 'FAILED',
+                startTime: runtimeState._internal?.currentStepStartTime || new Date().toISOString(),
+                eventTimestamp: new Date().toISOString(),
+                endTime: new Date().toISOString(),
+                inputMappingResult: parallelAggregateInput.branchOutputs,
+                errorInfo: runtimeState.errorInfo,
+                outputMappingContext: runtimeState.currentContextData,
+            });
+        }
         return { updatedRuntimeState: runtimeState, nextStepId: undefined };
     }
 
@@ -273,6 +289,7 @@ export const handleParallelAggregation = async (
             inputMappingResult: parallelAggregateInput.branchOutputs,
             outputData: finalOutputForMapping, 
             mappingEvents: outputMappingEvents, 
+            outputMappingContext: runtimeState.currentContextData, // Ensured the final context is captured
             logDetails: {
                 transitionEvaluation: transitionDetails,
             }

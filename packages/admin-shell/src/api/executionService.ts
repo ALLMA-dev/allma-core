@@ -69,12 +69,14 @@ export const useGetExecutionDetail = (executionId: string | undefined): UseQuery
   });
 };
 
-// ---- NEW: Fetch steps for a specific parallel branch execution ----
+// ---- Fetch steps for a specific parallel branch execution ----
 
 interface GetBranchStepsParams {
     flowExecutionId: string;
     parentStepInstanceId: string;
     parentStepStartTime: string;
+    limit?: number;
+    offset?: number;
 }
 
 export const useGetBranchSteps = (params: GetBranchStepsParams, isEnabled: boolean): UseQueryResult<BranchStepsResponse, Error> => {
@@ -84,6 +86,8 @@ export const useGetBranchSteps = (params: GetBranchStepsParams, isEnabled: boole
             const queryParams = new URLSearchParams({
                 parentStepInstanceId: params.parentStepInstanceId,
                 parentStepStartTime: params.parentStepStartTime,
+                limit: String(params.limit || 30),
+                offset: String(params.offset || 0),
             });
             
             const response = await axiosInstance.get<AdminApiResponse<BranchStepsResponse>>(

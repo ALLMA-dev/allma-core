@@ -56,13 +56,23 @@ router.get('/flow-executions/{flowExecutionId}', async (event, authContext, { fl
 // GET /flow-executions/{flowExecutionId}/branch-steps?parentStepInstanceId=...&parentStepStartTime=...
 router.get('/flow-executions/{flowExecutionId}/branch-steps', async (event, authContext, { flowExecutionId }) => {
     const correlationId = event.requestContext.requestId;
-    const { parentStepInstanceId, parentStepStartTime } = event.queryStringParameters || {};
+    const { parentStepInstanceId, parentStepStartTime, limit, offset } = event.queryStringParameters || {};
 
     if (!parentStepInstanceId || !parentStepStartTime) {
         return createApiGatewayResponse(400, buildErrorResponse('Missing required query parameters: parentStepInstanceId, parentStepStartTime', 'VALIDATION_ERROR'), correlationId);
     }
 
-    const branchSteps = await ExecutionMonitoringService.getBranchSteps(flowExecutionId, parentStepInstanceId, parentStepStartTime, correlationId);
+    const limitNum = limit ? parseInt(limit, 10) : 30;
+    const offsetNum = offset ? parseInt(offset, 10) : 0;
+
+    const branchSteps = await ExecutionMonitoringService.getBranchSteps(
+        flowExecutionId, 
+        parentStepInstanceId, 
+        parentStepStartTime, 
+        correlationId, 
+        limitNum, 
+        offsetNum
+    );
     return createApiGatewayResponse(200, buildSuccessResponse(branchSteps), correlationId);
 });
 
