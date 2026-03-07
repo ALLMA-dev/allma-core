@@ -142,6 +142,35 @@ This Lambda uses the exact same validation logic (Zod schemas) as the Allma Admi
 
 If any validation error occurs, the import will fail, which in turn **causes the entire `cdk deploy` operation to fail**. This provides immediate feedback directly in your terminal, preventing broken configurations from being deployed.
 
+## Managing Concurrency and Scaling
+
+AWS Lambda has a default, account-wide concurrency limit (often 1,000) that is shared by all Lambda functions in a region. For production workloads, it's critical to manage concurrency to ensure your Allma platform has a dedicated processing capacity and to prevent throttling.
+
+This is controlled by the orchestratorConcurrency property in your stageConfig.
+code TypeScript
+
+const prodConfig = {
+  // ... other required properties
+  awsAccountId: '123456789012',
+  awsRegion: 'us-east-1',
+  aiApiKeySecretArn: 'arn:aws:secretsmanager:...',
+
+  // Reserve a dedicated pool of 100 concurrent executions for Allma's core processor.
+  orchestratorConcurrency: 100, 
+};
+
+What orchestratorConcurrency Does:
+
+    Reserves Concurrency: It sets ReservedConcurrentExecutions on the core AllmaIterativeStepProcessor Lambda. This carves out a dedicated pool of concurrency from your account's total limit, guaranteeing that Allma's core engine can handle up to that many parallel tasks without being affected by other Lambdas in your account.
+
+    Enables Self-Throttling: This value is passed as an environment variable to the Lambda. The PARALLEL_FORK_MANAGER step uses this limit to intelligently self-throttle. It ensures that when you iterate over a large array, it won't start more parallel branches than the system's configured capacity, preventing it from overwhelming itself and causing a cascade of throttling errors.
+
+Recommendations:
+
+    For Development/Testing: Leave orchestratorConcurrency undefined. Allma will use your account's unreserved concurrency pool, which is sufficient for low-volume testing.
+
+    For Production: Set orchestratorConcurrency to a value that reflects your expected workload. Start with a modest number (e.g., 20 or 50) and monitor your Lambda's ConcurrentExecutions and Throttles metrics in Amazon CloudWatch to tune the value appropriately. Ensure your AWS account has a sufficient total concurrency limit to accommodate this reservation.
+
 ## Contributing
 
 This package is part of the `allma-core` monorepo. We welcome contributions! Please see our main [repository](https://github.com/ALLMA-dev/allma-core) and [contribution guide](https://docs.allma.dev/docs/community/contribution-guide) for more details.

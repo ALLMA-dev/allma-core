@@ -11,8 +11,9 @@ import {
 } from '@allma/core-types';
 import { log_error, log_debug, recursivelyOffloadLargeFields } from '@allma/core-sdk';
 
-const lambdaClient = new LambdaClient({});
-const s3Client = new S3Client({});
+// Configure clients with adaptive retry strategy to smoothly handle massive traffic spikes and AWS API 429 throttles
+const lambdaClient = new LambdaClient({ maxAttempts: 10, retryMode: 'adaptive' });
+const s3Client = new S3Client({ maxAttempts: 10, retryMode: 'adaptive' });
 
 const EXECUTION_LOGGER_LAMBDA_ARN = process.env.EXECUTION_LOGGER_LAMBDA_ARN!;
 const EXECUTION_TRACES_BUCKET_NAME = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME]!;

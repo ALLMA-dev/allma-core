@@ -74,6 +74,7 @@ export const ProcessorInputSchema = z.object({
   taskToken: z.string().optional(),
   resumePayload: z.any().optional(),
   pollingResult: z.object({ Output: z.string() }).passthrough().optional(),
+  syncFlowResult: z.any().optional(),
   parallelAggregateInput: z.object({
       branchOutputs: z.array(BranchResultSchema),
       aggregationConfig: AggregationConfigSchema.optional(),
@@ -89,6 +90,7 @@ export const ProcessorOutputSchema = z.object({
   runtimeState: FlowRuntimeStateSchema,
   sfnAction: SfnActionTypeSchema,
   pollingTaskInput: z.any().optional(),
+  syncFlowExecutionInput: z.any().optional(),
   parallelForkInput: z.object({
       branchesToExecute: z.array(BranchExecutionPayloadSchema),
       aggregationConfig: AggregationConfigSchema.optional(),

@@ -1,18 +1,19 @@
 import { Handler } from 'aws-lambda';
-import { FlowRuntimeState, 
+import {
+  FlowRuntimeState, 
     AllmaError, 
     ENV_VAR_NAMES, 
-    S3PointerSchema, 
     S3Pointer, 
     JsonPathString,
     ProcessorInput,
     ApiCallDefinition,
     TemplateContextMappingItem,
+    isS3Pointer,
+    isS3OutputPointerWrapper
  } from '@allma/core-types';
-import { log_error, log_info, log_warn, log_debug } from '@allma/core-sdk';
+import { log_error, log_info, log_warn, log_debug, resolveS3Pointer, offloadIfLarge } from '@allma/core-sdk';
 import { loadFlowDefinition } from '../allma-core/config-loader.js';
 import { JSONPath } from 'jsonpath-plus';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { SNSClient, PublishCommand, MessageAttributeValue } from '@aws-sdk/client-sns';
 import { LambdaClient, InvokeCommand, InvocationType } from '@aws-sdk/client-lambda';
 
@@ -21,7 +22,6 @@ import { executionLoggerClient } from '../allma-core/execution-logger-client.js'
 import { TemplateService } from '../allma-core/template-service.js';
 import { evaluateCondition } from '../allma-core/utils/condition-evaluator.js';
 
-const s3Client = new S3Client({});
 const snsClient = new SNSClient({}); 
 const lambdaClient = new LambdaClient({});
 const EXECUTION_TRACES_BUCKET_NAME = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME]!;
@@ -31,35 +31,14 @@ const MAX_CONTEXT_DATA_SIZE_BYTES = process.env[ENV_VAR_NAMES.MAX_CONTEXT_DATA_S
     : MAX_CONTEXT_DATA_SIZE_BYTES_DEFAULT;
 
 interface FinalizeOutput {
-    status: 'COMPLETED' | 'FAILED' | 'TIMED_OUT' | 'CANCELLED'; // Matches FlowRuntimeState['status'] subset
-    finalContextDataS3Pointer?: S3Pointer; // If contextData was offloaded
+    status: 'COMPLETED' | 'FAILED' | 'TIMED_OUT' | 'CANCELLED';
+    finalContextData?: Record<string, any>; // For small contexts
+    finalContextDataS3Pointer?: S3Pointer; // For large contexts
     errorInfo?: AllmaError;
 }
 
-const storeContextDataToS3 = async (flowExecutionId: string, contextData: Record<string, any>, correlationId: string): Promise<S3Pointer> => {
-    const s3Key = `final_context/${flowExecutionId}/${new Date().toISOString()}_context.json`;
-    try {
-        await s3Client.send(new PutObjectCommand({
-            Bucket: EXECUTION_TRACES_BUCKET_NAME,
-            Key: s3Key,
-            Body: JSON.stringify(contextData),
-            ContentType: 'application/json',
-        }));
-        log_info('Stored large finalContextData to S3', { bucket: EXECUTION_TRACES_BUCKET_NAME, key: s3Key }, correlationId);
-        return S3PointerSchema.parse({ bucket: EXECUTION_TRACES_BUCKET_NAME, key: s3Key });
-    } catch (e: any) {
-        log_error('Failed to store finalContextData to S3', { error: e.message, s3Key }, correlationId);
-        throw e; // Re-throw to indicate failure
-    }
-};
-
-/**
- * System-level function to handle resuming flows when triggered by another flow.
- * This is a fire-and-forget operation. Failure here should not fail the finalization.
- */
 const handleSystemLevelResume = async (runtimeState: FlowRuntimeState): Promise<void> => {
     const correlationId = runtimeState.flowExecutionId;
-    // Read env var here to pick up values set dynamically (e.g., in tests)
     const resumeApiUrl = process.env[ENV_VAR_NAMES.ALLMA_RESUME_API_URL];
 
     log_debug(`handleSystemLevelResume configured with RESUME_API_URL: ${resumeApiUrl}`, {}, correlationId);
@@ -94,13 +73,27 @@ const handleSystemLevelResume = async (runtimeState: FlowRuntimeState): Promise<
             responseStatus: (error as any).response?.status, 
             responseData: (error as any).response?.data 
         }, correlationId);
-        // Do NOT re-throw. This is a non-critical, secondary action.
     }
 };
 
 export const handler: Handler<ProcessorInput, FinalizeOutput> = async (event) => {
     const runtimeState = event.runtimeState;
     const correlationId = runtimeState.flowExecutionId;
+
+    // --- HYDRATE STATE IF IT WAS OFFLOADED BY PREVIOUS STEP ---
+    const s3ContextPointer = (runtimeState.currentContextData as any)._s3_context_pointer;
+    if (s3ContextPointer && isS3Pointer(s3ContextPointer)) {
+        log_info('Hydrating offloaded context in FinalizeFlow.', {}, correlationId);
+        try {
+            const fullContext = await resolveS3Pointer(s3ContextPointer, correlationId);
+            runtimeState.currentContextData = { ...fullContext, ...runtimeState.currentContextData };
+            delete (runtimeState.currentContextData as any)._s3_context_pointer;
+        } catch (e: any) {
+            log_error('Failed to hydrate context in FinalizeFlow', { error: e.message }, correlationId);
+        }
+    }
+    // --- END HYDRATION ---
+
     let finalStatusFromInput: FlowRuntimeState['status'] = runtimeState.status;
   
     if (finalStatusFromInput === 'RUNNING' || finalStatusFromInput === 'INITIALIZING') {
@@ -110,10 +103,9 @@ export const handler: Handler<ProcessorInput, FinalizeOutput> = async (event) =>
     const endTime = new Date().toISOString();
     log_info(`Finalizing flow execution with status: ${finalStatusFromInput}`, { flowExecutionId: correlationId }, correlationId);
   
-    let finalOutput: FinalizeOutput; // This is guaranteed to be assigned in try/catch.
+    let finalOutput: FinalizeOutput; 
     let finalContextDataS3Pointer: S3Pointer | undefined;
 
-    // Determine if we should log this finalization based on config OR failure status
     const shouldLog = runtimeState.enableExecutionLogs || finalStatusFromInput === 'FAILED';
 
     try {
@@ -121,9 +113,37 @@ export const handler: Handler<ProcessorInput, FinalizeOutput> = async (event) =>
       runtimeState.status = finalStatusFromInput;
   
       const contextDataString = JSON.stringify(runtimeState.currentContextData);
-      if (Buffer.from(contextDataString).length > MAX_CONTEXT_DATA_SIZE_BYTES) {
-          log_info(`Final context data is large (${Buffer.from(contextDataString).length} bytes), storing in S3.`, {}, correlationId);
-          finalContextDataS3Pointer = await storeContextDataToS3(correlationId, runtimeState.currentContextData, correlationId);
+      const isBranch = !!runtimeState.branchId;
+      // Stricter threshold for branch sub-flows to prevent aggregation failures mapped to States.DataLimitExceeded
+      const offloadThreshold = isBranch ? 10 * 1024 : MAX_CONTEXT_DATA_SIZE_BYTES; 
+      
+      // Determine whether to return data inline or via S3 pointer
+      if (Buffer.byteLength(contextDataString, 'utf-8') > offloadThreshold) {
+          log_info(`Final context data is large (${Buffer.byteLength(contextDataString, 'utf-8')} bytes), storing in S3. Threshold: ${offloadThreshold}`, {}, correlationId);
+          
+          const offloadedContext = await offloadIfLarge(
+              runtimeState.currentContextData,
+              EXECUTION_TRACES_BUCKET_NAME,
+              `final_context/${correlationId}`,
+              correlationId,
+              0 // force offload
+          );
+
+          if (offloadedContext && isS3OutputPointerWrapper(offloadedContext)) {
+              finalContextDataS3Pointer = offloadedContext._s3_output_pointer;
+          }
+
+          finalOutput = {
+              status: finalStatusFromInput as FinalizeOutput['status'],
+              finalContextDataS3Pointer,
+              ...(runtimeState.errorInfo && { errorInfo: runtimeState.errorInfo }),
+          };
+      } else {
+          finalOutput = {
+              status: finalStatusFromInput as FinalizeOutput['status'],
+              finalContextData: runtimeState.currentContextData, // Return small context directly
+              ...(runtimeState.errorInfo && { errorInfo: runtimeState.errorInfo }),
+          };
       }
   
       // Asynchronously update the main flow execution record in DynamoDB via the logger
@@ -155,7 +175,6 @@ export const handler: Handler<ProcessorInput, FinalizeOutput> = async (event) =>
         log_info('Main flow execution record update queued for logging.', { flowExecutionId: correlationId, status: finalStatusFromInput }, correlationId);
       }
 
-      // Perform system-level resume check and action
       await handleSystemLevelResume(runtimeState);
   
       try {
@@ -268,13 +287,6 @@ export const handler: Handler<ProcessorInput, FinalizeOutput> = async (event) =>
       } catch (e: any) {
         log_warn('Could not load flow definition to run onCompletionActions. This is expected if the flow failed due to a configuration error.', { error: e.message }, correlationId);
       }
-
-      finalOutput = {
-          status: finalStatusFromInput as FinalizeOutput['status'],
-          ...(finalContextDataS3Pointer && { finalContextDataS3Pointer }),
-          ...(runtimeState.errorInfo && { errorInfo: runtimeState.errorInfo }),
-      };
-
     } catch (error: any) {
       log_error('Critical error during flow finalization', { error: error.message, stack: error.stack }, correlationId);
 

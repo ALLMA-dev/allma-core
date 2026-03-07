@@ -13,7 +13,8 @@ import { log_error, log_info, offloadIfLarge } from '@allma/core-sdk';
 import { z } from 'zod';
 import { TemplateService } from '../template-service.js';
 
-const lambdaClient = new LambdaClient({});
+// Configure clients with adaptive retry strategy to smoothly handle massive traffic spikes and AWS API 429 throttles
+const lambdaClient = new LambdaClient({ maxAttempts: 10, retryMode: 'adaptive' });
 
 // Get the bucket name from environment variables
 const EXECUTION_TRACES_BUCKET_NAME = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME];

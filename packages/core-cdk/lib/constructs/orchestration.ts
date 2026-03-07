@@ -6,7 +6,7 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import *as iam from 'aws-cdk-lib/aws-iam';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as logs from 'aws-cdk-lib/aws-logs';
-import { RETRYABLE_STEP_ERROR_NAME, CONTENT_BASED_RETRYABLE_ERROR_NAME, SfnActionType } from '@allma/core-types';
+import { RETRYABLE_STEP_ERROR_NAME, CONTENT_BASED_RETRYABLE_ERROR_NAME, TRANSIENT_STEP_ERROR_NAME, SfnActionType } from '@allma/core-types';
 import { StageConfig } from '../config/stack-config.js';
 
 interface AllmaOrchestrationProps {
@@ -39,11 +39,24 @@ export class AllmaOrchestration extends Construct {
         'Lambda.ServiceException',
         'Lambda.Unknown',
       ],
-      interval: cdk.Duration.seconds(1),
+      interval: cdk.Duration.seconds(2),
       maxAttempts: 5,
       backoffRate: 3.0,
     };
     
+    // A broader retry policy for Step Functions tasks that might also encounter SFN service throttling.
+    const sfnTaskServiceErrorRetryPolicy = {
+        errors: [
+            'Lambda.TooManyRequestsException',
+            'Lambda.ServiceException',
+            'Lambda.Unknown',
+            'States.ThrottlingException', // Throttling on the Step Functions service itself
+            'StepFunctions.TooManyRequestsException',
+        ],
+        interval: cdk.Duration.seconds(2),
+        maxAttempts: 5,
+        backoffRate: 2.0,
+    };
 
     const stateMachineRole = new iam.Role(this, 'AllmaStateMachineRole', {
       assumedBy: new iam.ServicePrincipal('states.amazonaws.com'),
@@ -100,6 +113,21 @@ export class AllmaOrchestration extends Construct {
             'Output.$': 'States.StringToJson($.Output)'
         }
     });
+    pollingSubFlowTask.addRetry(sfnTaskServiceErrorRetryPolicy);
+
+    // Synchronous sub-flow execution task
+    const startSyncFlowExecutionTask = new sfnTasks.StepFunctionsStartExecution(this, 'StartSyncFlowExecutionTask', {
+        stateMachine: selfRefStateMachine,
+        integrationPattern: sfn.IntegrationPattern.RUN_JOB, // .sync execution
+        input: sfn.TaskInput.fromJsonPathAt('$.syncFlowExecutionInput'),
+        resultPath: '$.syncFlowResult',
+        resultSelector: {
+            // The 'Output' from a sync execution is a stringified JSON.
+            // We select it to be processed by the next step.
+            'Output.$': '$.Output',
+        },
+    });
+    startSyncFlowExecutionTask.addRetry(sfnTaskServiceErrorRetryPolicy);
 
     const finalizeTask = new sfnTasks.LambdaInvoke(this, 'FinalizeFlowExecutionTask', {
       lambdaFunction: finalizeFlowLambda,
@@ -117,16 +145,104 @@ export class AllmaOrchestration extends Construct {
       causePath: '$.errorInfo.errorMessage',
     });
 
-    const normalizeErrorState = new sfn.Pass(this, 'NormalizeErrorState', {
-      comment: 'Transforms raw SFN error output into the standard errorInfo object for the Fail state.',
+    // --- ENHANCED MAIN ERROR NORMALIZATION LOGIC ---
+    // Safely unwrap JSON causes instead of naively double-stringifying them.
+
+    const normalizeStringErrorState = new sfn.Pass(this, 'NormalizeStringErrorState', {
       parameters: {
           'errorInfo': {
               'errorName.$': '$.errorInfo.Error',
-              'errorMessage.$': 'States.JsonToString($.errorInfo.Cause)'
+              'errorMessage.$': '$.errorInfo.Cause'
           }
       }
     });
-    normalizeErrorState.next(failureState);
+
+    const parseMainErrorCause = new sfn.Pass(this, 'ParseMainErrorCause', {
+        parameters: {
+            'parsedCause.$': 'States.StringToJson($.errorInfo.Cause)'
+        },
+        resultPath: '$.errorInfo',
+    });
+
+    const formatMainLogicalError = new sfn.Pass(this, 'FormatMainLogicalError', {
+        parameters: {
+            'errorInfo': {
+                'errorName.$': '$.errorInfo.parsedCause.errorName',
+                'errorMessage.$': '$.errorInfo.parsedCause.errorMessage',
+            }
+        },
+    });
+
+    const formatMainLambdaError = new sfn.Pass(this, 'FormatMainLambdaError', {
+        parameters: {
+            'errorInfo': {
+                'errorName.$': '$.errorInfo.parsedCause.errorType',
+                'errorMessage.$': '$.errorInfo.parsedCause.errorMessage',
+            }
+        },
+    });
+
+    const formatMainSfnDataLimitError = new sfn.Pass(this, 'FormatMainSfnDataLimitError', {
+        parameters: {
+            'errorInfo': {
+                'errorName.$': '$.errorInfo.parsedCause.error',
+                'errorMessage.$': '$.errorInfo.parsedCause.cause',
+            }
+        }
+    });
+
+    const formatMainSfnExecutionError = new sfn.Pass(this, 'FormatMainSfnExecutionError', {
+        parameters: {
+            'errorInfo': {
+                'errorName.$': '$.errorInfo.parsedCause.Error',
+                'errorMessage.$': '$.errorInfo.parsedCause.Cause',
+            }
+        },
+    });
+
+    const formatMainSfnExecutionErrorNoCause = new sfn.Pass(this, 'FormatMainSfnExecutionErrorNoCause', {
+        parameters: {
+            'errorInfo': {
+                'errorName.$': '$.errorInfo.parsedCause.Error',
+                'errorMessage': 'Sub-execution failed. No cause provided.',
+            }
+        },
+    });
+
+    const formatMainUnknownJsonError = new sfn.Pass(this, 'FormatMainUnknownJsonError', {
+        parameters: {
+            'errorInfo': {
+                'errorName.$': '$.errorInfo.Error',
+                'errorMessage.$': '$.errorInfo.Cause',
+            }
+        },
+    });
+
+    const checkMainJsonCauseType = new sfn.Choice(this, 'CheckMainJsonCauseType')
+        .when(sfn.Condition.isPresent('$.errorInfo.parsedCause.errorName'), formatMainLogicalError)
+        .when(sfn.Condition.isPresent('$.errorInfo.parsedCause.errorType'), formatMainLambdaError)
+        .when(sfn.Condition.isPresent('$.errorInfo.parsedCause.error'), formatMainSfnDataLimitError)
+        .when(sfn.Condition.and(
+            sfn.Condition.isPresent('$.errorInfo.parsedCause.Error'),
+            sfn.Condition.isPresent('$.errorInfo.parsedCause.Cause')
+        ), formatMainSfnExecutionError)
+        .when(sfn.Condition.isPresent('$.errorInfo.parsedCause.Error'), formatMainSfnExecutionErrorNoCause)
+        .otherwise(formatMainUnknownJsonError);
+
+    const normalizeErrorState = new sfn.Choice(this, 'NormalizeErrorState')
+        .when(sfn.Condition.stringMatches('$.errorInfo.Cause', '{*'), parseMainErrorCause.next(checkMainJsonCauseType))
+        .otherwise(normalizeStringErrorState);
+
+    formatMainLogicalError.next(failureState);
+    formatMainLambdaError.next(failureState);
+    formatMainSfnDataLimitError.next(failureState);
+    formatMainSfnExecutionError.next(failureState);
+    formatMainSfnExecutionErrorNoCause.next(failureState);
+    formatMainUnknownJsonError.next(failureState);
+    normalizeStringErrorState.next(failureState);
+
+    // --- END ENHANCED MAIN ERROR NORMALIZATION LOGIC ---
+
 
     const prepareForMapPassState = new sfn.Pass(this, 'PrepareParallelMapInput', {
         parameters: {
@@ -149,9 +265,9 @@ export class AllmaOrchestration extends Construct {
             'branchItem.$': '$$.Map.Item.Value',
         },
     });
-    parallelMapState.itemProcessor(this.createBranchProcessorChain('InMemoryMap', selfRefStateMachine));
+    parallelMapState.itemProcessor(this.createBranchProcessorChain('InMemoryMap', selfRefStateMachine, sfnTaskServiceErrorRetryPolicy));
 
-    const s3MapProcessorChain = this.createBranchProcessorChain('S3Map', selfRefStateMachine);
+    const s3MapProcessorChain = this.createBranchProcessorChain('S3Map', selfRefStateMachine, sfnTaskServiceErrorRetryPolicy);
 
     const parallelMapStateFromS3 = new sfn.DistributedMap(this, 'ExecuteBranchesFromS3', {
         resultPath: '$.mapResultsArray',
@@ -213,6 +329,7 @@ export class AllmaOrchestration extends Construct {
     const chooseNextSfnTaskType = new sfn.Choice(this, 'ChooseNextSfnTaskType')
     .when(sfn.Condition.stringEquals('$.sfnAction', SfnActionType.WAIT_FOR_EXTERNAL_EVENT), waitForEventTask)
     .when(sfn.Condition.stringEquals('$.sfnAction', SfnActionType.POLL_EXTERNAL_API), pollingSubFlowTask)
+    .when(sfn.Condition.stringEquals('$.sfnAction', SfnActionType.START_SYNC_FLOW_EXECUTION), startSyncFlowExecutionTask)
     .when(sfn.Condition.stringEquals('$.sfnAction', SfnActionType.PARALLEL_FORK), prepareForMapPassState)
     .when(sfn.Condition.stringEquals('$.sfnAction', SfnActionType.PARALLEL_FORK_S3), parallelMapStateFromS3)
     .otherwise(iterativeStepTask);
@@ -269,6 +386,7 @@ export class AllmaOrchestration extends Construct {
     initTask.next(chooseNextSfnTaskType);
     waitForEventTask.next(processAsyncResultAndContinue);
     pollingSubFlowTask.next(processAsyncResultAndContinue);
+    startSyncFlowExecutionTask.next(processAsyncResultAndContinue);
 
     prepareForMapPassState.next(parallelMapState);
     parallelMapState.next(prepareForAggregationPassState);
@@ -284,11 +402,13 @@ export class AllmaOrchestration extends Construct {
       resultPath: '$.errorInfo',
     };
   
+    // Apply our robust Choice State catch router
     initTask.addCatch(normalizeErrorState, failureCatchConfig);
     iterativeStepTask.addCatch(normalizeErrorState, failureCatchConfig);
     finalizeTask.addCatch(normalizeErrorState, failureCatchConfig);
     waitForEventTask.addCatch(normalizeErrorState, failureCatchConfig);
     pollingSubFlowTask.addCatch(normalizeErrorState, failureCatchConfig);
+    startSyncFlowExecutionTask.addCatch(normalizeErrorState, failureCatchConfig);
     processAsyncResultAndContinue.addCatch(normalizeErrorState, failureCatchConfig);
     parallelMapStateFromS3.addCatch(normalizeErrorState, failureCatchConfig);
 
@@ -297,6 +417,7 @@ export class AllmaOrchestration extends Construct {
         errors: [
             RETRYABLE_STEP_ERROR_NAME, 
             CONTENT_BASED_RETRYABLE_ERROR_NAME,
+            TRANSIENT_STEP_ERROR_NAME
         ],
         interval: cdk.Duration.seconds(10),
         maxAttempts: 3,
@@ -325,7 +446,11 @@ export class AllmaOrchestration extends Construct {
     });
   }
 
-  private createBranchProcessorChain(idPrefix: string, selfRefStateMachine: sfn.IStateMachine): sfn.IChainable {
+  private createBranchProcessorChain(
+    idPrefix: string, 
+    selfRefStateMachine: sfn.IStateMachine, 
+    retryPolicy: cdk.aws_stepfunctions.RetryProps
+    ): sfn.IChainable {
         const prepareBranchInput = new sfn.Pass(this, `${idPrefix}PrepareBranchInput`, {
             parameters: {
                 'mapContext.$': '$.mapContext',
@@ -368,6 +493,7 @@ export class AllmaOrchestration extends Construct {
             resultSelector: { 'Output.$': '$.Output' },
             resultPath: '$.sfnSubExecutionResult',
         });
+        executeBranch.addRetry(retryPolicy);
 
         const parseOutput = new sfn.Pass(this, `${idPrefix}ParseOutput`, {
             parameters: {
@@ -440,11 +566,55 @@ export class AllmaOrchestration extends Construct {
             resultPath: '$',
         });
 
+        const formatSfnExecutionError = new sfn.Pass(this, `${idPrefix}FormatSfnExecutionError`, {
+            comment: 'Formats a standard error object from a parsed SFN sub-execution error.',
+            parameters: {
+                'branchId.$': '$.branchItem.branchId',
+                'error': {
+                    'errorName.$': '$.errorInfo.parsedCause.Error',
+                    'errorMessage.$': '$.errorInfo.parsedCause.Cause',
+                    'isRetryable': false,
+                }
+            },
+            resultPath: '$',
+        });
+
+        const formatSfnExecutionErrorNoCause = new sfn.Pass(this, `${idPrefix}FormatSfnExecutionErrorNoCause`, {
+            comment: 'Formats a standard error object from a parsed SFN sub-execution error without a cause.',
+            parameters: {
+                'branchId.$': '$.branchItem.branchId',
+                'error': {
+                    'errorName.$': '$.errorInfo.parsedCause.Error',
+                    'errorMessage': 'Sub-execution failed. No cause provided.',
+                    'isRetryable': false,
+                }
+            },
+            resultPath: '$',
+        });
+
+        const formatUnknownJsonCause = new sfn.Pass(this, `${idPrefix}FormatUnknownJsonCause`, {
+            comment: 'Formats a standard error object for an unrecognized JSON Cause.',
+            parameters: {
+                'branchId.$': '$.branchItem.branchId',
+                'error': {
+                    'errorName': 'UnknownSubflowError',
+                    'errorMessage.$': 'States.JsonToString($.errorInfo.parsedCause)', // Stringify the unrecognized JSON
+                    'isRetryable': false,
+                }
+            },
+            resultPath: '$',
+        });
+
         const checkJsonCauseType = new sfn.Choice(this, `${idPrefix}CheckJsonCauseType`)
             .when(sfn.Condition.isPresent('$.errorInfo.parsedCause.errorName'), formatLogicalError)
             .when(sfn.Condition.isPresent('$.errorInfo.parsedCause.errorType'), formatLambdaError)
             .when(sfn.Condition.isPresent('$.errorInfo.parsedCause.error'), formatSfnDataLimitError)
-            .otherwise(formatStringCause);
+            .when(sfn.Condition.and(
+                sfn.Condition.isPresent('$.errorInfo.parsedCause.Error'),
+                sfn.Condition.isPresent('$.errorInfo.parsedCause.Cause')
+            ), formatSfnExecutionError)
+            .when(sfn.Condition.isPresent('$.errorInfo.parsedCause.Error'), formatSfnExecutionErrorNoCause)
+            .otherwise(formatUnknownJsonCause);
 
         const handleBranchErrorChoice = new sfn.Choice(this, `${idPrefix}IsCauseJsonChoice`)
             .when(sfn.Condition.stringMatches('$.errorInfo.Cause', '{*'), parseJsonCause.next(checkJsonCauseType))

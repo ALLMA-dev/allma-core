@@ -25,6 +25,7 @@ export enum SfnActionType {
   PARALLEL_FORK = 'PARALLEL_FORK',
   PARALLEL_AGGREGATE = 'PARALLEL_AGGREGATE',
   PARALLEL_FORK_S3 = 'PARALLEL_FORK_S3',
+  START_SYNC_FLOW_EXECUTION = 'START_SYNC_FLOW_EXECUTION',
 }
 export const SfnActionTypeSchema = z.nativeEnum(SfnActionType);
 

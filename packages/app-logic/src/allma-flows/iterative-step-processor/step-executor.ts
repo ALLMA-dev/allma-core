@@ -99,8 +99,6 @@ export const executeStandardStep = async (
   }
 
   // Pass the raw Step Definition directly to the handler. 
-  // It is the specific handler's responsibility to evaluate template strings 
-  // where appropriate to prevent corrupting strictly formatted JSONPath properties.
   const finalStepDefForHandler = stepDef;
   const templateContext = { ...runtimeState.currentContextData, ...runtimeState, ...finalStepInput };
 
@@ -242,9 +240,7 @@ export const executeStandardStep = async (
       delete outputDataForMapping._meta;
     }
     
-    // Merge the original step input with the output data. The output data takes
-    // precedence in case of key collisions. This makes any value passed via
-    // `inputMappings` available for use in `outputMappings`.
+    // Merge the original step input with the output data.
     outputDataForMapping = { ...finalStepInput, ...outputDataForMapping };
 
   } catch (error: any) {
@@ -302,16 +298,15 @@ export const executeStandardStep = async (
         isRetryable: false,
       };
 
-      // Mark the state as successful in logs because we handled the failure gracefully
-      // but record the error info in the log payload.
     } else {
       // 3. Fallback: Log and Re-throw for standard failure handling (Retry/Fallback/Fail)
 
-      const isRetryableBySfn = error instanceof RetryableStepError || error instanceof ContentBasedRetryableError;
+      // Include TransientStepError as retryable by Step Functions!
+      const isRetryableBySfn = error instanceof RetryableStepError || error instanceof ContentBasedRetryableError || error instanceof TransientStepError;
 
       // Determine the log status
       let logStatus: 'RETRYING_SFN' | 'RETRYING_CONTENT' | 'FAILED' = 'FAILED';
-      if (error instanceof RetryableStepError) logStatus = 'RETRYING_SFN';
+      if (error instanceof RetryableStepError || error instanceof TransientStepError) logStatus = 'RETRYING_SFN';
       else if (error instanceof ContentBasedRetryableError) logStatus = 'RETRYING_CONTENT';
 
       const errorInfo: AllmaError = {
@@ -400,7 +395,6 @@ export const executeStandardStep = async (
   }
 
   // Apply output mappings.
-  // If continueOnFailure was triggered, this allows mapping the error object to the context.
   const effectiveOutputMappings =
     stepInstanceConfig.outputMappings === undefined
       ? { [`$.steps_output.${currentStepInstanceId}`]: '$' }

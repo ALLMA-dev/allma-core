@@ -9,8 +9,9 @@ if (!ALLMA_CONFIG_TABLE_NAME) {
   throw new Error(`Missing required environment variable: ${ENV_VAR_NAMES.ALLMA_CONFIG_TABLE_NAME}`);
 }
 
-const lambdaClient = new LambdaClient({});
-const ddbClient = new DynamoDBClient({});
+// Configure clients with adaptive retry strategy to smoothly handle massive traffic spikes and AWS API 429 throttles
+const lambdaClient = new LambdaClient({ maxAttempts: 10, retryMode: 'adaptive' });
+const ddbClient = new DynamoDBClient({ maxAttempts: 10, retryMode: 'adaptive' });
 const ddbDocClient = DynamoDBDocumentClient.from(ddbClient);
 
 /**

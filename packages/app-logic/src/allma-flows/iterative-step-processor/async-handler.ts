@@ -1,5 +1,3 @@
-// packages/allma-app-logic/src/allma-flows/iterative-step-processor/async-handler.ts
-
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
 import {
@@ -69,7 +67,16 @@ export const handleAsyncResume = (
 
     } else if (pollingResult) {
         log_info('Resuming from a POLL_EXTERNAL_API step.', { pollingResult: JSON.stringify(pollingResult).substring(0, 200) }, correlationId);
-        const output = pollingResult.Output ? JSON.parse(pollingResult.Output) : {};
+        
+        let output = {};
+        if (pollingResult.Output) {
+            try {
+                output = typeof pollingResult.Output === 'string' ? JSON.parse(pollingResult.Output) : pollingResult.Output;
+            } catch (e: any) {
+                log_warn('Failed to parse pollingResult.Output as JSON.', { error: e.message, output: pollingResult.Output }, correlationId);
+                output = { rawOutput: pollingResult.Output };
+            }
+        }
 
         // Polling steps might also have output mappings.
         if (stepInstanceConfig.outputMappings) {

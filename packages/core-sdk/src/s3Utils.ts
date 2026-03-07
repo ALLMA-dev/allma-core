@@ -4,7 +4,8 @@ import { ENV_VAR_NAMES, isS3OutputPointerWrapper } from '@allma/core-types';
 import { log_info, log_error, log_warn, log_debug } from "./logger.js";
 import { isObject } from './objectUtils.js';
 
-const s3Client = new S3Client({});
+// Configure S3 client with adaptive retry mode to gracefully handle rate limit exhaustion (429/503 Slow Down)
+const s3Client = new S3Client({ maxAttempts: 10, retryMode: 'adaptive' });
 
 const MAX_CONTEXT_DATA_SIZE_BYTES_DEFAULT = 10 * 1024; // 10KB default
 const PAYLOAD_OFFLOAD_THRESHOLD_BYTES = process.env[ENV_VAR_NAMES.MAX_CONTEXT_DATA_SIZE_BYTES]

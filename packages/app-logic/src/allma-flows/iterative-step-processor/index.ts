@@ -1,4 +1,3 @@
-// allma-core/packages/app-logic/src/allma-flows/iterative-step-processor/index.ts
 import { Handler } from 'aws-lambda';
 import {
     RetryableStepError,
@@ -14,11 +13,11 @@ import {
     AllmaError,
     ContentBasedRetryableError,
     isS3Pointer,
-    S3Pointer,
     isS3OutputPointerWrapper,
+    ENV_VAR_NAMES,
 } from '@allma/core-types';
 import {
-    log_info, log_error, log_debug, log_warn, deepMerge, resolveS3Pointer, isObject,
+    log_info, log_error, log_debug, log_warn, deepMerge, resolveS3Pointer, isObject, offloadIfLarge,
 } from '@allma/core-sdk';
 import { loadFlowDefinition } from '../../allma-core/config-loader.js';
 import { handleTerminalError } from './error-handler.js';
@@ -28,6 +27,9 @@ import { executeStandardStep } from './step-executor.js';
 import { handleParallelFork, handleParallelAggregation } from './parallel-handler.js';
 import { prepareStepInput } from '../../allma-core/data-mapper.js';
 import { executionLoggerClient } from '../../allma-core/execution-logger-client.js';
+import { handleSyncFlowStart, handleSyncFlowResult } from './sync-flow-handler.js';
+
+const EXECUTION_TRACES_BUCKET_NAME = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME];
 
 /**
  * AWS Lambda handler for the "IterativeStepProcessor" state.
@@ -35,40 +37,46 @@ import { executionLoggerClient } from '../../allma-core/execution-logger-client.
  * It orchestrates step execution by delegating to specialized modules.
  */
 export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (event, context) => {
-    // Add a debug log at the very top to capture the exact raw input
     console.log("IterativeStepProcessor RAW_EVENT:", JSON.stringify(event, null, 2));
 
     const originalEvent = event;
     let runtimeState: FlowRuntimeState = event.runtimeState;
     const isBranchExecution = !!runtimeState.branchId;
 
-    const { taskToken, parallelAggregateInput, resumePayload, pollingResult } = originalEvent;
+    const { taskToken, parallelAggregateInput, resumePayload, pollingResult, syncFlowResult } = originalEvent;
     const correlationId = runtimeState.flowExecutionId;
 
     let flowDef: FlowDefinition | undefined;
     let stepInstance: StepInstance | undefined;
 
     try {
-        // --- HYDRATION LOGIC FOR DISTRIBUTED MAP ---
-        // This is the new logic to handle context passed via S3 for large parallel jobs.
+        // --- HYDRATION LOGIC ---
+        // This logic handles context passed via S3 for large parallel jobs or auto-offloaded states.
         const s3ContextPointer = (runtimeState.currentContextData as any)._s3_context_pointer;
         if (s3ContextPointer && isS3Pointer(s3ContextPointer)) {
-            log_info('Distributed Map branch detected. Hydrating shared context from S3.', { pointer: s3ContextPointer }, correlationId);
+            log_info('State hydration pointer detected. Hydrating shared context from S3.', { pointer: s3ContextPointer }, correlationId);
             const parentContext = await resolveS3Pointer(s3ContextPointer, correlationId);
             
             // Merge the parent context with the current branch context (which contains 'currentItem').
-            // The current context's properties (like 'currentItem') will overwrite any from the parent.
             runtimeState.currentContextData = { ...parentContext, ...runtimeState.currentContextData };
-            
-            // Clean up the pointer so it's not processed again.
             delete (runtimeState.currentContextData as any)._s3_context_pointer;
             
             log_debug('Shared context hydrated successfully.', { finalContextKeys: Object.keys(runtimeState.currentContextData) }, correlationId);
         }
         // --- END HYDRATION LOGIC ---
 
-        if (resumePayload || pollingResult) {
-            flowDef = await loadFlowDefinition(runtimeState.flowDefinitionId, runtimeState.flowDefinitionVersion, correlationId);
+        if (syncFlowResult) {
+            log_info('Processing result from synchronous sub-flow execution.', {}, correlationId);
+            if (!flowDef) {
+                flowDef = await loadFlowDefinition(runtimeState.flowDefinitionId, runtimeState.flowDefinitionVersion, correlationId);
+            }
+            runtimeState = await handleSyncFlowResult(originalEvent, runtimeState, flowDef, correlationId);
+            const { nextStepId } = await resolveNextStep(flowDef.steps[runtimeState.currentStepInstanceId!], runtimeState);
+            runtimeState.currentStepInstanceId = nextStepId;
+        } else if (resumePayload || pollingResult) {
+            if (!flowDef) {
+                flowDef = await loadFlowDefinition(runtimeState.flowDefinitionId, runtimeState.flowDefinitionVersion, correlationId);
+            }
             runtimeState = handleAsyncResume(originalEvent, runtimeState, flowDef);
 
             const completedStepConfig = flowDef.steps[runtimeState.currentStepInstanceId!];
@@ -95,11 +103,25 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
                 }
             }
 
-            const finalOutput: ProcessorOutput = {
+            let finalOutput: ProcessorOutput = {
                 runtimeState,
                 sfnAction: nextActionDetails.sfnAction,
                 ...(nextActionDetails.pollingTaskInput && { pollingTaskInput: nextActionDetails.pollingTaskInput })
             };
+            
+            if (EXECUTION_TRACES_BUCKET_NAME) {
+                const offloadedContext = await offloadIfLarge(
+                    runtimeState.currentContextData,
+                    EXECUTION_TRACES_BUCKET_NAME,
+                    `flow_state/${correlationId}/${runtimeState.currentStepInstanceId || 'end'}`,
+                    correlationId,
+                    200 * 1024 // 200KB safe threshold for SFN
+                );
+                if (offloadedContext && isS3OutputPointerWrapper(offloadedContext)) {
+                    log_warn(`IterativeStepProcessor context size exceeded threshold. Auto-offloaded currentContextData to S3.`, {}, correlationId);
+                    runtimeState.currentContextData = { _s3_context_pointer: offloadedContext._s3_output_pointer };
+                }
+            }
             return finalOutput;
         }
 
@@ -107,8 +129,6 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
         if (currentStepInstanceId) {
             log_info(`Processing step: '${currentStepInstanceId}'`, { isBranchExecution }, correlationId);
             
-            // FIX: Ensure _internal object exists and set startTime before any step-specific logic.
-            // This guarantees it's available for duration calculations in all logging scenarios.
             const stepStartTime = new Date().toISOString();
             if (!runtimeState._internal) {
                 runtimeState._internal = {};
@@ -183,11 +203,39 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
 
                 const forkOutput = await handleParallelFork(stepInstance, runtimeState, correlationId);
                 if (forkOutput) {
+                    if (EXECUTION_TRACES_BUCKET_NAME) {
+                        const offloadedContext = await offloadIfLarge(
+                            forkOutput.runtimeState.currentContextData,
+                            EXECUTION_TRACES_BUCKET_NAME,
+                            `flow_state/${correlationId}/${forkOutput.runtimeState.currentStepInstanceId || 'end'}`,
+                            correlationId,
+                            200 * 1024
+                        );
+                        if (offloadedContext && isS3OutputPointerWrapper(offloadedContext)) {
+                            forkOutput.runtimeState.currentContextData = { _s3_context_pointer: offloadedContext._s3_output_pointer };
+                        }
+                    }
                     return forkOutput;
                 }
                 const { nextStepId } = await resolveNextStep(stepInstance, runtimeState);
                 runtimeState.currentStepInstanceId = nextStepId;
 
+            } else if (stepType === StepType.START_FLOW_EXECUTION && (stepInstance as any).customConfig?.sync === true) {
+                log_info(`Step '${currentStepInstanceId}' is a synchronous START_FLOW_EXECUTION. Preparing sub-flow.`, {}, correlationId);
+                const syncOutput = await handleSyncFlowStart(stepInstance, runtimeState, correlationId);
+                if (EXECUTION_TRACES_BUCKET_NAME) {
+                    const offloadedContext = await offloadIfLarge(
+                        syncOutput.runtimeState.currentContextData,
+                        EXECUTION_TRACES_BUCKET_NAME,
+                        `flow_state/${correlationId}/${syncOutput.runtimeState.currentStepInstanceId || 'end'}`,
+                        correlationId,
+                        200 * 1024
+                    );
+                    if (offloadedContext && isS3OutputPointerWrapper(offloadedContext)) {
+                        syncOutput.runtimeState.currentContextData = { _s3_context_pointer: offloadedContext._s3_output_pointer };
+                    }
+                }
+                return syncOutput;
             } else {
                 const stepDef = stepInstance as unknown as StepDefinition; 
                 if (stepDef.stepType !== stepType) {
@@ -199,9 +247,6 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
                     return;
                 }
 
-                // --- JUST-IN-TIME HYDRATION & CONTEXT MERGING LOGIC ---
-                // Create a comprehensive context for this step's execution by merging the full state with the context data.
-                // This ensures JSONPaths can access both `$.steps_output` and `$.flowExecutionId`.
                 let contextForMappings = { ...runtimeState, ...runtimeState.currentContextData };
 
                 const currentItem = runtimeState.currentContextData?.currentItem;
@@ -217,17 +262,15 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
                     } else {
                         mergedCurrentItem = { ...restOfCurrentItem, content: hydratedContent };
                     }
-                    // Overwrite the `currentItem` property in our temporary context.
                     contextForMappings.currentItem = mergedCurrentItem;
                     log_info('Successfully hydrated and merged currentItem for step execution.', { finalKeys: Object.keys(mergedCurrentItem) }, correlationId);
                 }
-                // --- END HYDRATION & CONTEXT MERGING LOGIC ---
                 
                 const shouldHydrateInputPointers = stepInstance.stepType !== StepType.CUSTOM_LAMBDA_INVOKE || (stepInstance.customConfig as any)?.hydrateInputFromS3 === true;
 
                 const { preparedInput, events: inputMappingEvents } = await prepareStepInput(
                     stepInstance.inputMappings || {},
-                    contextForMappings, // Use the comprehensive, and potentially temporary, hydrated context
+                    contextForMappings, 
                     shouldHydrateInputPointers,
                     correlationId
                 );
@@ -340,6 +383,23 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
         sfnAction: finalSfnAction,
         ...(pollingTaskInput && { pollingTaskInput })
     };
+
+    if (EXECUTION_TRACES_BUCKET_NAME) {
+        const offloadedContext = await offloadIfLarge(
+            runtimeState.currentContextData,
+            EXECUTION_TRACES_BUCKET_NAME,
+            `flow_state/${correlationId}/${runtimeState.currentStepInstanceId || 'end'}`,
+            correlationId,
+            200 * 1024 // 200KB safe threshold for SFN
+        );
+
+        if (offloadedContext && isS3OutputPointerWrapper(offloadedContext)) {
+            log_warn(`IterativeStepProcessor context size exceeded threshold. Auto-offloaded currentContextData to S3.`, {}, correlationId);
+            runtimeState.currentContextData = { 
+                _s3_context_pointer: offloadedContext._s3_output_pointer 
+            };
+        }
+    }
 
     log_debug(`IterativeStepProcessor final output for ${runtimeState.currentStepInstanceId || 'end-of-flow'}:`, finalOutput.pollingTaskInput ? { ...finalOutput, pollingTaskInput: 'OMITTED_FOR_BREVITY' } : finalOutput, correlationId);
 

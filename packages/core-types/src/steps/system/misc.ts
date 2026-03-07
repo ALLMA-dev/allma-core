@@ -80,7 +80,9 @@ export const StartFlowExecutionStepPayloadSchema = z.object({
   moduleIdentifier: z.literal(SystemModuleIdentifiers.START_FLOW_EXECUTION),
   flowDefinitionId: z.string().min(1).describe("The ID of the flow to start. Supports templates."),
   flowVersion: z.string().optional().default('LATEST_PUBLISHED').describe("The version to start (e.g., '1', 'LATEST_PUBLISHED'). Supports templates."),
-  customConfig: z.record(z.any()).optional().describe("Custom Config|json|Additional module-specific configuration."),
+  customConfig: z.object({
+    sync: z.boolean().optional(),
+  }).passthrough().optional().describe("Custom Config|json|Set `sync: true` to wait for the sub-flow to complete."),
 }).passthrough();
 
 
