@@ -9,7 +9,8 @@ export async function hydrateInputFromS3Pointers(data: any, correlationId?: stri
       return Promise.all(data.map(item => hydrateInputFromS3Pointers(item, correlationId)));
     }
     if (isS3OutputPointerWrapper(data)) {
-      return resolveS3Pointer(data._s3_output_pointer, correlationId);
+      // Core engine operations using hydration inherently need full data without size limits 
+      return resolveS3Pointer(data._s3_output_pointer, correlationId, true);
     }
     if (data && typeof data === 'object') {
       const hydratedObject: Record<string, any> = {};

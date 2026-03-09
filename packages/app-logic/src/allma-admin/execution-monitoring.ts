@@ -17,14 +17,11 @@ router.get('/flow-executions', async (event, authContext) => {
     }
     const limit = limitStr ? parseInt(limitStr, 10) : 50;
 
-    // Construct the filters object conditionally to satisfy exactOptionalPropertyTypes.
-    // This ensures keys are only present if their values are defined.
     const filters = {
         ...(flowVersion && { flowVersion }),
         ...(status && { status }),
     };
 
-    // Construct the pagination object conditionally for the same reason.
     const pagination = {
         limit,
         ...(nextToken && { nextToken }),
@@ -47,6 +44,31 @@ router.get('/flow-executions/{flowExecutionId}', async (event, authContext, { fl
 
     if (!details) {
         return createApiGatewayResponse(404, buildErrorResponse(`Execution with ID ${flowExecutionId} not found.`, 'NOT_FOUND'), correlationId);
+    }
+
+    return createApiGatewayResponse(200, buildSuccessResponse(details), correlationId);
+});
+
+// Route for getting the detailed view of a single step.
+// GET /flow-executions/{flowExecutionId}/step-record
+router.get('/flow-executions/{flowExecutionId}/step-record', async (event, authContext, { flowExecutionId }) => {
+    const correlationId = event.requestContext.requestId;
+    const { stepInstanceId, attemptNumber, branchExecutionId } = event.queryStringParameters || {};
+
+    if (!stepInstanceId) {
+        return createApiGatewayResponse(400, buildErrorResponse('Missing required query parameter: stepInstanceId', 'VALIDATION_ERROR'), correlationId);
+    }
+
+    const details = await ExecutionMonitoringService.getStepRecordDetails(
+        flowExecutionId, 
+        stepInstanceId, 
+        attemptNumber ? parseInt(attemptNumber, 10) : undefined,
+        branchExecutionId,
+        correlationId
+    );
+
+    if (!details) {
+        return createApiGatewayResponse(404, buildErrorResponse(`Step record not found.`, 'NOT_FOUND'), correlationId);
     }
 
     return createApiGatewayResponse(200, buildSuccessResponse(details), correlationId);

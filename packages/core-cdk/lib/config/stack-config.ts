@@ -125,6 +125,14 @@ export interface StageConfig {
      * @example 'v1'
      */
     apiMappingKey: string;
+
+    /**
+     * Reserved concurrency applied to EACH Admin API Lambda function.
+     * Setting this guarantees UI availability (prevents 503s) when flow executions
+     * consume all unreserved account concurrency.
+     * Recommended value: 2 to 5 for small/medium teams.
+     */
+    concurrency?: number;
   };
 
   /**

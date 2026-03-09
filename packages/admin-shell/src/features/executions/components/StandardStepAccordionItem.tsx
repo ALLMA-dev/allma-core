@@ -1,5 +1,4 @@
-// packages/allma-admin-shell/src/features/executions/components/StandardStepAccordionItem.tsx
-import { Accordion, Badge, Group, Stack, Text, Tooltip, useMantineColorScheme, useMantineTheme, ThemeIcon } from "@mantine/core";
+import { Accordion, Badge, Group, Stack, Text, Tooltip, useMantineColorScheme, useMantineTheme, ThemeIcon, Loader, Alert, Button } from "@mantine/core";
 import { format } from "date-fns";
 import { AllmaStepExecutionRecord, MappingEventStatus } from '@allma/core-types';
 import { formatPreciseDuration } from "../../../utils/formatters";
@@ -7,6 +6,7 @@ import { getStatusColor, getStatusIcon } from "../utils";
 import { StepDetailsPanel } from "./StepDetailsPanel";
 import { IconClock, IconAlertTriangle } from "@tabler/icons-react";
 import { useState } from "react";
+import { useGetStepRecordDetails } from '../../../api/executionService';
 
 interface StandardStepAccordionItemProps {
     step: AllmaStepExecutionRecord;
@@ -37,9 +37,21 @@ export function StandardStepAccordionItem({ step, stepNumber, onOpenDiff, onOpen
     const [isExpanded, setIsExpanded] = useState(false);
     const theme = useMantineTheme();
     const { colorScheme } = useMantineColorScheme();
-    const hasWarning = stepHasWarning(step);
     
-    const itemValue = `${step.stepInstanceId}-${step.startTime}`;
+    // Detect if details were omitted
+    const isDetailsOmitted = (step as any)._detailsOmittedForSize;
+
+    const { data: fetchedStepData, isLoading: isFetchingDetails, error: fetchError } = useGetStepRecordDetails({
+        flowExecutionId: step.flowExecutionId,
+        stepInstanceId: step.stepInstanceId,
+        attemptNumber: step.attemptNumber,
+        branchExecutionId: step.branchExecutionId,
+    }, isExpanded && isDetailsOmitted);
+
+    const displayStep = fetchedStepData || step;
+    const hasWarning = stepHasWarning(displayStep);
+    
+    const itemValue = `${displayStep.stepInstanceId}-${displayStep.startTime}`;
 
     return (
         <Accordion.Item
@@ -65,38 +77,51 @@ export function StandardStepAccordionItem({ step, stepNumber, onOpenDiff, onOpen
                                         </ThemeIcon>
                                     </Tooltip>
                                 )}
-                                <Text fw={700}>{step.stepInstanceId}</Text>
+                                <Text fw={700}>{displayStep.stepInstanceId}</Text>
                             </Group>
-                            <Text size="xs" c="dimmed">Type: {step.stepType}</Text>
+                            <Text size="xs" c="dimmed">Type: {displayStep.stepType}</Text>
                         </Stack>
                     </Group>
                     <Group>
-                        {(step.attemptNumber && step.attemptNumber > 1) && (
-                            <Badge color="gray" variant="outline">Attempt {step.attemptNumber}</Badge>
+                        {(displayStep.attemptNumber && displayStep.attemptNumber > 1) && (
+                            <Badge color="gray" variant="outline">Attempt {displayStep.attemptNumber}</Badge>
                         )}
                         <Badge
-                            color={getStatusColor(step.status)}
-                            leftSection={getStatusIcon(step.status)}
-                            pr={step.status === 'COMPLETED' ? 'xs' : undefined}
+                            color={getStatusColor(displayStep.status)}
+                            leftSection={getStatusIcon(displayStep.status)}
+                            pr={displayStep.status === 'COMPLETED' ? 'xs' : undefined}
                         >
-                            {step.status === 'COMPLETED' ? 'OK' : step.status}
+                            {displayStep.status === 'COMPLETED' ? 'OK' : displayStep.status}
                         </Badge>
-                        <Tooltip label={`Started: ${format(new Date(step.startTime), 'HH:mm:ss.SSS')}\nEnded: ${step.endTime ? format(new Date(step.endTime), 'HH:mm:ss.SSS') : 'N/A'}`}>
+                        <Tooltip label={`Started: ${format(new Date(displayStep.startTime), 'HH:mm:ss.SSS')}\nEnded: ${displayStep.endTime ? format(new Date(displayStep.endTime), 'HH:mm:ss.SSS') : 'N/A'}`}>
                             <Badge leftSection={<IconClock size="0.8rem" />} variant="light" color="gray">
-                                {formatPreciseDuration(step.durationMs)}
+                                {formatPreciseDuration(displayStep.durationMs)}
                             </Badge>
                         </Tooltip>
                     </Group>
                 </Group>
             </Accordion.Control>
             <Accordion.Panel>
-                <StepDetailsPanel
-                    step={step}
-                    onOpenDiff={() => onOpenDiff(step)}
-                    onOpenConfig={() => onOpenConfig(step)}
-                    onRedrive={() => onRedrive(step)}
-                    isSandbox={isSandbox}
-                />
+                {isDetailsOmitted && isFetchingDetails ? (
+                    <Group justify="center" p="xl"><Loader size="sm" /><Text size="sm" c="dimmed">Loading large step details...</Text></Group>
+                ) : fetchError ? (
+                    <Alert color="red" title="Failed to load details">{fetchError.message}</Alert>
+                ) : (displayStep as any)._large_payload_link ? (
+                     <Alert color="blue" title="Step Record Too Large">
+                        <Text size="sm" mb="sm">{(displayStep as any)._s3_error}</Text>
+                        <Button component="a" href={(displayStep as any)._large_payload_link} target="_blank" rel="noopener noreferrer" size="xs" variant="light">
+                            Download Raw Step Record
+                        </Button>
+                     </Alert>
+                ) : (
+                    <StepDetailsPanel
+                        step={displayStep}
+                        onOpenDiff={() => onOpenDiff(displayStep)}
+                        onOpenConfig={() => onOpenConfig(displayStep)}
+                        onRedrive={() => onRedrive(displayStep)}
+                        isSandbox={isSandbox}
+                    />
+                )}
             </Accordion.Panel>
         </Accordion.Item>
     );

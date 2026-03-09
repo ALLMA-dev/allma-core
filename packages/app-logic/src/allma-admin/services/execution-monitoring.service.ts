@@ -36,7 +36,7 @@ async function _getExecutionRecords(flowExecutionId: string): Promise<any[]> {
 
 /**
  * Fetches full records from S3 for a list of minimal DB records.
- * Uses a chunking approach to safely resolve arrays of S3 pointers without OOM or hitting 503 limits.
+ * Evaluates size on the fly to avoid APIGateway 413 limits and OOM errors.
  */
 async function resolveFullStepRecords(
     minimalRecords: AllmaStepExecutionRecord[],
@@ -44,23 +44,68 @@ async function resolveFullStepRecords(
 ): Promise<AllmaStepExecutionRecord[]> {
     const CHUNK_SIZE = 50;
     const results: AllmaStepExecutionRecord[] = [];
+    let cumulativeSize = 0;
+    const MAX_CUMULATIVE_SIZE = 4 * 1024 * 1024; // 4MB safe limit
     
     for (let i = 0; i < minimalRecords.length; i += CHUNK_SIZE) {
         const chunk = minimalRecords.slice(i, i + CHUNK_SIZE);
-        const chunkPromises = chunk.map(async (record) => {
-            if (record.fullRecordS3Pointer) {
-                try {
-                    const fullRecordFromS3 = await resolveS3Pointer(record.fullRecordS3Pointer, correlationId);
-                    return { ...fullRecordFromS3, ...record };
-                } catch (e: any) {
-                    log_error(`Failed to resolve S3 pointer for step record`, { pointer: record.fullRecordS3Pointer, error: e.message }, correlationId);
-                    return { ...record, _s3_error: `Failed to load full record from S3: ${e.message}` };
-                }
+        
+        // Fetch chunk in parallel for speed
+        const fetchPromises = chunk.map(async (record) => {
+            if (!record.fullRecordS3Pointer) return { record, fullRecordFromS3: null };
+            
+            // Optimization: Skip fetching if limit is already passed 
+            if (cumulativeSize > MAX_CUMULATIVE_SIZE) return { record, fullRecordFromS3: null, skipped: true };
+            
+            try {
+                const fullRecordFromS3 = await resolveS3Pointer(record.fullRecordS3Pointer, correlationId); // Do not skip size limit on individual objects
+                return { record, fullRecordFromS3 };
+            } catch (e: any) {
+                log_error(`Failed to resolve S3 pointer for step record`, { pointer: record.fullRecordS3Pointer, error: e.message }, correlationId);
+                return { record, fullRecordFromS3: null, error: e.message };
             }
-            return record;
         });
-        const chunkResults = await Promise.all(chunkPromises);
-        results.push(...chunkResults);
+        
+        const fetchedResults = await Promise.all(fetchPromises);
+        
+        // Process records sequentially to manage running size perfectly
+        for (const { record, fullRecordFromS3, skipped, error } of fetchedResults) {
+            if (skipped || cumulativeSize > MAX_CUMULATIVE_SIZE) {
+                results.push({ ...record, _detailsOmittedForSize: true } as any);
+                continue;
+            }
+            
+            if (error) {
+                results.push({ ...record, _s3_error: `Failed to load full record from S3: ${error}` } as any);
+                continue;
+            }
+            
+            if (fullRecordFromS3) {
+                // Automatically handle if S3 object was > 4MB individually
+                if (fullRecordFromS3._is_large_s3_payload) {
+                    results.push({ 
+                        ...record, 
+                        _detailsOmittedForSize: true, 
+                        _large_payload_link: fullRecordFromS3.presignedUrl,
+                        _s3_error: `Step details too large (${(fullRecordFromS3.sizeBytes / 1024 / 1024).toFixed(2)} MB) to load inline. Please download the log file.` 
+                    } as any);
+                    continue;
+                }
+                
+                const recordString = JSON.stringify(fullRecordFromS3);
+                const recordSize = Buffer.byteLength(recordString, 'utf-8');
+
+                if (cumulativeSize + recordSize > MAX_CUMULATIVE_SIZE && cumulativeSize > 0) {
+                     results.push({ ...record, _detailsOmittedForSize: true } as any);
+                     continue;
+                }
+                
+                cumulativeSize += recordSize;
+                results.push({ ...fullRecordFromS3, ...record } as any);
+            } else {
+                results.push(record);
+            }
+        }
     }
     
     return results;
@@ -141,6 +186,7 @@ export const ExecutionMonitoringService = {
         let resolvedFinalContextData: Record<string, any> | undefined;
         if (metadata.finalContextDataS3Pointer) {
             try {
+                // If it's larger than the 4MB limit, resolveS3Pointer handles generating a wrapper object + presigned url automatically
                 resolvedFinalContextData = await resolveS3Pointer(metadata.finalContextDataS3Pointer, correlationId);
             } catch (e: any) {
                 log_error(`Failed to resolve final context S3 pointer`, { pointer: metadata.finalContextDataS3Pointer, error: e.message }, correlationId);
@@ -148,6 +194,51 @@ export const ExecutionMonitoringService = {
             }
         }
         return { metadata, steps: consolidatedSteps, resolvedFinalContextData };
+    },
+    
+    async getStepRecordDetails(flowExecutionId: string, stepInstanceId: string, attemptNumber?: number, branchExecutionId?: string, correlationId?: string): Promise<AllmaStepExecutionRecord | null> {
+        const queryParams: QueryCommandInput = {
+            TableName: EXECUTION_LOG_TABLE_NAME,
+            KeyConditionExpression: 'flowExecutionId = :pk AND begins_with(eventTimestamp_stepInstanceId_attempt, :skPrefix)',
+            ExpressionAttributeValues: { ':pk': flowExecutionId, ':skPrefix': 'STEP#' },
+        };
+        const { Items } = await ddbDocClient.send(new QueryCommand(queryParams));
+        if (!Items || Items.length === 0) return null;
+
+        const matchingSteps = Items.filter(item => {
+            if (item.stepInstanceId !== stepInstanceId) return false;
+            if (attemptNumber && item.attemptNumber !== attemptNumber) return false;
+            if (branchExecutionId && item.branchExecutionId !== branchExecutionId) return false;
+            return true;
+        }) as AllmaStepExecutionRecord[];
+
+        if (matchingSteps.length === 0) return null;
+        
+        // Take the latest attempt if attemptNumber wasn't specified
+        matchingSteps.sort((a, b) => b.eventTimestamp.localeCompare(a.eventTimestamp));
+        const stepToFetch = matchingSteps[0];
+
+        if (stepToFetch.fullRecordS3Pointer) {
+            try {
+                const fullRecordFromS3 = await resolveS3Pointer(stepToFetch.fullRecordS3Pointer, correlationId);
+                
+                if (fullRecordFromS3?._is_large_s3_payload) {
+                    return { 
+                        ...stepToFetch, 
+                        _detailsOmittedForSize: true, 
+                        _large_payload_link: fullRecordFromS3.presignedUrl,
+                        _s3_error: `Step details too large (${(fullRecordFromS3.sizeBytes / 1024 / 1024).toFixed(2)} MB) to load inline. Please download the log file.` 
+                    } as any;
+                }
+
+                return { ...fullRecordFromS3, ...stepToFetch };
+            } catch (e: any) {
+                log_error(`Failed to resolve S3 pointer for specific step record`, { pointer: stepToFetch.fullRecordS3Pointer, error: e.message }, correlationId);
+                return { ...stepToFetch, _s3_error: `Failed to load full record from S3: ${e.message}` } as any;
+            }
+        }
+        
+        return stepToFetch;
     },
 
     /**

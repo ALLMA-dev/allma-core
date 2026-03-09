@@ -55,7 +55,7 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
         const s3ContextPointer = (runtimeState.currentContextData as any)._s3_context_pointer;
         if (s3ContextPointer && isS3Pointer(s3ContextPointer)) {
             log_info('State hydration pointer detected. Hydrating shared context from S3.', { pointer: s3ContextPointer }, correlationId);
-            const parentContext = await resolveS3Pointer(s3ContextPointer, correlationId);
+            const parentContext = await resolveS3Pointer(s3ContextPointer, correlationId, true);
             
             // Merge the parent context with the current branch context (which contains 'currentItem').
             runtimeState.currentContextData = { ...parentContext, ...runtimeState.currentContextData };
@@ -282,7 +282,7 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
                     log_info('Branch step requires hydration. Creating temporary hydrated context.', { keys: Object.keys(currentItem) }, correlationId);
                     
                     const { _s3_output_pointer, ...restOfCurrentItem } = currentItem;
-                    const hydratedContent = await resolveS3Pointer(_s3_output_pointer, correlationId);
+                    const hydratedContent = await resolveS3Pointer(_s3_output_pointer, correlationId, true);
 
                     let mergedCurrentItem;
                     if (isObject(hydratedContent)) {

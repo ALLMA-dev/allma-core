@@ -107,6 +107,7 @@ export class ApiConstruct extends Construct {
         // --- API Lambda Functions ---
         const defaultLambdaTimeout = cdk.Duration.seconds(stageConfig.lambdaTimeouts.defaultSeconds);
         const adminApiLambdaMemory = stageConfig.lambdaMemorySizes.adminApiHandler;
+        const apiConcurrency = stageConfig.adminApi.concurrency;
 
         const commonEnvVars = {
             [ENV_VAR_NAMES.STAGE_NAME]: stageConfig.stage,
@@ -120,20 +121,19 @@ export class ApiConstruct extends Construct {
             AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
         };
 
-        const adminFlowManagementLambda = this.createNodejsLambda('AdminFlowManagementLambda', `AllmaAdminFlowMgmt-${stageConfig.stage}`, 'allma-admin/flow-management.js', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars);
-        const adminStepManagementLambda = this.createNodejsLambda('AdminStepManagementLambda', `AllmaAdminStepMgmt-${stageConfig.stage}`, 'allma-admin/step-management.js', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars);
-        const adminExecutionMonitoringLambda = this.createNodejsLambda('AdminExecutionMonitoringLambda', `AllmaAdminExecMonitor-${stageConfig.stage}`, 'allma-admin/execution-monitoring.js', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars);
-        const adminPromptTemplateManagementLambda = this.createNodejsLambda('AdminPromptTemplateManagementLambda', `AllmaAdminPromptTmplMgmt-${stageConfig.stage}`, 'allma-admin/prompt-template-management.js', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars);
-        const adminDashboardStatsLambda = this.createNodejsLambda('AdminDashboardStatsLambda', `AllmaAdminDashboardStats-${stageConfig.stage}`, 'allma-admin/dashboard-stats.js', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars);
+        const adminFlowManagementLambda = this.createNodejsLambda('AdminFlowManagementLambda', `AllmaAdminFlowMgmt-${stageConfig.stage}`, 'allma-admin/flow-management.js', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars, apiConcurrency);
+        const adminStepManagementLambda = this.createNodejsLambda('AdminStepManagementLambda', `AllmaAdminStepMgmt-${stageConfig.stage}`, 'allma-admin/step-management.js', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars, apiConcurrency);
+        const adminExecutionMonitoringLambda = this.createNodejsLambda('AdminExecutionMonitoringLambda', `AllmaAdminExecMonitor-${stageConfig.stage}`, 'allma-admin/execution-monitoring.js', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars, apiConcurrency);
+        const adminPromptTemplateManagementLambda = this.createNodejsLambda('AdminPromptTemplateManagementLambda', `AllmaAdminPromptTmplMgmt-${stageConfig.stage}`, 'allma-admin/prompt-template-management.js', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars, apiConcurrency);
+        const adminDashboardStatsLambda = this.createNodejsLambda('AdminDashboardStatsLambda', `AllmaAdminDashboardStats-${stageConfig.stage}`, 'allma-admin/dashboard-stats.js', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars, apiConcurrency);
         const adminFlowControlLambda = this.createNodejsLambda('AdminFlowControlLambda', `AllmaAdminFlowControl-${stageConfig.stage}`, 'allma-admin/flow-control.js', adminFlowControlLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, {
             ...commonEnvVars,
             [ENV_VAR_NAMES.ITERATIVE_STEP_PROCESSOR_LAMBDA_ARN]: iterativeStepProcessorLambda.functionArn,
             [ENV_VAR_NAMES.ALLMA_STATE_MACHINE_ARN]: flowOrchestratorStateMachine.stateMachineArn,
-        });
-        const adminImportExportLambda = this.createNodejsLambda('AdminImportExportLambda', `AllmaAdminImportExport-${stageConfig.stage}`, 'allma-admin/import-export.js', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars);
-        const adminMcpConnectionManagementLambda = this.createNodejsLambda('AdminMcpConnectionManagementLambda', `AllmaAdminMcpConnectionMgmt-${stageConfig.stage}`, 'allma-admin/mcp-connection-management.js', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars);
-
-        const adminAgentManagementLambda = this.createNodejsLambda('AdminAgentManagementLambda', `AllmaAdminAgentMgmt-${stageConfig.stage}`, 'allma-admin/agent-management.js', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars);
+        }, apiConcurrency);
+        const adminImportExportLambda = this.createNodejsLambda('AdminImportExportLambda', `AllmaAdminImportExport-${stageConfig.stage}`, 'allma-admin/import-export.js', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars, apiConcurrency);
+        const adminMcpConnectionManagementLambda = this.createNodejsLambda('AdminMcpConnectionManagementLambda', `AllmaAdminMcpConnectionMgmt-${stageConfig.stage}`, 'allma-admin/mcp-connection-management.js', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars, apiConcurrency);
+        const adminAgentManagementLambda = this.createNodejsLambda('AdminAgentManagementLambda', `AllmaAdminAgentMgmt-${stageConfig.stage}`, 'allma-admin/agent-management.js', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars, apiConcurrency);
 
         // --- API Gateway ---
         const adminApi = new AllmaAdminApi(this, 'AllmaAdminApi', {
@@ -241,6 +241,7 @@ export class ApiConstruct extends Construct {
     private createNodejsLambda(
         id: string, functionName: string, entry: string, role: iam.IRole,
         timeout: cdk.Duration, memorySize: number, environment: { [key: string]: string },
+        reservedConcurrentExecutions?: number
     ): lambdaNodejs.NodejsFunction {
         const architecture =
           this.stageConfig.lambdaArchitecture === LambdaArchitectureType.ARM_64
@@ -256,6 +257,7 @@ export class ApiConstruct extends Construct {
             timeout,
             memorySize,
             environment,
+            ...(reservedConcurrentExecutions !== undefined && { reservedConcurrentExecutions }),
             bundling: {
                 minify: true,
                 sourceMap: true,

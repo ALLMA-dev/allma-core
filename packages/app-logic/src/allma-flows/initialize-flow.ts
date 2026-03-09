@@ -79,7 +79,7 @@ export const handler: Handler<StartFlowExecutionInput, ProcessorOutput> = async 
     const effectiveFlowExecutionId = startInput.flowExecutionId || correlationId;
 
     // 2. Load the FlowDefinition and its metadata
-    const [flowDefinition, flowMetadata, agentVariables] = await Promise.all([ // MODIFIED
+    const [flowDefinition, flowMetadata, agentVariables] = await Promise.all([ 
       loadFlowDefinition(
         startInput.flowDefinitionId,
         startInput.flowVersion,
@@ -97,8 +97,8 @@ export const handler: Handler<StartFlowExecutionInput, ProcessorOutput> = async 
 
     if (s3Pointer && isS3Pointer(s3Pointer)) {
         log_info(`Initial context data is an S3 pointer. Resolving...`, { bucket: s3Pointer.bucket, key: s3Pointer.key }, correlationId);
-        // Use the standardized S3 utility to fetch the actual context data
-        initialContextData = await resolveS3Pointer(s3Pointer, correlationId);
+        // Core engine must fetch original object, ignoring display size limits
+        initialContextData = await resolveS3Pointer(s3Pointer, correlationId, true);
     }
 
     // Determine if logging is enabled for this specific run

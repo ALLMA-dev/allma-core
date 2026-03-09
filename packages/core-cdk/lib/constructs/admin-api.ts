@@ -254,6 +254,13 @@ export class AllmaAdminApi extends Construct {
       authorizer: adminAuthorizer,
     });
 
+    this.httpApi.addRoutes({
+      path: `${ALLMA_ADMIN_API_ROUTES.FLOW_EXECUTIONS}/{flowExecutionId}/step-record`,
+      methods: [apigwv2.HttpMethod.GET],
+      integration: executionMonitoringIntegration,
+      authorizer: adminAuthorizer,
+    });
+
     // Step Definitions
     const adminStepManagementIntegration = new HttpLambdaIntegration('AdminStepManagementIntegration', adminStepManagementLambda);
     this.httpApi.addRoutes({

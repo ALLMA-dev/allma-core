@@ -4,7 +4,8 @@ import {
     AdminApiResponse, PaginatedResponse, FlowExecutionSummary, FlowExecutionDetails,
     ALLMA_ADMIN_API_ROUTES,
     ALLMA_ADMIN_API_VERSION,
-    BranchStepsResponse
+    BranchStepsResponse,
+    AllmaStepExecutionRecord
 } from '@allma/core-types';
 import { EXECUTION_DETAIL_QUERY_KEY, EXECUTIONS_LIST_QUERY_KEY, BRANCH_STEPS_QUERY_KEY } from '../features/executions/constants';
 
@@ -67,6 +68,39 @@ export const useGetExecutionDetail = (executionId: string | undefined): UseQuery
     },
     enabled: !!executionId, // Only run if executionId is provided
   });
+};
+
+// ---- Fetch details for a specific step ----
+
+interface GetStepRecordDetailsParams {
+    flowExecutionId: string;
+    stepInstanceId: string;
+    attemptNumber?: number;
+    branchExecutionId?: string;
+}
+
+export const useGetStepRecordDetails = (params: GetStepRecordDetailsParams, isEnabled: boolean): UseQueryResult<AllmaStepExecutionRecord, Error> => {
+    return useQuery({
+        queryKey: ['stepRecordDetails', params],
+        queryFn: async () => {
+            const queryParams = new URLSearchParams({
+                stepInstanceId: params.stepInstanceId,
+            });
+            if (params.attemptNumber) queryParams.append('attemptNumber', String(params.attemptNumber));
+            if (params.branchExecutionId) queryParams.append('branchExecutionId', params.branchExecutionId);
+
+            const response = await axiosInstance.get<AdminApiResponse<AllmaStepExecutionRecord>>(
+                `/${ALLMA_ADMIN_API_VERSION}${ALLMA_ADMIN_API_ROUTES.FLOW_EXECUTION_STEP_RECORD(params.flowExecutionId)}?${queryParams.toString()}`
+            );
+
+            if (response.data.success) {
+                return response.data.data;
+            }
+            throw new Error(response.data.error?.message || 'Failed to fetch step record details');
+        },
+        enabled: isEnabled,
+        staleTime: Infinity, 
+    });
 };
 
 // ---- Fetch steps for a specific parallel branch execution ----

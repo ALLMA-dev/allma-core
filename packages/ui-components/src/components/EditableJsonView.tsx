@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useMantineColorScheme, JsonInput, Group, ActionIcon, Tooltip, Stack, Paper, Button, useMantineTheme, Code, Modal } from '@mantine/core';
+import { useMantineColorScheme, JsonInput, Group, ActionIcon, Tooltip, Stack, Paper, Button, useMantineTheme, Code, Modal, Alert, Text } from '@mantine/core';
 import { IconPencil, IconDeviceFloppy, IconX, IconArrowsMaximize } from '@tabler/icons-react';
 import { useDisclosure } from '@mantine/hooks';
 import JsonView from '@uiw/react-json-view';
@@ -147,6 +147,16 @@ export function EditableJsonView({ value, onChange, readOnly = false, displayVar
 
   const renderReadOnlyView = () => {
     if (typeof value === 'object' && value !== null) {
+      if (value._is_large_s3_payload && value.presignedUrl) {
+          return (
+             <Alert color="blue" title="Large Data Offloaded to S3">
+                <Text size="sm" mb="sm">{value.message}</Text>
+                <Button component="a" href={value.presignedUrl} target="_blank" rel="noopener noreferrer" size="xs" variant="light">
+                   Download / View File ({(value.sizeBytes / 1024 / 1024).toFixed(2)} MB)
+                </Button>
+             </Alert>
+          );
+      }
       try {
         // Attempt to serialize to ensure it's a valid JSON-like object before rendering.
         // This also handles potential circular references if they ever occur.

@@ -190,7 +190,7 @@ export class AllmaCompute extends Construct {
       actions: ['states:SendTaskSuccess', 'states:SendTaskFailure'],
       resources: ['*'],
     }));
-    this.resumeFlowLambda = this.createNodejsLambda('ResumeFlowLambda', `AllmaResumeFlow-${stageConfig.stage}`, 'allma-flows/resume-flow.js', resumeFlowLambdaRole, defaultLambdaTimeout, defaultLambdaMemory, commonEnvVars);
+    this.resumeFlowLambda = this.createNodejsLambda('ResumeFlowLambda', `AllmaResumeFlow-${stageConfig.stage}`, 'allma-flows/resume-flow.js', resumeFlowLambdaRole, defaultLambdaTimeout, defaultLambdaMemory, commonEnvVars, undefined, undefined, stageConfig.adminApi?.concurrency);
 
     // --- Execution Logger ---
     const executionLoggerRole = new iam.Role(this, 'ExecutionLoggerRole', {
@@ -245,7 +245,7 @@ export class AllmaCompute extends Construct {
     this.flowTriggerApiLambda = this.createNodejsLambda('FlowTriggerApiLambda', `AllmaFlowTriggerApi-${stageConfig.stage}`, 'allma-admin/flow-trigger.js', flowTriggerApiLambdaRole, defaultLambdaTimeout, defaultLambdaMemory, {
       ...commonEnvVars,
       [ENV_VAR_NAMES.ALLMA_FLOW_START_REQUEST_QUEUE_URL!]: props.flowStartRequestQueue?.queueUrl || '',
-    });
+    }, undefined, undefined, stageConfig.adminApi?.concurrency);
 
     const loggerArn = this.executionLoggerLambda.functionArn;
     const lambdasToUpdate = [this.initializeFlowLambda, this.finalizeFlowLambda, this.iterativeStepProcessorLambda];

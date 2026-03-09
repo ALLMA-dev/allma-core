@@ -189,7 +189,7 @@ export const handleParallelAggregation = async (
             if (finalizeOutput.finalContextDataS3Pointer) {
                 log_info(`Resolving S3 final context pointer for branch '${branchResult.branchId}' before aggregation.`, {}, correlationId);
                 try {
-                    const resolvedData = await resolveS3Pointer(finalizeOutput.finalContextDataS3Pointer, correlationId);
+                    const resolvedData = await resolveS3Pointer(finalizeOutput.finalContextDataS3Pointer, correlationId, true);
                     return { ...branchResult, output: resolvedData };
                 } catch (e: any) {
                     log_error(`Failed to resolve S3 pointer for branch '${branchResult.branchId}'. Treating as branch error.`, { error: e.message }, correlationId);
@@ -207,7 +207,7 @@ export const handleParallelAggregation = async (
         if (branchResult.output && isS3OutputPointerWrapper(branchResult.output)) {
              log_info(`Resolving direct S3 output pointer for branch '${branchResult.branchId}' before aggregation.`, {}, correlationId);
              try {
-                 const resolvedData = await resolveS3Pointer(branchResult.output._s3_output_pointer, correlationId);
+                 const resolvedData = await resolveS3Pointer(branchResult.output._s3_output_pointer, correlationId, true);
                  return { ...branchResult, output: resolvedData };
              } catch (e: any) {
                  return { branchId: branchResult.branchId, error: { errorName: 'S3OutputPointerResolutionError', errorMessage: e.message, isRetryable: false } };
