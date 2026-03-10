@@ -208,7 +208,18 @@ export const handleParallelAggregation = async (
              log_info(`Resolving direct S3 output pointer for branch '${branchResult.branchId}' before aggregation.`, {}, correlationId);
              try {
                  const resolvedData = await resolveS3Pointer(branchResult.output._s3_output_pointer, correlationId, true);
-                 return { ...branchResult, output: resolvedData };
+                 const { _s3_output_pointer, ...otherKeys } = branchResult.output;
+                 
+                 let finalOutput = resolvedData;
+                 if (Object.keys(otherKeys).length > 0) {
+                     if (typeof resolvedData === 'object' && resolvedData !== null && !Array.isArray(resolvedData)) {
+                         finalOutput = { ...resolvedData, ...otherKeys };
+                     } else {
+                         finalOutput = { content: resolvedData, ...otherKeys };
+                     }
+                 }
+                 
+                 return { ...branchResult, output: finalOutput };
              } catch (e: any) {
                  return { branchId: branchResult.branchId, error: { errorName: 'S3OutputPointerResolutionError', errorMessage: e.message, isRetryable: false } };
              }

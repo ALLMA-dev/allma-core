@@ -160,7 +160,19 @@ async function traverseSimplePath(
       log_debug(`Encountered S3 pointer at path segment '${String(segment)}'. Resolving...`, { path: traversedPath }, correlationId);
       const s3Pointer = currentContext._s3_output_pointer;
 
-      currentContext = await resolveS3Pointer(s3Pointer, correlationId);
+      const resolvedData = await resolveS3Pointer(s3Pointer, correlationId);
+      
+      // Preserve other keys if it's a mixed object (e.g. { _s3_output_pointer: {}, normalizedData: {} })
+      const { _s3_output_pointer, ...otherKeys } = currentContext;
+      if (Object.keys(otherKeys).length > 0) {
+        if (typeof resolvedData === 'object' && resolvedData !== null && !Array.isArray(resolvedData)) {
+            currentContext = { ...resolvedData, ...otherKeys };
+        } else {
+            currentContext = { content: resolvedData, ...otherKeys };
+        }
+      } else {
+        currentContext = resolvedData;
+      }
 
       events.push({
         type: MappingEventType.S3_POINTER_RESOLVE,
@@ -413,41 +425,11 @@ export function processStepOutput(
 ): MappingEvent[] {
   const events: MappingEvent[] = [];
 
-  if (isS3OutputPointerWrapper(stepOutputData)) {
-    log_info('Step output is an S3 pointer. Mappings will be handled accordingly.', {}, correlationId);
-    for (const [targetContextJsonPath, sourceJsonPath] of Object.entries(mappings)) {
-      // Check if the mapping intends to get the entire object.
-      if (sourceJsonPath === '$' || sourceJsonPath === '$.') {
-        // This mapping intends to map the entire offloaded object. Map the pointer.
-        const clonedPointer = structuredClone(stepOutputData);
-        setValueByJsonPath(contextData, targetContextJsonPath, clonedPointer, correlationId);
-        events.push({
-          type: MappingEventType.OUTPUT_MAPPING,
-          timestamp: new Date().toISOString(),
-          status: MappingEventStatus.INFO,
-          message: `Mapped entire S3 output pointer to context path '${targetContextJsonPath}'.`,
-          details: { sourceJsonPath, targetContextJsonPath, s3Pointer: clonedPointer._s3_output_pointer },
-        });
-      } else {
-        // This mapping attempts to access a sub-property of the offloaded object.
-        // This is not possible without rehydrating the data. We will map 'undefined' (i.e., do nothing) and warn.
-        const message = `Output mapping from '${sourceJsonPath}' cannot be resolved because the step output was offloaded to S3. Path '${targetContextJsonPath}' will not be set. To map the entire offloaded object, use '$' as the source path.`;
-        log_warn(message, {}, correlationId);
-        events.push({
-          type: MappingEventType.OUTPUT_MAPPING,
-          timestamp: new Date().toISOString(),
-          status: MappingEventStatus.WARN,
-          message,
-          details: { sourceJsonPath, targetContextJsonPath, reason: 'Source data is in S3' },
-        });
-        // We explicitly do not set a value, which results in 'undefined' for the target path.
-      }
-    }
-    return events;
-  }
+  const isWrapper = isS3OutputPointerWrapper(stepOutputData);
 
-  // Original logic for non-offloaded (or partially offloaded) payloads.
   for (const [targetContextJsonPath, sourceJsonPath] of Object.entries(mappings)) {
+    const isRootMapping = sourceJsonPath === '$' || sourceJsonPath === '$.';
+
     const event: MappingEvent = {
       type: MappingEventType.OUTPUT_MAPPING,
       timestamp: new Date().toISOString(),
@@ -457,15 +439,32 @@ export function processStepOutput(
     };
 
     try {
+      // Evaluate the JSONPath locally first to see if the property exists directly on the object.
+      // This allows extracting local properties (e.g. normalizedData) even from a mixed S3 wrapper object.
       const valueToApply = JSONPath({ path: sourceJsonPath, json: stepOutputData, wrap: false });
+      
       if (valueToApply !== undefined) {
         const clonedValueToApply =
           typeof valueToApply === 'object' && valueToApply !== null ? structuredClone(valueToApply) : valueToApply;
         setValueByJsonPath(contextData, targetContextJsonPath, clonedValueToApply, correlationId);
         event.details.resolvedValuePreview = JSON.stringify(clonedValueToApply)?.substring(0, 200);
+        
+        if (isWrapper && isRootMapping) {
+            event.status = MappingEventStatus.INFO;
+            event.message = `Mapped entire S3 output pointer to context path '${targetContextJsonPath}'.`;
+            if (clonedValueToApply?._s3_output_pointer) {
+                event.details.s3Pointer = clonedValueToApply._s3_output_pointer;
+            }
+        }
       } else {
-        event.status = MappingEventStatus.WARN;
-        event.message = `Source path '${sourceJsonPath}' from step output resolved to undefined. No value applied to context path '${targetContextJsonPath}'.`;
+        if (isWrapper && !isRootMapping) {
+            event.status = MappingEventStatus.WARN;
+            event.message = `Output mapping from '${sourceJsonPath}' resolved to undefined. Note: The step output contains an S3 pointer. Sub-properties of offloaded data cannot be extracted during output mapping. Map the entire object using '$' instead.`;
+            event.details.reason = 'Source data is in S3 or path is invalid';
+        } else {
+            event.status = MappingEventStatus.WARN;
+            event.message = `Source path '${sourceJsonPath}' from step output resolved to undefined. No value applied to context path '${targetContextJsonPath}'.`;
+        }
         log_warn(event.message, {}, correlationId);
       }
     } catch (e: any) {
