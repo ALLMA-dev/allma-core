@@ -31,7 +31,6 @@ async function hydrateFlow(flow: FlowDefinition | undefined): Promise<FlowDefini
             const stepDefFromDb = await StepDefinitionService.get(stepInstance.stepDefinitionId);
 
             if (stepDefFromDb) {
-                // Destructure the step definition to separate its metadata from the base properties that should be inherited.
                 const { 
                     id, 
                     name, 
@@ -42,13 +41,7 @@ async function hydrateFlow(flow: FlowDefinition | undefined): Promise<FlowDefini
                     ...baseDefProps 
                 } = stepDefFromDb;
 
-                // Merge the base definition properties with the instance-specific overrides.
-                // The `stepInstance` properties will correctly overwrite the base properties.
                 const hydratedStep = deepMerge(baseDefProps, stepInstance);
-                
-                // The resulting object now structurally matches StepInstance.
-                // We use `as unknown as StepInstance` to bypass complex type inference issues,
-                // as we are confident in the structural integrity of the resulting object.
                 hydratedFlow.steps[stepId] = hydratedStep as unknown as StepInstance;
             }
         }
@@ -129,8 +122,11 @@ const customUpdateVersion = async (id: string, version: number, data: FlowDefini
     // 3. Hydrate the old version for an accurate diff in the side-effect services.
     const hydratedOldVersion = await hydrateFlow(oldVersion);
     
-    // 4. Pass the HYDRATED versions to the sync services.
-    await EmailMappingService.syncMappingsForFlowVersion(id, hydratedOldVersion, hydratedNewVersion);
+    // 4. Pass the HYDRATED versions to the sync services ONLY if this version is published
+    // Drafts should not hijack active email mapping triggers or scheduler events.
+    if (persistedVersion.isPublished) {
+        await EmailMappingService.syncMappingsForFlowVersion(id, hydratedOldVersion, hydratedNewVersion);
+    }
     await ScheduleService.syncSchedulesForFlowVersion(id, hydratedOldVersion, hydratedNewVersion);
 
     // 5. Return the persisted (un-hydrated) version, which is the source of truth in the DB.
@@ -250,8 +246,12 @@ export const FlowDefinitionService = {
         }
 
         const hydratedToDelete = await hydrateFlow(versionToDelete);
-        if (hydratedToDelete) {
+        // Safety check: a version about to be deleted should theoretically never be published 
+        // due to safeguards in the versioned entity manager, but we verify anyway.
+        if (hydratedToDelete && hydratedToDelete.isPublished) {
             await EmailMappingService.syncMappingsForFlowVersion(id, hydratedToDelete, undefined);
+        }
+        if (hydratedToDelete) {
             await ScheduleService.syncSchedulesForFlowVersion(id, hydratedToDelete, undefined);
         }
         return entityManager.deleteVersion(id, version);
@@ -273,7 +273,9 @@ export const FlowDefinitionService = {
     async createFlow(input: CreateFlowInput & { emailTriggerAddress?: string }): Promise<{ metadata: FlowMetadataStorageItem, version: FlowDefinition }> {
         const { metadata, version } = await entityManager.createMasterWithInitialVersion(uuidv4(), input);
         const hydratedVersion = await hydrateFlow(version);
-        await EmailMappingService.syncMappingsForFlowVersion(metadata.id, undefined, hydratedVersion);
+        if (version.isPublished) {
+            await EmailMappingService.syncMappingsForFlowVersion(metadata.id, undefined, hydratedVersion);
+        }
         await ScheduleService.syncSchedulesForFlowVersion(metadata.id, undefined, hydratedVersion);
         return { metadata, version };
     },
@@ -285,7 +287,9 @@ export const FlowDefinitionService = {
         const createInput: CreateFlowInput = { name: String(flow.name), description: flow.description };
         const { metadata, version } = await entityManager.createMasterWithInitialVersion(flow.id, createInput, flow);
         const hydratedVersion = await hydrateFlow(version);
-        await EmailMappingService.syncMappingsForFlowVersion(metadata.id, undefined, hydratedVersion);
+        if (version.isPublished) {
+            await EmailMappingService.syncMappingsForFlowVersion(metadata.id, undefined, hydratedVersion);
+        }
         await ScheduleService.syncSchedulesForFlowVersion(metadata.id, undefined, hydratedVersion);
         return { metadata, version };
     },

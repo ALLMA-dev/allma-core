@@ -69,7 +69,8 @@ export const EmailMappingService = {
               emailAddress: oldMapping.renderedEmailAddress,
               keyword: oldMapping.keyword,
             },
-            ConditionExpression: 'flowDefinitionId = :flowId',
+            // Idempotent delete: If the item is already missing (e.g. manually cleaned DB), do not fail the transaction.
+            ConditionExpression: 'attribute_not_exists(emailAddress) OR flowDefinitionId = :flowId',
             ExpressionAttributeValues: { ':flowId': flowId },
           },
         });
@@ -108,24 +109,50 @@ export const EmailMappingService = {
       const command = new TransactWriteCommand({
         TransactItems: transactions,
       });
+      
       try {
         await ddbDocClient.send(command);
       } catch (error: any) {
-        if (error.name === 'TransactionCanceledException' && error.message.includes('[ConditionalCheckFailed]')) {
-          // A conditional check failed. This now unambiguously means a conflict with another flow.
-          // We can infer the conflicting item from any of the PUT transactions.
-          const failedPut = transactions.find((t) => t.Put);
-          if (failedPut) {
-            const item = failedPut.Put.Item;
-            throw new PermanentStepError(
-              `Email address conflict: The email trigger '${item.emailAddress}' with keyword '${item.keyword}' is already in use by another published flow. Please use a different email address, keyword, or unpublish the existing flow.`,
-              { conflictingEmail: item.emailAddress, conflictingKeyword: item.keyword },
-            );
-          }
-          // Fallback if we can't determine the conflicting item.
-          throw new Error(`DynamoDB transaction failed due to a conditional check violation: ${error.message}`);
+        if (error.name === 'TransactionCanceledException') {
+            let failedIndex = -1;
+            
+            // 1. Try to extract the exact index from the structured array (AWS SDK v3 standard)
+            if (Array.isArray(error.CancellationReasons)) {
+                failedIndex = error.CancellationReasons.findIndex((r: any) => r.Code === 'ConditionalCheckFailed');
+            } 
+            // 2. Fallback to parsing the bracketed string in the error message (e.g., "[None, ConditionalCheckFailed]")
+            else if (error.message.includes('[')) {
+                const match = error.message.match(/\[(.*?)\]/);
+                if (match) {
+                    const reasons = match[1].split(',').map((s: string) => s.trim());
+                    failedIndex = reasons.indexOf('ConditionalCheckFailed');
+                }
+            }
+
+            // If we found which exact transaction item failed, provide a highly descriptive error
+            if (failedIndex !== -1 && transactions[failedIndex]) {
+                const failedTx = transactions[failedIndex];
+                
+                if (failedTx.Put) {
+                    const item = failedTx.Put.Item;
+                    throw new PermanentStepError(
+                        `Email address conflict: The email trigger '${item.emailAddress}' (keyword: '${item.keyword}') is already mapped to another published flow in this environment. You cannot have two flows listening to the exact same email address and keyword.`,
+                        { conflictingEmail: item.emailAddress, conflictingKeyword: item.keyword }
+                    );
+                }
+                if (failedTx.Delete) {
+                    const key = failedTx.Delete.Key;
+                    throw new PermanentStepError(
+                        `Email trigger desync: Failed to remove mapping because '${key.emailAddress}' is currently owned by a completely different flow.`,
+                        { conflictingEmail: key.emailAddress }
+                    );
+                }
+            }
+
+            // Generic fallback if we can't parse the index
+            throw new Error(`DynamoDB transaction failed due to a conditional check violation. Please check for conflicting email triggers across your flows. Original error: ${error.message}`);
         }
-        // Re-throw other transaction errors
+        // Re-throw any other database/network errors
         throw error;
       }
     }

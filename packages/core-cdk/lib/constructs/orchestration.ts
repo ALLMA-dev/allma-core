@@ -342,10 +342,19 @@ export class AllmaOrchestration extends Construct {
       comment: 'Extracts the final result from $.runtimeState.currentContextData.output to be the sub-flow output.',
       outputPath: '$.runtimeState.currentContextData.output',
     });
+
+    const extractS3ContextPointer = new sfn.Pass(this, 'ExtractS3ContextPointer', {
+      comment: 'Extracts the S3 context pointer if the context was offloaded.',
+      parameters: {
+          '_branch_context_s3_pointer.$': '$.runtimeState.currentContextData._s3_context_pointer'
+      },
+    });
+
     const returnEmptyOutput = new sfn.Pass(this, 'ReturnEmptyOutput', {
         comment: 'Returns an empty object as the branch output since no specific "output" property was set.',
         result: sfn.Result.fromObject({}),
     });
+    
     const formatLogicalFailureState = new sfn.Pass(this, 'FormatLogicalFailure', {
         parameters: {
             'Error.$': '$.runtimeState.errorInfo.errorName',
@@ -361,9 +370,11 @@ export class AllmaOrchestration extends Construct {
 
     formatLogicalFailureState.next(branchLogicalFailedState);
     extractSpecificOutput.next(branchSucceededState);
+    extractS3ContextPointer.next(branchSucceededState);
     returnEmptyOutput.next(branchSucceededState);
 
     checkFinalOutputChoice
+        .when(sfn.Condition.isPresent('$.runtimeState.currentContextData._s3_context_pointer'), extractS3ContextPointer)
         .when(sfn.Condition.isPresent('$.runtimeState.currentContextData.output'), extractSpecificOutput)
         .otherwise(returnEmptyOutput);
 
