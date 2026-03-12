@@ -1,7 +1,7 @@
 import React from 'react';
 import { useRoutes, Navigate } from 'react-router-dom';
 import { Container, Paper, Title, Button, Loader, Group, Text } from '@mantine/core';
-import { IconAlertCircle, IconGauge, IconListDetails, IconActivity, IconPrompt, IconTemplate, IconPlugConnected, IconUserCog } from '@tabler/icons-react';
+import { IconAlertCircle, IconGauge, IconListDetails, IconActivity, IconPrompt, IconTemplate, IconPlugConnected, IconUserCog, IconTool } from '@tabler/icons-react';
 import { useAuthenticator, Authenticator } from '@aws-amplify/ui-react';
 import { ADMIN_COGNITO_GROUP_NAME } from '@allma/core-sdk';
 import { useAdminAuth } from './hooks/useAdminAuth';
@@ -28,6 +28,7 @@ import { McpConnectionEditPage } from './features/mcp-connections/McpConnectionE
 import { AgentListPage } from './features/agents/AgentListPage.js';
 import { AgentCreatePage } from './features/agents/AgentCreatePage.js';
 import { AgentEditPage } from './features/agents/AgentEditPage.js';
+import { S3ResolverPage } from './features/tools/S3ResolverPage.js';
 
 interface AuthenticatedAppProps {
   plugins: AllmaPlugin[];
@@ -81,6 +82,7 @@ function ProtectedApp({ plugins }: AuthenticatedAppProps) {
     { label: 'Step Definitions', path: '/step-definitions', icon: IconTemplate, permission: AdminPermission.DEFINITIONS_READ },
     { label: 'MCP Connections', path: '/mcp-connections', icon: IconPlugConnected, permission: AdminPermission.DEFINITIONS_READ },
     { label: 'Executions', path: '/executions', icon: IconActivity, permission: AdminPermission.EXECUTIONS_READ },
+    { label: 'S3 Resolver', path: '/tools/s3-resolver', icon: IconTool, permission: AdminPermission.EXECUTIONS_READ },
   ];
 
   const pluginNavItems = plugins.flatMap(p => p.getNavItems ? p.getNavItems() : []);
@@ -116,6 +118,7 @@ function ProtectedApp({ plugins }: AuthenticatedAppProps) {
       { path: 'prompts/create', element: <PromptCreatePage /> },
       { path: 'prompts/edit/:promptId/:versionNumber', element: <PromptEditPage /> },
       { path: 'prompts/compare/:promptId/:leftVersion/:rightVersion', element: <PromptComparePage /> },
+      { path: '/tools/s3-resolver', element: <S3ResolverPage /> },
     ];
 
     return useRoutes([...coreRoutes, ...pluginRoutes, { path: '*', element: <Navigate to="/dashboard" replace /> }]);

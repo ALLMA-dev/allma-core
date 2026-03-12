@@ -402,7 +402,7 @@ export const executeStandardStep = async (
 
   let outputMappingEvents: MappingEvent[] = [];
   if (Object.keys(effectiveOutputMappings).length > 0 && finalOutputForMapping) {
-    outputMappingEvents = processStepOutput(effectiveOutputMappings, finalOutputForMapping, runtimeState.currentContextData, correlationId);
+    outputMappingEvents = await processStepOutput(effectiveOutputMappings, finalOutputForMapping, runtimeState.currentContextData, correlationId);
     log_debug('Context data after output mapping', { contextKeys: Object.keys(runtimeState.currentContextData) }, correlationId);
   }
 

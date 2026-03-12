@@ -156,7 +156,7 @@ export async function handleSyncFlowResult(
             : stepInstanceConfig.outputMappings;
 
     // Merge the sub-flow's context into the parent's context
-    const outputMappingEvents = processStepOutput(effectiveOutputMappings, subFlowContext, runtimeState.currentContextData, correlationId);
+    const outputMappingEvents = await processStepOutput(effectiveOutputMappings, subFlowContext, runtimeState.currentContextData, correlationId);
 
     // Log the completion of the synchronous step itself
     const stepEndTime = new Date().toISOString();

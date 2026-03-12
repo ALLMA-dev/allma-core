@@ -1,6 +1,6 @@
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
-import { AdminPermission } from '@allma/core-types';
-import { withAdminAuth, AuthContext, createApiGatewayResponse, buildErrorResponse, buildSuccessResponse, log_error } from '@allma/core-sdk';
+import { AdminPermission, S3PointerSchema } from '@allma/core-types';
+import { withAdminAuth, AuthContext, createApiGatewayResponse, buildErrorResponse, buildSuccessResponse, log_error, resolveS3Pointer } from '@allma/core-sdk';
 import { ApiRouter } from './utils/api-router.js';
 import { ExecutionMonitoringService } from './services/execution-monitoring.service.js';
 
@@ -96,6 +96,27 @@ router.get('/flow-executions/{flowExecutionId}/branch-steps', async (event, auth
         offsetNum
     );
     return createApiGatewayResponse(200, buildSuccessResponse(branchSteps), correlationId);
+});
+
+// Route for resolving S3 pointers directly
+// POST /tools/resolve-s3
+router.post('/tools/resolve-s3', async (event, authContext) => {
+    const correlationId = event.requestContext.requestId;
+    try {
+        const body = JSON.parse(event.body || '{}');
+        const validation = S3PointerSchema.safeParse(body.pointer);
+        
+        if (!validation.success) {
+            return createApiGatewayResponse(400, buildErrorResponse('Missing or invalid S3 pointer', 'VALIDATION_ERROR', validation.error.flatten()), correlationId);
+        }
+        
+        // Use skipSizeLimit = false to protect API gateway limits; it will return a presigned URL if over 4MB.
+        const data = await resolveS3Pointer(validation.data, correlationId, false);
+        return createApiGatewayResponse(200, buildSuccessResponse(data), correlationId);
+    } catch (e: any) {
+        log_error('Failed to resolve S3 pointer via API', { error: e.message }, correlationId);
+        return createApiGatewayResponse(500, buildErrorResponse('Failed to resolve S3 pointer', 'SERVER_ERROR', { error: e.message }), correlationId);
+    }
 });
 
 /**

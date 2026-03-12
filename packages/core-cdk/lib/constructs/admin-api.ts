@@ -260,6 +260,14 @@ export class AllmaAdminApi extends Construct {
       integration: executionMonitoringIntegration,
       authorizer: adminAuthorizer,
     });
+    
+    // System Tools / S3 Resolver
+    this.httpApi.addRoutes({
+        path: ALLMA_ADMIN_API_ROUTES.SYSTEM_TOOLS_RESOLVE_S3,
+        methods: [apigwv2.HttpMethod.POST],
+        integration: executionMonitoringIntegration,
+        authorizer: adminAuthorizer,
+    });
 
     // Step Definitions
     const adminStepManagementIntegration = new HttpLambdaIntegration('AdminStepManagementIntegration', adminStepManagementLambda);

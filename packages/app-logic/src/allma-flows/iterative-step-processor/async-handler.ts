@@ -30,11 +30,11 @@ const CONTINUATION_TABLE_NAME = process.env[ENV_VAR_NAMES.ALLMA_CONTINUATION_TAB
  * @param flowDef The loaded definition of the flow.
  * @returns The updated runtime state with the resume/polling data merged into the context.
  */
-export const handleAsyncResume = (
+export const handleAsyncResume = async (
     event: ProcessorInput,
     runtimeState: FlowRuntimeState,
     flowDef: FlowDefinition,
-): FlowRuntimeState => {
+): Promise<FlowRuntimeState> => {
     const { resumePayload, pollingResult } = event;
     const correlationId = runtimeState.flowExecutionId;
     const currentStepId = runtimeState.currentStepInstanceId;
@@ -55,7 +55,7 @@ export const handleAsyncResume = (
         if (stepInstanceConfig.outputMappings) {
             // Treat the resumePayload as the "output" of the wait step and use the generic
             // data mapper to merge it into the main context according to the defined mappings.
-            processStepOutput(
+            await processStepOutput(
                 stepInstanceConfig.outputMappings,
                 resumePayload,
                 runtimeState.currentContextData,
@@ -80,7 +80,7 @@ export const handleAsyncResume = (
 
         // Polling steps might also have output mappings.
         if (stepInstanceConfig.outputMappings) {
-            processStepOutput(stepInstanceConfig.outputMappings, output, runtimeState.currentContextData, correlationId);
+            await processStepOutput(stepInstanceConfig.outputMappings, output, runtimeState.currentContextData, correlationId);
         } else {
             // Fallback for older polling logic
             runtimeState.currentContextData[`${currentStepId}_polling_output`] = output;

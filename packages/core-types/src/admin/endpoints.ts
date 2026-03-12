@@ -66,6 +66,9 @@ export const ALLMA_ADMIN_API_ROUTES = {
   IMPORT: '/allma/import',
   EXPORT: '/allma/export',
 
+  // System Tools
+  SYSTEM_TOOLS_RESOLVE_S3: '/allma/tools/resolve-s3',
+
   // MCP Connections
   MCP_CONNECTIONS: '/allma/mcp-connections',
   MCP_CONNECTION_DETAIL: (connectionId: string) => `/allma/mcp-connections/${connectionId}`,

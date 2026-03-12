@@ -70,6 +70,13 @@ export class ApiConstruct extends Construct {
         emailToFlowMappingTable.grantReadWriteData(adminApiLambdaRole); // NEW
         executionTracesBucket.grantRead(adminApiLambdaRole);
 
+        // Allow fetching arbitrary S3 objects via the S3 Pointer Resolver tool
+        adminApiLambdaRole.addToPolicy(new iam.PolicyStatement({
+            effect: iam.Effect.ALLOW,
+            actions: ['s3:GetObject'],
+            resources: ['*'],
+        }));
+
         // Grant permissions for EventBridge Scheduler
         adminApiLambdaRole.addToPolicy(new iam.PolicyStatement({
             actions: ['scheduler:CreateSchedule', 'scheduler:UpdateSchedule', 'scheduler:DeleteSchedule', 'scheduler:GetSchedule'],

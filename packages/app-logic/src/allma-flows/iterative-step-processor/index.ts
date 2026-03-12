@@ -77,7 +77,7 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
             if (!flowDef) {
                 flowDef = await loadFlowDefinition(runtimeState.flowDefinitionId, runtimeState.flowDefinitionVersion, correlationId);
             }
-            runtimeState = handleAsyncResume(originalEvent, runtimeState, flowDef);
+            runtimeState = await handleAsyncResume(originalEvent, runtimeState, flowDef);
 
             const completedStepConfig = flowDef.steps[runtimeState.currentStepInstanceId!];
             const { nextStepId } = await resolveNextStep(completedStepConfig, runtimeState);

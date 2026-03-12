@@ -138,6 +138,32 @@ async function traverseSimplePath(
 
   let currentContext: any = data;
 
+  // Hydrate root context if necessary to satisfy immediate queries
+  if (isS3OutputPointerWrapper(currentContext) && shouldHydrate) {
+      log_debug(`Root context is an S3 pointer wrapper. Resolving before traversal.`, {}, correlationId);
+      const s3Pointer = currentContext._s3_output_pointer;
+      const resolvedData = await resolveS3Pointer(s3Pointer, correlationId);
+      
+      const { _s3_output_pointer, ...otherKeys } = currentContext;
+      if (Object.keys(otherKeys).length > 0) {
+        if (typeof resolvedData === 'object' && resolvedData !== null && !Array.isArray(resolvedData)) {
+            currentContext = { ...resolvedData, ...otherKeys };
+        } else {
+            currentContext = { content: resolvedData, ...otherKeys };
+        }
+      } else {
+        currentContext = resolvedData;
+      }
+      
+      events.push({
+        type: MappingEventType.S3_POINTER_RESOLVE,
+        timestamp: new Date().toISOString(),
+        status: MappingEventStatus.INFO,
+        message: `Resolved root S3 pointer for path traversal.`,
+        details: { s3Pointer },
+      });
+  }
+
   // Traverse the path segment by segment starting from index 1 (after '$')
   for (let i = 1; i < pathSegments.length; i++) {
     const segment = pathSegments[i];
@@ -417,15 +443,17 @@ export async function prepareStepInput(
  * @param correlationId Optional correlation ID for logging.
  * @returns An array of mapping events generated during the process.
  */
-export function processStepOutput(
+export async function processStepOutput(
   mappings: StepOutputMapping,
   stepOutputData: Record<string, any>,
   contextData: Record<string, any>,
   correlationId?: string,
-): MappingEvent[] {
+): Promise<MappingEvent[]> {
   const events: MappingEvent[] = [];
 
   const isWrapper = isS3OutputPointerWrapper(stepOutputData);
+  let hydratedStepOutputData: any = null;
+  let didHydrateRoot = false;
 
   for (const [targetContextJsonPath, sourceJsonPath] of Object.entries(mappings)) {
     const isRootMapping = sourceJsonPath === '$' || sourceJsonPath === '$.';
@@ -439,10 +467,37 @@ export function processStepOutput(
     };
 
     try {
-      // Evaluate the JSONPath locally first to see if the property exists directly on the object.
-      // This allows extracting local properties (e.g. normalizedData) even from a mixed S3 wrapper object.
-      const valueToApply = JSONPath({ path: sourceJsonPath, json: stepOutputData, wrap: false });
-      
+      let valueToApply;
+      let mappingEvents: MappingEvent[] = [];
+
+      if (isRootMapping) {
+         // Direct assignment. We preserve the pointer unless mapped via path properties later
+         valueToApply = stepOutputData;
+      } else {
+         let dataToTraverse = stepOutputData;
+         
+         if (isWrapper) {
+            if (!didHydrateRoot) {
+                log_debug(`Output mapping requires properties from offloaded data. Hydrating root S3 pointer.`, {}, correlationId);
+                const resolvedData = await resolveS3Pointer(stepOutputData._s3_output_pointer, correlationId, true);
+                
+                if (typeof resolvedData === 'object' && resolvedData !== null && !Array.isArray(resolvedData)) {
+                     hydratedStepOutputData = { ...resolvedData, ...stepOutputData };
+                } else {
+                     hydratedStepOutputData = { content: resolvedData, ...stepOutputData };
+                }
+                didHydrateRoot = true;
+            }
+            dataToTraverse = hydratedStepOutputData;
+         }
+
+         // Hydrate nested pointers accurately using the smart resolver.
+         const result = await getSmartValueByJsonPath(sourceJsonPath, dataToTraverse, true, correlationId);
+         valueToApply = result.value;
+         mappingEvents = result.events;
+         events.push(...mappingEvents);
+      }
+
       if (valueToApply !== undefined) {
         const clonedValueToApply =
           typeof valueToApply === 'object' && valueToApply !== null ? structuredClone(valueToApply) : valueToApply;
@@ -459,8 +514,8 @@ export function processStepOutput(
       } else {
         if (isWrapper && !isRootMapping) {
             event.status = MappingEventStatus.WARN;
-            event.message = `Output mapping from '${sourceJsonPath}' resolved to undefined. Note: The step output contains an S3 pointer. Sub-properties of offloaded data cannot be extracted during output mapping. Map the entire object using '$' instead.`;
-            event.details.reason = 'Source data is in S3 or path is invalid';
+            event.message = `Output mapping from '${sourceJsonPath}' resolved to undefined even after hydrating offloaded data.`;
+            event.details.reason = 'Path is invalid or property does not exist in hydrated data.';
         } else {
             event.status = MappingEventStatus.WARN;
             event.message = `Source path '${sourceJsonPath}' from step output resolved to undefined. No value applied to context path '${targetContextJsonPath}'.`;

@@ -297,7 +297,7 @@ export const handleParallelAggregation = async (
 
     let outputMappingEvents: MappingEvent[] = [];
     if (Object.keys(effectiveOutputMappings).length > 0 && finalOutputForMapping) {
-        outputMappingEvents = processStepOutput(effectiveOutputMappings, finalOutputForMapping, runtimeState.currentContextData, correlationId);
+        outputMappingEvents = await processStepOutput(effectiveOutputMappings, finalOutputForMapping, runtimeState.currentContextData, correlationId);
     }
     
     const { nextStepId, transitionDetails } = await resolveNextStep(stepInstanceConfig, runtimeState);
