@@ -141,7 +141,7 @@ export async function handleSyncFlowResult(
     let subFlowContext: Record<string, any>;
     if (finalOutputFromSubFlow.finalContextDataS3Pointer) {
         log_info('Sub-flow output is an S3 pointer. Resolving context data...', {}, correlationId);
-        subFlowContext = await resolveS3Pointer(finalOutputFromSubFlow.finalContextDataS3Pointer, correlationId, true);
+        subFlowContext = await resolveS3Pointer(finalOutputFromSubFlow.finalContextDataS3Pointer, correlationId);
     } else if (finalOutputFromSubFlow.finalContextData) {
         subFlowContext = finalOutputFromSubFlow.finalContextData;
     } else {

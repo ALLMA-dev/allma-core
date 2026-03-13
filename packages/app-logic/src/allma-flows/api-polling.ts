@@ -29,7 +29,7 @@ export const handler: Handler<PollingLambdaInput, PollingLambdaOutput> = async (
     const s3ContextPointer = (flowContext.currentContextData as any)._s3_context_pointer;
     if (s3ContextPointer && isS3Pointer(s3ContextPointer)) {
         log_info('Hydrating offloaded context in api-polling.', {}, correlationId);
-        const fullContext = await resolveS3Pointer(s3ContextPointer, correlationId, true);
+        const fullContext = await resolveS3Pointer(s3ContextPointer, correlationId);
         flowContext.currentContextData = { ...fullContext, ...flowContext.currentContextData };
         delete (flowContext.currentContextData as any)._s3_context_pointer;
     }

@@ -10,7 +10,7 @@ export async function hydrateInputFromS3Pointers(data: any, correlationId?: stri
     }
     if (isS3OutputPointerWrapper(data)) {
       // Core engine operations using hydration inherently need full data without size limits 
-      const resolvedData = await resolveS3Pointer(data._s3_output_pointer, correlationId, true);
+      const resolvedData = await resolveS3Pointer(data._s3_output_pointer, correlationId);
       const { _s3_output_pointer, ...otherKeys } = data;
       
       let mergedData = resolvedData;

@@ -142,6 +142,7 @@ async function traverseSimplePath(
   if (isS3OutputPointerWrapper(currentContext) && shouldHydrate) {
       log_debug(`Root context is an S3 pointer wrapper. Resolving before traversal.`, {}, correlationId);
       const s3Pointer = currentContext._s3_output_pointer;
+      
       const resolvedData = await resolveS3Pointer(s3Pointer, correlationId);
       
       const { _s3_output_pointer, ...otherKeys } = currentContext;
@@ -479,7 +480,7 @@ export async function processStepOutput(
          if (isWrapper) {
             if (!didHydrateRoot) {
                 log_debug(`Output mapping requires properties from offloaded data. Hydrating root S3 pointer.`, {}, correlationId);
-                const resolvedData = await resolveS3Pointer(stepOutputData._s3_output_pointer, correlationId, true);
+                const resolvedData = await resolveS3Pointer(stepOutputData._s3_output_pointer, correlationId);
                 
                 if (typeof resolvedData === 'object' && resolvedData !== null && !Array.isArray(resolvedData)) {
                      hydratedStepOutputData = { ...resolvedData, ...stepOutputData };

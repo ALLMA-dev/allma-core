@@ -58,7 +58,8 @@ async function resolveFullStepRecords(
             if (cumulativeSize > MAX_CUMULATIVE_SIZE) return { record, fullRecordFromS3: null, skipped: true };
             
             try {
-                const fullRecordFromS3 = await resolveS3Pointer(record.fullRecordS3Pointer, correlationId); // Do not skip size limit on individual objects
+                // EXPLICIT FALSE: Do not skip size limit on UI logs endpoints
+                const fullRecordFromS3 = await resolveS3Pointer(record.fullRecordS3Pointer, correlationId, false); 
                 return { record, fullRecordFromS3 };
             } catch (e: any) {
                 log_error(`Failed to resolve S3 pointer for step record`, { pointer: record.fullRecordS3Pointer, error: e.message }, correlationId);
@@ -186,8 +187,8 @@ export const ExecutionMonitoringService = {
         let resolvedFinalContextData: Record<string, any> | undefined;
         if (metadata.finalContextDataS3Pointer) {
             try {
-                // If it's larger than the 4MB limit, resolveS3Pointer handles generating a wrapper object + presigned url automatically
-                resolvedFinalContextData = await resolveS3Pointer(metadata.finalContextDataS3Pointer, correlationId);
+                // EXPLICIT FALSE: Enforce 4MB limit to protect the API Gateway endpoint
+                resolvedFinalContextData = await resolveS3Pointer(metadata.finalContextDataS3Pointer, correlationId, false);
             } catch (e: any) {
                 log_error(`Failed to resolve final context S3 pointer`, { pointer: metadata.finalContextDataS3Pointer, error: e.message }, correlationId);
                 (metadata as any)._s3_error_final_context = `Failed to load: ${e.message}`;
@@ -220,7 +221,8 @@ export const ExecutionMonitoringService = {
 
         if (stepToFetch.fullRecordS3Pointer) {
             try {
-                const fullRecordFromS3 = await resolveS3Pointer(stepToFetch.fullRecordS3Pointer, correlationId);
+                // EXPLICIT FALSE: Enforce 4MB limit to protect the API Gateway endpoint
+                const fullRecordFromS3 = await resolveS3Pointer(stepToFetch.fullRecordS3Pointer, correlationId, false);
                 
                 if (fullRecordFromS3?._is_large_s3_payload) {
                     return { 

@@ -18,8 +18,9 @@ const PAYLOAD_OFFLOAD_THRESHOLD_BYTES = process.env[ENV_VAR_NAMES.MAX_CONTEXT_DA
  * Fetches the actual data from an S3 pointer.
  * It inspects the S3 object's Content-Type to determine how to process the data.
  * If the object exceeds 4MB and skipSizeLimit is false, it returns a presigned URL.
+ * Defaults skipSizeLimit to true, as most calls are internal engine hydration. UI endpoints must explicitly pass false.
  */
-export async function resolveS3Pointer(s3Pointer: S3Pointer, correlationId?: string, skipSizeLimit: boolean = false): Promise<any> {
+export async function resolveS3Pointer(s3Pointer: S3Pointer, correlationId?: string, skipSizeLimit: boolean = true): Promise<any> {
     log_info('Resolving S3 data pointer', { s3Pointer }, correlationId);
     try {
         const command = new GetObjectCommand({

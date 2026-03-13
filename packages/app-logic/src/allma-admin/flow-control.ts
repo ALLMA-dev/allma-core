@@ -125,7 +125,7 @@ const handleStatefulRedrive = async (event: APIGatewayProxyEventV2, authContext:
             }
 
             // Stateful redrive needs the real payload, ignore sizing limits
-            const fullStepRecord = await resolveS3Pointer(targetStepRecord.fullRecordS3Pointer, correlationId, true);
+            const fullStepRecord = await resolveS3Pointer(targetStepRecord.fullRecordS3Pointer, correlationId);
 
             if (!fullStepRecord.inputMappingContext) {
                  return createApiGatewayResponse(404, buildErrorResponse(`The detailed log for step '${startFromStepInstanceId}' is missing the required 'inputMappingContext'. Cannot redrive from this step.`, 'NOT_FOUND'), correlationId);
@@ -229,7 +229,7 @@ const handleSandboxStep = async (event: APIGatewayProxyEventV2, authContext: Aut
             try {
                 log_debug('Fetching full debug log from S3 for sandbox execution.', { pointer: debugLogPointer }, correlationId);
                 // True to skip size limits for sandboxed operations that just run the UI representation
-                fullDebugLog = (await resolveS3Pointer(debugLogPointer, correlationId, true)) as LogStepExecutionRecord;
+                fullDebugLog = (await resolveS3Pointer(debugLogPointer, correlationId)) as LogStepExecutionRecord;
             } catch (e: any) {
                 log_warn('Failed to fetch full debug log from S3 for sandbox execution.', { error: e.message }, correlationId);
                 // Fallback to legacy extraction if S3 fetch fails
