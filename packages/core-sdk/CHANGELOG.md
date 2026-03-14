@@ -1,5 +1,20 @@
 # @allma/core-sdk
 
+## 1.0.10
+
+### Patch Changes
+
+- 1951c6d: Concurency and logging improvements
+- 9e3d6ee: Context hydration fixes, S3 preview tool
+- 4c8ae3f: fix: S3 extraction fix for system calls
+- 6ee1569: Sub-Flow execution fixes
+- Updated dependencies [1951c6d]
+- Updated dependencies [cd2218e]
+- Updated dependencies [9e3d6ee]
+- Updated dependencies [6ee1569]
+- Updated dependencies [6ee1569]
+  - @allma/core-types@1.1.2
+
 ## 1.0.9
 
 ### Patch Changes
