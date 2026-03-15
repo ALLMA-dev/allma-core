@@ -1,5 +1,15 @@
 # @allma/core-types
 
+## 1.1.2
+
+### Patch Changes
+
+- 1951c6d: Concurency and logging improvements
+- cd2218e: fix: parallel step logging and display improvements
+- 9e3d6ee: Context hydration fixes, S3 preview tool
+- 6ee1569: Parallel batch processing and input/output of step improvements
+- 6ee1569: Sub-Flow execution fixes
+
 ## 1.1.1
 
 ### Patch Changes

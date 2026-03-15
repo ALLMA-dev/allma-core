@@ -1,5 +1,21 @@
 # @allma/admin-shell
 
+## 2.0.3
+
+### Patch Changes
+
+- 1951c6d: Concurency and logging improvements
+- cd2218e: fix: parallel step logging and display improvements
+- 9e3d6ee: Context hydration fixes, S3 preview tool
+- Updated dependencies [1951c6d]
+- Updated dependencies [cd2218e]
+- Updated dependencies [9e3d6ee]
+- Updated dependencies [6ee1569]
+- Updated dependencies [4c8ae3f]
+- Updated dependencies [6ee1569]
+  - @allma/core-types@1.1.2
+  - @allma/core-sdk@1.0.10
+
 ## 2.0.2
 
 ### Patch Changes

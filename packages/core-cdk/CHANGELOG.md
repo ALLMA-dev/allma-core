@@ -1,5 +1,25 @@
 # @allma/core-cdk
 
+## 1.1.6
+
+### Patch Changes
+
+- 1951c6d: Concurency and logging improvements
+- cd2218e: fix: parallel step logging and display improvements
+- 9e3d6ee: Context hydration fixes, S3 preview tool
+- 6ee1569: Parallel batch processing and input/output of step improvements
+- 4c8ae3f: fix: S3 extraction fix for system calls
+- 6ee1569: Sub-Flow execution fixes
+- 11a6b2a: Email functionality impromenets, flow validation fixes
+- Updated dependencies [1951c6d]
+- Updated dependencies [cd2218e]
+- Updated dependencies [9e3d6ee]
+- Updated dependencies [6ee1569]
+- Updated dependencies [4c8ae3f]
+- Updated dependencies [6ee1569]
+  - @allma/core-types@1.1.2
+  - @allma/core-sdk@1.0.10
+
 ## 1.1.5
 
 ### Patch Changes

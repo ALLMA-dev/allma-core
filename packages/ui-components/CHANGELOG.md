@@ -1,5 +1,11 @@
 # @allma/ui-components
 
+## 1.0.3
+
+### Patch Changes
+
+- 1951c6d: Concurency and logging improvements
+
 ## 1.0.2
 
 ### Patch Changes
