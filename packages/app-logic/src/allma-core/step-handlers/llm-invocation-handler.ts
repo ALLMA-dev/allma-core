@@ -162,9 +162,22 @@ export const handleLlmInvocation: StepHandler = async (
 
     const { ...invocationParametersForLog } = generationRequest;
 
+    let finalOutputData: Record<string, any>;
+    if (Array.isArray(parsedOutput) || typeof parsedOutput !== 'object' || parsedOutput === null) {
+      // Wrap arrays or primitives in an object so they aren't destroyed by spread operators
+      // later in the step executor.
+      finalOutputData = {
+        llm_response: parsedOutput,
+      };
+    } else {
+      finalOutputData = {
+        ...parsedOutput,
+      };
+    }
+
     return {
       outputData: {
-        ...parsedOutput,
+        ...finalOutputData,
         _meta: {
           tokenUsage: response.tokenUsage,
           llmInvocationParameters: invocationParametersForLog,
