@@ -30,6 +30,7 @@ import { executionLoggerClient } from '../../allma-core/execution-logger-client.
 import { handleSyncFlowStart, handleSyncFlowResult } from './sync-flow-handler.js';
 
 const EXECUTION_TRACES_BUCKET_NAME = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME];
+const SFN_SAFE_PAYLOAD_LIMIT = 100 * 1024; // 100KB safe threshold to ensure total output stays well under 256KB
 
 /**
  * AWS Lambda handler for the "IterativeStepProcessor" state.
@@ -98,6 +99,11 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
             if (runtimeState._internal && !isDirectInvocation) {
                 delete runtimeState._internal.currentStepStartTime;
                 delete runtimeState._internal.currentStepHandlerResult;
+                
+                if (runtimeState._internal.loggingBootstrapped) {
+                    delete runtimeState._internal.originalStartInput;
+                }
+
                 if (Object.keys(runtimeState._internal).length === 0) {
                     delete runtimeState._internal;
                 }
@@ -115,7 +121,7 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
                     EXECUTION_TRACES_BUCKET_NAME,
                     `flow_state/${correlationId}/${runtimeState.currentStepInstanceId || 'end'}`,
                     correlationId,
-                    200 * 1024 // 200KB safe threshold for SFN
+                    SFN_SAFE_PAYLOAD_LIMIT
                 );
                 if (offloadedContext && isS3OutputPointerWrapper(offloadedContext)) {
                     log_warn(`IterativeStepProcessor context size exceeded threshold. Auto-offloaded currentContextData to S3.`, {}, correlationId);
@@ -209,7 +215,7 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
                             EXECUTION_TRACES_BUCKET_NAME,
                             `flow_state/${correlationId}/${forkOutput.runtimeState.currentStepInstanceId || 'end'}`,
                             correlationId,
-                            200 * 1024
+                            SFN_SAFE_PAYLOAD_LIMIT
                         );
                         if (offloadedContext && isS3OutputPointerWrapper(offloadedContext)) {
                             forkOutput.runtimeState.currentContextData = { _s3_context_pointer: offloadedContext._s3_output_pointer };
@@ -256,7 +262,7 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
                         EXECUTION_TRACES_BUCKET_NAME,
                         `flow_state/${correlationId}/${syncOutput.runtimeState.currentStepInstanceId || 'end'}`,
                         correlationId,
-                        200 * 1024
+                        SFN_SAFE_PAYLOAD_LIMIT
                     );
                     if (offloadedContext && isS3OutputPointerWrapper(offloadedContext)) {
                         syncOutput.runtimeState.currentContextData = { _s3_context_pointer: offloadedContext._s3_output_pointer };
@@ -401,6 +407,12 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
     if (runtimeState._internal && !isDirectInvocation) {
         delete runtimeState._internal.currentStepStartTime;
         delete runtimeState._internal.currentStepHandlerResult;
+        
+        // Safely remove originalStartInput once logging is bootstrapped
+        if (runtimeState._internal.loggingBootstrapped) {
+            delete runtimeState._internal.originalStartInput;
+        }
+
         if (Object.keys(runtimeState._internal).length === 0) {
             delete runtimeState._internal;
         }
@@ -418,7 +430,7 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
             EXECUTION_TRACES_BUCKET_NAME,
             `flow_state/${correlationId}/${runtimeState.currentStepInstanceId || 'end'}`,
             correlationId,
-            200 * 1024 // 200KB safe threshold for SFN
+            SFN_SAFE_PAYLOAD_LIMIT
         );
 
         if (offloadedContext && isS3OutputPointerWrapper(offloadedContext)) {

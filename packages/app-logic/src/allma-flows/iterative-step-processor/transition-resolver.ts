@@ -13,6 +13,19 @@ import {
 import { evaluateCondition } from '../../allma-core/utils/condition-evaluator.js';
 
 /**
+ * Safely generates a string preview for logging to avoid bloating CloudWatch limits.
+ */
+const getValuePreview = (val: any): string => {
+    try {
+        if (typeof val === 'string') return val.length > 200 ? val.substring(0, 200) + '...' : val;
+        const str = JSON.stringify(val);
+        return str && str.length > 200 ? str.substring(0, 200) + '...' : String(str);
+    } catch {
+        return typeof val;
+    }
+};
+
+/**
  * Determines the next step instance ID based on transition conditions and logs the evaluation.
  * This function now supports simple expression evaluation (e.g., "$.path > 10") in addition
  * to standard JSONPath truthiness checks by using a centralized evaluator.
@@ -36,17 +49,18 @@ export const resolveNextStep = async (
                 correlationId
             );
             
-            log_info(`Transition condition '${transition.condition}' resolved to: ${conditionMet}`, { resolvedValue }, correlationId);
+            const valuePreview = getValuePreview(resolvedValue);
+            log_info(`Transition condition '${transition.condition}' resolved to: ${conditionMet}`, { resolvedValue: valuePreview }, correlationId);
             
             if (conditionMet) {
                 const nextStepId = transition.nextStepInstanceId;
-                log_info(`Transition condition met for step '${currentStepId}'. Next step: '${nextStepId}'`, { condition: transition.condition, valueEvaluated: resolvedValue }, correlationId);
+                log_info(`Transition condition met for step '${currentStepId}'. Next step: '${nextStepId}'`, { condition: transition.condition, valueEvaluated: valuePreview }, correlationId);
                 return {
                     nextStepId,
                     transitionDetails: {
                         type: 'CONDITION',
                         condition: transition.condition,
-                        resolvedValue: resolvedValue,
+                        resolvedValue: resolvedValue, // Safely preserved for detailed S3 offload logs
                         result: true,
                         chosenNextStepId: nextStepId,
                         mappingEvents: events.length > 0 ? events : undefined,
@@ -107,9 +121,6 @@ export const determineNextSfnAction = (
     }
 
     if (nextStepType === StepType.POLL_EXTERNAL_API) {
-        // ### FIX START ###
-        // The pollingTaskInput is now correctly constructed from the configuration
-        // of the *next* step (the polling step itself).
         return {
             sfnAction: SfnActionType.POLL_EXTERNAL_API,
             pollingTaskInput: {
@@ -118,7 +129,6 @@ export const determineNextSfnAction = (
                 exitConditions: (nextStepConfig as any).exitConditions,
             }
         };
-        // ### FIX END ###
     }
     
     return { sfnAction: SfnActionType.PROCESS_STEP };

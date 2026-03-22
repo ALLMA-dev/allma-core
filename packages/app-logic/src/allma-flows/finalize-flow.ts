@@ -25,7 +25,7 @@ import { evaluateCondition } from '../allma-core/utils/condition-evaluator.js';
 const snsClient = new SNSClient({}); 
 const lambdaClient = new LambdaClient({});
 const EXECUTION_TRACES_BUCKET_NAME = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME]!;
-const MAX_CONTEXT_DATA_SIZE_BYTES_DEFAULT = 220 * 1024;
+const MAX_CONTEXT_DATA_SIZE_BYTES_DEFAULT = 100 * 1024; // Lowered default 100KB safe threshold
 const MAX_CONTEXT_DATA_SIZE_BYTES = process.env[ENV_VAR_NAMES.MAX_CONTEXT_DATA_SIZE_BYTES] 
     ? parseInt(process.env[ENV_VAR_NAMES.MAX_CONTEXT_DATA_SIZE_BYTES] || '', 10) 
     : MAX_CONTEXT_DATA_SIZE_BYTES_DEFAULT;

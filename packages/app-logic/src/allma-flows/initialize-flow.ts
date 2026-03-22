@@ -25,6 +25,7 @@ import { executionLoggerClient } from '../allma-core/execution-logger-client.js'
 import { AgentService } from '../allma-admin/services/agent.service.js'; 
 
 const EXECUTION_TRACES_BUCKET_NAME = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME];
+const SFN_SAFE_PAYLOAD_LIMIT = 100 * 1024; // 100KB safe threshold
 
 /**
  * AWS Lambda handler for the "InitializeFlowExecution" state.
@@ -168,7 +169,7 @@ export const handler: Handler<StartFlowExecutionInput, ProcessorOutput> = async 
             EXECUTION_TRACES_BUCKET_NAME,
             `flow_state/${effectiveFlowExecutionId}/_init`,
             correlationId,
-            200 * 1024 // 200KB safe threshold for SFN
+            SFN_SAFE_PAYLOAD_LIMIT
         );
 
         if (offloadedContext && isS3OutputPointerWrapper(offloadedContext)) {
