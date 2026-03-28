@@ -46,9 +46,14 @@ export async function handleSyncFlowStart(
 
     // Apply literals to the prepared input. This matches standard async step behavior.
     if (stepInstanceConfig.literals) {
-        for (const [targetPath, literalValue] of Object.entries(stepInstanceConfig.literals)) {
-            log_debug(`Applying literal value in sync subflow start`, { targetPath, valuePreview: JSON.stringify(literalValue).substring(0, 200) }, correlationId);
-            setByDotNotation(preparedInput, targetPath, literalValue);
+        const templateContextForLiterals = { ...templateContext, ...preparedInput };
+        const renderedLiterals = await renderNestedTemplates(stepInstanceConfig.literals, templateContextForLiterals, correlationId);
+        
+        if (renderedLiterals) {
+            for (const [targetPath, literalValue] of Object.entries(renderedLiterals)) {
+                log_debug(`Applying literal value in sync subflow start`, { targetPath, valuePreview: JSON.stringify(literalValue)?.substring(0, 200) }, correlationId);
+                setByDotNotation(preparedInput, targetPath, literalValue);
+            }
         }
     }
 

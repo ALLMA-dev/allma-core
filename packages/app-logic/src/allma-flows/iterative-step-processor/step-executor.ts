@@ -20,6 +20,7 @@ import { validateLlmOutput } from '../../allma-core/security-validator.js';
 import { processStepOutput, setByDotNotation } from '../../allma-core/data-mapper.js';
 import { executionLoggerClient } from '../../allma-core/execution-logger-client.js';
 import { resolveNextStep } from './transition-resolver.js';
+import { renderNestedTemplates } from '../../allma-core/utils/template-renderer.js';
 
 const EXECUTION_TRACES_BUCKET_NAME = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME]!;
 // The actual SFN limit is 256KB, so let's warn above a safe threshold like 240KB.
@@ -91,10 +92,18 @@ export const executeStandardStep = async (
   const finalStepInput = { ...stepInput };
 
   if (stepInstanceConfig.literals) {
-    for (const [targetPath, literalValue] of Object.entries(stepInstanceConfig.literals)) {
-      log_debug(`Applying literal value`, { targetPath, valuePreview: JSON.stringify(literalValue).substring(0, 200) }, correlationId);
-      // The key of a literal is a dot-notation path for the target object (finalStepInput).
-      setByDotNotation(finalStepInput, targetPath, literalValue);
+    // Create context combining current runtime state and the input mapped so far
+    const templateContextForLiterals = { ...runtimeState.currentContextData, ...runtimeState, ...finalStepInput };
+    
+    // Render literals to support Handlebars templating and JSONPath
+    const renderedLiterals = await renderNestedTemplates(stepInstanceConfig.literals, templateContextForLiterals, correlationId);
+    
+    if (renderedLiterals) {
+      for (const [targetPath, literalValue] of Object.entries(renderedLiterals)) {
+        log_debug(`Applying literal value`, { targetPath, valuePreview: JSON.stringify(literalValue)?.substring(0, 200) }, correlationId);
+        // The key of a literal is a dot-notation path for the target object (finalStepInput).
+        setByDotNotation(finalStepInput, targetPath, literalValue);
+      }
     }
   }
 

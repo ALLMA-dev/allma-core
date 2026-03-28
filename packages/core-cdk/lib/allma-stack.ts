@@ -1,6 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import { Construct } from 'constructs';
 import { ALLMA_ADMIN_API_ROUTES, ENV_VAR_NAMES } from '@allma/core-types';
 import { validateAllmaConfig } from '@allma/core-sdk';
@@ -67,10 +68,12 @@ export class AllmaStack extends cdk.Stack {
       throw new Error('The `aiApiKeySecretArn` must be overridden in your stageConfig.');
     }
 
+    let configAssetHash: string | undefined = undefined;
+
     if (stageConfig.initialAllmaConfigPath) {
       console.log(`[Allma CDK] Pre-validating initial configuration from: ${stageConfig.initialAllmaConfigPath}`);
-      this._preValidateInitialConfig(stageConfig.initialAllmaConfigPath, stageConfig);
-      console.log(`[Allma CDK] Pre-validation successful. Proceeding with deployment.`);
+      configAssetHash = this._preValidateInitialConfig(stageConfig.initialAllmaConfigPath, stageConfig);
+      console.log(`[Allma CDK] Pre-validation successful. Proceeding with deployment. Computed Hash: ${configAssetHash}`);
     }
 
     const stackPrefix = `AllmaPlatform-${stageConfig.stage}`;
@@ -275,8 +278,11 @@ export class AllmaStack extends cdk.Stack {
     });
 
     if (stageConfig.initialAllmaConfigPath) {
+      // By supplying the explicit assetHash, CDK ignores cdk.out cache quirks and 
+      // guarantees an upload whenever the internal JSON content genuinely changes.
       const configAsset = new s3_assets.Asset(this, 'AllmaInitialConfigAsset', {
         path: stageConfig.initialAllmaConfigPath,
+        ...(configAssetHash && { assetHash: configAssetHash }),
       });
 
       configAsset.grantRead(compute.configImporterLambda);
@@ -299,7 +305,7 @@ export class AllmaStack extends cdk.Stack {
     }
   }
   
-  private _preValidateInitialConfig(configPath: string, stageConfig: StageConfig): void {
+  private _preValidateInitialConfig(configPath: string, stageConfig: StageConfig): string {
     if (!fs.existsSync(configPath)) {
       throw new Error(`[Allma CDK Pre-validation] Error: initialAllmaConfigPath not found at '${configPath}'.`);
     }
@@ -320,7 +326,7 @@ export class AllmaStack extends cdk.Stack {
       }
       if (filesToValidate.length === 0) {
         console.warn(`[Allma CDK Pre-validation] Warning: Directory '${configPath}' contains no .json files.`);
-        return;
+        return crypto.createHash('md5').update('empty').digest('hex');
       }
     } else if (stats.isFile()) {
       if (path.extname(configPath).toLowerCase() === '.json') {
@@ -333,7 +339,10 @@ export class AllmaStack extends cdk.Stack {
       }
     }
 
+    let combinedContentForHashing = '';
+
     for (const file of filesToValidate) {
+      combinedContentForHashing += file.content;
       try {
         const jsonData = JSON.parse(file.content);
         const renderedJsonData = this._renderTemplatesInConfig(jsonData, stageConfig);
@@ -360,6 +369,9 @@ export class AllmaStack extends cdk.Stack {
         throw e;
       }
     }
+
+    // Return the MD5 hash of the raw JSON contents to force exact CDK updates
+    return crypto.createHash('md5').update(combinedContentForHashing).digest('hex');
   }
 
   private _renderTemplatesInConfig(config: any, stageConfig: StageConfig): any {

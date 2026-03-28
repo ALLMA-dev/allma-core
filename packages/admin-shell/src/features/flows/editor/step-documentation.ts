@@ -71,20 +71,17 @@ This would:
 `,
                 literals: `
 #### Literals
-Provides static, hard-coded values to the step's input. It's useful for configuration that doesn't change during the flow.
+Provides static or templated values to the step's input. It's useful for configuration that doesn't rely entirely on complex JSONPath mappings, but might still need to include dynamic data via Handlebars (e.g. \`{{flow_variables.my_var}}\`) or simple JSONPath strings.
 
 - **Keys** (on the left): The name of an input field, using dot-notation for nested objects (e.g., \`messageAttributes.source.DataType\`).
-- **Values** (on the right): The static value (string, number, boolean, object, array).
+- **Values** (on the right): The value to inject. This can be a static primitive, an object/array, or a template string.
 
 **Example:**
-To configure a DynamoDB update operation with a static table name:
+To configure an email payload dynamically:
 \`\`\`json
 {
-  "tableName": "MyUsersTable",
-  "updateExpression": "SET #status = :status",
-  "expressionAttributeNames": {
-    "#status": "status"
-  }
+  "subject": "Data processing for Project {{projectId}} is complete",
+  "body": "Your project has been enriched. Review here: {{config.PortalBaseUrl}}/projects/{{projectId}}"
 }
 \`\`\`
 `,
