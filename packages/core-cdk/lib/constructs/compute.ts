@@ -331,16 +331,7 @@ export class AllmaCompute extends Construct {
         externalModules: [
           'aws-sdk',
           '@aws-sdk/*',
-          '@smithy/*',
-          'plotly.js-dist-min',
-          'mock-aws-s3',
-          'nock',
-          'langsmith',
-          '@cfworker/json-schema',
-          'zod-to-json-schema',
-          'p-queue',
-          'is-stream'
-        ],
+          '@smithy/*'],
         loader: {
           '.html': 'file',
         },
