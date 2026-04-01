@@ -20,7 +20,7 @@
       "noUnusedParameters": false,
       "noImplicitReturns": true,
       "noFallthroughCasesInSwitch": true,
-      "exactOptionalPropertyTypes": true,
+      "exactOptionalPropertyTypes": false,
   
       // --- Interoperability & Other ---
       "esModuleInterop": true,

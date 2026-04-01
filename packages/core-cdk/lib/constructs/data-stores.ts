@@ -17,7 +17,7 @@ export class AllmaDataStores extends Construct {
   public readonly allmaFlowExecutionLogTable: dynamodb.Table;
   public readonly allmaExecutionTracesBucket: s3.Bucket;
   public readonly allmaFlowContinuationStateTable: dynamodb.Table;
-  public readonly emailToFlowMappingTable: dynamodb.Table; // NEW
+  public readonly emailToFlowMappingTable: dynamodb.Table; 
 
   constructor(scope: Construct, id: string, props: AllmaDataStoresProps) {
     super(scope, id);

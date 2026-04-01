@@ -20,7 +20,7 @@ interface AllmaComputeProps {
   stageConfig: StageConfig;
   configTable: dynamodb.Table;
   flowExecutionLogTable: dynamodb.Table;
-  executionTracesBucket: s3.IBucket;
+  executionTracesBucket: s3.Bucket;
   flowContinuationStateTable: dynamodb.Table;
   flowStartRequestQueue?: sqs.IQueue;
   emailToFlowMappingTable?: dynamodb.Table;
@@ -335,6 +335,11 @@ export class AllmaCompute extends Construct {
           'plotly.js-dist-min',
           'mock-aws-s3',
           'nock',
+          'langsmith',
+          '@cfworker/json-schema',
+          'zod-to-json-schema',
+          'p-queue',
+          'is-stream'
         ],
         loader: {
           '.html': 'file',

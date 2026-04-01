@@ -24,13 +24,32 @@
     "examples/*"
   ],
   "dependencies": {
+    "@aws-amplify/ui-react": "^6.15.2",
     "@aws-sdk/client-lambda": "^3.913.0",
+    "@emotion/react": "^11.14.0",
+    "@mantine/core": "^8.3.18",
+    "@mantine/dates": "^8.3.18",
+    "@mantine/form": "^8.3.18",
+    "@mantine/hooks": "^8.3.18",
+    "@mantine/modals": "^8.3.18",
+    "@mantine/notifications": "^8.3.18",
+    "@tanstack/react-query": "^5.96.0",
     "@tensorflow/tfjs": "^4.22.0",
+    "amazon-cognito-identity-js": "^6.3.16",
     "arrify": "^3.0.0",
+    "aws-amplify": "^6.16.3",
+    "dagre": "^0.8.5",
     "fast-text-encoding": "^1.0.6",
     "fs": "0.0.1-security",
     "google-p12-pem": "^5.0.0",
-    "path": "^0.12.7"
+    "lodash-es": "^4.17.23",
+    "path": "^0.12.7",
+    "react-diff-viewer-continued": "^4.2.0",
+    "react-markdown": "^10.1.0",
+    "reactflow": "^11.11.4",
+    "recharts": "^3.8.1",
+    "remark-gfm": "^4.0.1",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.7",

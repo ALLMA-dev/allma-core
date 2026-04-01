@@ -27,8 +27,8 @@ export interface ApiConstructProps {
   stageConfig: StageConfig;
   configTable: dynamodb.Table;
   flowExecutionLogTable: dynamodb.Table;
-  emailToFlowMappingTable: dynamodb.Table; // NEW
-  executionTracesBucket: s3.IBucket;
+  emailToFlowMappingTable: dynamodb.Table;
+  executionTracesBucket: s3.Bucket;
   orchestrationLambdaRole: iam.Role;
   iterativeStepProcessorLambda: lambda.IFunction;
   resumeFlowLambda: lambda.IFunction;

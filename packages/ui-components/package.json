@@ -37,21 +37,26 @@
   "publishConfig": {
     "access": "public"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@mantine/hooks": "^9.0.0",
+    "@mantine/notifications": "^9.0.0"
+  },
   "peerDependencies": {
-    "@mantine/core": "^8.0.0",
     "@tabler/icons-react": "^3.11.0",
     "@uiw/react-json-view": "^2.0.0-alpha.34",
     "react": "^19.1.0"
   },
   "devDependencies": {
+    "@mantine/core": "^8.0.0",
+    "@tabler/icons-react": "^3.11.0",
+    "@uiw/react-json-view": "^2.0.0-alpha.34",
     "@types/react": "^19.1.2",
     "eslint": "^9.8.0",
-    "typescript-eslint": "^8.0.0",
     "eslint-plugin-react": "^7.34.1",
     "eslint-plugin-react-hooks": "^4.6.2",
     "tsup": "^8.5.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.0.0"
   },
   "sideEffects": false
 }

@@ -16,7 +16,7 @@ interface AllmaOrchestrationProps {
   finalizeFlowLambda: lambda.IFunction;
   pollingStateMachineArn: string;
   predictiveMainSfnArn: string;
-  executionTracesBucket: s3.IBucket;
+  executionTracesBucket: s3.Bucket;
 }
 
 /**
