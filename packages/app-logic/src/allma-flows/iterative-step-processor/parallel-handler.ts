@@ -1,5 +1,3 @@
-// packages/app-logic/src/allma-flows/iterative-step-processor/parallel-handler.ts
-
 import { JSONPath } from 'jsonpath-plus';
 import { v4 as uuidv4 } from 'uuid';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
@@ -45,10 +43,13 @@ function aggregateBranchOutputs(
     runtimeState: FlowRuntimeState,
     correlationId: string
 ): Record<string, any> | null {
-    log_debug('Aggregating branch outputs.', { branchOutputs, aggregationConfig }, correlationId);
+    log_debug('Aggregating branch outputs.', { branchOutputsCount: branchOutputs.length, aggregationConfig }, correlationId);
 
-    if (!aggregationConfig.dataPath) {
-        log_warn(`No 'dataPath' provided in aggregationConfig. The entire branch result (from '$.output' of the branch context) will be aggregated.`, { stepInstanceId: runtimeState.currentStepInstanceId }, correlationId);
+    let effectiveDataPath = aggregationConfig.dataPath;
+
+    if (!effectiveDataPath) {
+        log_warn(`No 'dataPath' provided in aggregationConfig. Defaulting to aggregating the '$.output' field of the branch context to prevent data snowballing. To aggregate the entire context, explicitly set dataPath to '$'.`, { stepInstanceId: runtimeState.currentStepInstanceId }, correlationId);
+        effectiveDataPath = '$.output';
     }
     
     // Step 1: Process all branch outputs to extract data or preserve errors.
@@ -58,18 +59,22 @@ function aggregateBranchOutputs(
         }
         
         const dataToExtractFrom = branchResult.output;
-        
-        if (!aggregationConfig.dataPath) {
-            return { branchId: branchResult.branchId, output: dataToExtractFrom };
+        let extractedValue: any;
+
+        if (effectiveDataPath === '$' || effectiveDataPath === '$.') {
+            // User explicitly requested the entire branch context
+            extractedValue = dataToExtractFrom;
+        } else {
+            // Targeted extraction using JSONPath
+            try {
+                extractedValue = JSONPath({ path: effectiveDataPath!, json: dataToExtractFrom, wrap: false });
+            } catch (e: any) {
+                log_warn(`Failed to apply dataPath '${effectiveDataPath}' to a branch output.`, { branchId: branchResult.branchId, error: e.message }, correlationId);
+                return { branchId: branchResult.branchId, error: { errorName: 'DataPathError', errorMessage: `Failed to extract data using path: ${e.message}`, isRetryable: false } };
+            }
         }
 
-        try {
-            const extractedValue = JSONPath({ path: aggregationConfig.dataPath, json: dataToExtractFrom, wrap: false });
-            return { branchId: branchResult.branchId, output: extractedValue };
-        } catch (e: any) {
-            log_warn(`Failed to apply dataPath '${aggregationConfig.dataPath}' to a branch output.`, { branchId: branchResult.branchId, error: e.message }, correlationId);
-            return { branchId: branchResult.branchId, error: { errorName: 'DataPathError', errorMessage: `Failed to extract data using path: ${e.message}`, isRetryable: false } };
-        }
+        return { branchId: branchResult.branchId, output: extractedValue };
     });
 
     const successfulResults = processedOutputs.filter(res => !res.error).map(res => res.output);
@@ -299,7 +304,7 @@ export const handleParallelAggregation = async (
     }
 
     const effectiveOutputMappings = stepInstanceConfig.outputMappings === undefined
-        ? { [`$.steps_output.${originalStepId}`]: '$' }
+        ? { [`$.steps_output.${originalStepId}`]: '$' } 
         : stepInstanceConfig.outputMappings;
 
     let outputMappingEvents: MappingEvent[] = [];
