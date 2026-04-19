@@ -13,6 +13,81 @@ const PAYLOAD_OFFLOAD_THRESHOLD_BYTES = process.env[ENV_VAR_NAMES.MAX_CONTEXT_DA
     ? parseInt(process.env[ENV_VAR_NAMES.MAX_CONTEXT_DATA_SIZE_BYTES] || '', 10)
     : MAX_CONTEXT_DATA_SIZE_BYTES_DEFAULT;
 
+/**
+ * Downloads and parses Distributed Map execution results safely bridging 
+ * S3 payloads back into Lambda memory.
+ */
+export async function fetchDistributedMapResults(
+    mapResultsDetails: {
+        MapRunArn?: string;
+        ResultWriterDetails?: { Bucket?: string; Key?: string };
+    },
+    correlationId?: string
+): Promise<any[]> {
+    if (!mapResultsDetails.ResultWriterDetails?.Bucket || !mapResultsDetails.ResultWriterDetails?.Key) {
+        log_warn('No ResultWriterDetails provided in mapResultsDetails', { mapResultsDetails }, correlationId);
+        return [];
+    }
+
+    const bucket = mapResultsDetails.ResultWriterDetails.Bucket;
+    const manifestKey = mapResultsDetails.ResultWriterDetails.Key;
+
+    log_info(`Fetching Distributed Map manifest from s3://${bucket}/${manifestKey}`, {}, correlationId);
+    
+    try {
+        const manifestCommand = new GetObjectCommand({ Bucket: bucket, Key: manifestKey });
+        const manifestResponse = await s3Client.send(manifestCommand);
+        const manifestContent = await manifestResponse.Body!.transformToString();
+        const manifest = JSON.parse(manifestContent);
+        
+        const results: any[] = [];
+        const destBucket = manifest.DestinationBucket || bucket;
+        
+        // Grab successful and failed branches alike for holistic aggregation
+        const filesToProcess = [
+            ...(manifest.ResultFiles?.SUCCEEDED || []),
+            ...(manifest.ResultFiles?.FAILED || [])
+        ];
+
+        log_info(`Found ${filesToProcess.length} chunked result files in manifest. Parallel processing initiated...`, {}, correlationId);
+
+        await Promise.all(filesToProcess.map(async (file: any) => {
+            log_debug(`Fetching map chunk: s3://${destBucket}/${file.Key}`, {}, correlationId);
+            const fileCommand = new GetObjectCommand({ Bucket: destBucket, Key: file.Key });
+            const fileResponse = await s3Client.send(fileCommand);
+            const fileContent = await fileResponse.Body!.transformToString();
+            const items = JSON.parse(fileContent);
+            
+            for (const item of items) {
+                if (item.Output) {
+                    try {
+                        const parsedOutput = typeof item.Output === 'string' ? JSON.parse(item.Output) : item.Output;
+                        results.push(parsedOutput);
+                    } catch(e) {
+                        log_error('Failed to parse iteration output from Distributed Map.', { output: item.Output }, correlationId);
+                        results.push({ branchId: 'UNKNOWN_PARSE_ERROR', output: item.Output });
+                    }
+                } else if (item.Error) {
+                    results.push({
+                        branchId: 'UNKNOWN_BRANCH_S3_FAIL',
+                        error: {
+                            errorName: item.Error,
+                            errorMessage: item.Cause,
+                            isRetryable: false
+                        }
+                    });
+                }
+            }
+        }));
+        
+        log_info(`Successfully aggregated ${results.length} total branch results from Distributed Map.`, {}, correlationId);
+        return results;
+    } catch (error: any) {
+        log_error(`Failed to fetch and parse Distributed Map results: ${error.message}`, { error: error.stack }, correlationId);
+        throw new Error(`Failed to aggregate distributed map results: ${error.message}`);
+    }
+}
+
 
 /**
  * Fetches the actual data from an S3 pointer.

@@ -3,7 +3,7 @@ import { Construct } from 'constructs';
 import * as sfn from 'aws-cdk-lib/aws-stepfunctions';
 import * as sfnTasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
-import *as iam from 'aws-cdk-lib/aws-iam';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import { RETRYABLE_STEP_ERROR_NAME, CONTENT_BASED_RETRYABLE_ERROR_NAME, TRANSIENT_STEP_ERROR_NAME, SfnActionType } from '@allma/core-types';
@@ -72,7 +72,7 @@ export class AllmaOrchestration extends Construct {
         resources: [pollingStateMachineArn, predictiveMainSfnArn],
     }));
 
-    executionTracesBucket.grantRead(stateMachineRole);
+    executionTracesBucket.grantReadWrite(stateMachineRole);
 
     const selfRefStateMachine = sfn.StateMachine.fromStateMachineArn(this, 'SelfRefStateMachine', predictiveMainSfnArn);
 
@@ -108,10 +108,7 @@ export class AllmaOrchestration extends Construct {
         stateMachine: sfn.StateMachine.fromStateMachineArn(this, 'PollingSubStateMachine', pollingStateMachineArn),
         integrationPattern: sfn.IntegrationPattern.RUN_JOB,
         input: sfn.TaskInput.fromJsonPathAt('$.pollingTaskInput'),
-        resultPath: '$.pollingResult',
-        resultSelector: {
-            'Output.$': 'States.StringToJson($.Output)'
-        }
+        resultPath: '$.pollingResult'
     });
     pollingSubFlowTask.addRetry(sfnTaskServiceErrorRetryPolicy);
 
@@ -120,12 +117,7 @@ export class AllmaOrchestration extends Construct {
         stateMachine: selfRefStateMachine,
         integrationPattern: sfn.IntegrationPattern.RUN_JOB, // .sync execution
         input: sfn.TaskInput.fromJsonPathAt('$.syncFlowExecutionInput'),
-        resultPath: '$.syncFlowResult',
-        resultSelector: {
-            // The 'Output' from a sync execution is a stringified JSON.
-            // We select it to be processed by the next step.
-            'Output.$': '$.Output',
-        },
+        resultPath: '$.syncFlowResult'
     });
     startSyncFlowExecutionTask.addRetry(sfnTaskServiceErrorRetryPolicy);
 
@@ -146,8 +138,6 @@ export class AllmaOrchestration extends Construct {
     });
 
     // --- ENHANCED MAIN ERROR NORMALIZATION LOGIC ---
-    // Safely unwrap JSON causes instead of naively double-stringifying them.
-
     const normalizeStringErrorState = new sfn.Pass(this, 'NormalizeStringErrorState', {
       parameters: {
           'errorInfo': {
@@ -240,7 +230,6 @@ export class AllmaOrchestration extends Construct {
     formatMainSfnExecutionErrorNoCause.next(failureState);
     formatMainUnknownJsonError.next(failureState);
     normalizeStringErrorState.next(failureState);
-
     // --- END ENHANCED MAIN ERROR NORMALIZATION LOGIC ---
 
 
@@ -270,10 +259,14 @@ export class AllmaOrchestration extends Construct {
     const s3MapProcessorChain = this.createBranchProcessorChain('S3Map', selfRefStateMachine, sfnTaskServiceErrorRetryPolicy);
 
     const parallelMapStateFromS3 = new sfn.DistributedMap(this, 'ExecuteBranchesFromS3', {
-        resultPath: '$.mapResultsArray',
+        resultPath: '$.mapResultsDetails',
         itemReader: new sfn.S3JsonItemReader({
             bucket: props.executionTracesBucket,
             key: sfn.JsonPath.stringAt('$.s3ItemReader.key'),
+        }),
+        resultWriter: new sfn.ResultWriter({
+            bucket: props.executionTracesBucket,
+            prefix: 'map_results',
         }),
         maxConcurrencyPath: sfn.JsonPath.stringAt('$.s3ItemReader.aggregationConfig.maxConcurrency'),
         itemSelector: {
@@ -294,7 +287,7 @@ export class AllmaOrchestration extends Construct {
                 'aggregationConfig.$': '$.s3ItemReader.aggregationConfig',
                 'originalStepInstanceId.$': '$.s3ItemReader.originalStepInstanceId'
             },
-            'mapResultsArray.$': '$.mapResultsArray'
+            'mapResultsDetails.$': '$.mapResultsDetails'
         },
         resultPath: '$'
     });
@@ -306,6 +299,20 @@ export class AllmaOrchestration extends Construct {
           'sfnAction': SfnActionType.PARALLEL_AGGREGATE,
           'parallelAggregateInput': {
               'branchOutputs.$': '$.mapResultsArray',
+              'aggregationConfig.$': '$.mapContext.aggregationConfig',
+              'originalStepInstanceId.$': '$.mapContext.originalStepInstanceId',
+          }
+      },
+      resultPath: '$',
+    });
+
+    const prepareForAggregationFromS3PassState = new sfn.Pass(this, 'PrepareAggregationFromS3Input', {
+      inputPath: '$',
+      parameters: {
+          'runtimeState.$': '$.mapContext.runtimeState',
+          'sfnAction': SfnActionType.PARALLEL_AGGREGATE,
+          'parallelAggregateInput': {
+              'mapResultsDetails.$': '$.mapResultsDetails',
               'aggregationConfig.$': '$.mapContext.aggregationConfig',
               'originalStepInstanceId.$': '$.mapContext.originalStepInstanceId',
           }
@@ -346,7 +353,7 @@ export class AllmaOrchestration extends Construct {
     const extractS3ContextPointer = new sfn.Pass(this, 'ExtractS3ContextPointer', {
       comment: 'Extracts the S3 context pointer if the context was offloaded.',
       parameters: {
-          '_branch_context_s3_pointer.$': '$.runtimeState.currentContextData._s3_context_pointer'
+          '_s3_output_pointer.$': '$.runtimeState.currentContextData._s3_context_pointer'
       },
     });
 
@@ -403,9 +410,10 @@ export class AllmaOrchestration extends Construct {
     parallelMapState.next(prepareForAggregationPassState);
 
     parallelMapStateFromS3.next(transformS3MapOutput);
-    transformS3MapOutput.next(prepareForAggregationPassState);
+    transformS3MapOutput.next(prepareForAggregationFromS3PassState);
     
     prepareForAggregationPassState.next(iterativeStepTask);
+    prepareForAggregationFromS3PassState.next(iterativeStepTask);
     iterativeStepTask.next(checkISPCompletionChoice);
     processAsyncResultAndContinue.next(checkISPCompletionChoice); 
 
@@ -501,18 +509,38 @@ export class AllmaOrchestration extends Construct {
                 }
             }),
 
-            resultSelector: { 'Output.$': '$.Output' },
             resultPath: '$.sfnSubExecutionResult',
         });
         executeBranch.addRetry(retryPolicy);
 
-        const parseOutput = new sfn.Pass(this, `${idPrefix}ParseOutput`, {
+        // --- SAFE JSON PARSING ROUTER ---
+        const checkOutputIsJson = new sfn.Choice(this, `${idPrefix}CheckOutputIsJson`);
+        
+        const parseJsonOutput = new sfn.Pass(this, `${idPrefix}ParseJsonOutput`, {
+            parameters: {
+                'branchId.$': '$.branchItem.branchId',
+                'output.$': 'States.StringToJson($.sfnSubExecutionResult.Output)'
+            }
+        });
+        
+        const parseStringOutput = new sfn.Pass(this, `${idPrefix}ParseStringOutput`, {
             parameters: {
                 'branchId.$': '$.branchItem.branchId',
                 'output.$': '$.sfnSubExecutionResult.Output'
-            },
+            }
         });
 
+        // Route strictly by inspecting if it's a serialized Object or Array 
+        // to bypass Auto-Parsed responses AND primitives
+        checkOutputIsJson
+            .when(sfn.Condition.or(
+                sfn.Condition.stringMatches('$.sfnSubExecutionResult.Output', '{*'),
+                sfn.Condition.stringMatches('$.sfnSubExecutionResult.Output', '[*')
+            ), parseJsonOutput)
+            .otherwise(parseStringOutput);
+
+
+        // --- ERROR HANDLING ---
         const formatStringCause = new sfn.Pass(this, `${idPrefix}FormatStringCause`, {
             comment: 'Handles non-JSON error causes (e.g., SFN timeouts) and formats a standard error object.',
             parameters: {
@@ -632,7 +660,7 @@ export class AllmaOrchestration extends Construct {
             .otherwise(formatStringCause);
 
         prepareBranchInput.next(executeBranch);
-        executeBranch.next(parseOutput);
+        executeBranch.next(checkOutputIsJson);
 
         executeBranch.addCatch(handleBranchErrorChoice, {
             resultPath: '$.errorInfo'

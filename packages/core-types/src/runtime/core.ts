@@ -73,10 +73,17 @@ export const ProcessorInputSchema = z.object({
   sfnAction: SfnActionTypeSchema.optional(),
   taskToken: z.string().optional(),
   resumePayload: z.any().optional(),
-  pollingResult: z.object({ Output: z.string() }).passthrough().optional(),
+  pollingResult: z.object({ Output: z.any() }).passthrough().optional(),
   syncFlowResult: z.any().optional(),
   parallelAggregateInput: z.object({
-      branchOutputs: z.array(BranchResultSchema),
+      branchOutputs: z.array(BranchResultSchema).optional(),
+      mapResultsDetails: z.object({
+          MapRunArn: z.string().optional(),
+          ResultWriterDetails: z.object({
+              Bucket: z.string().optional(),
+              Key: z.string().optional(),
+          }).passthrough().optional(),
+      }).passthrough().optional(),
       aggregationConfig: AggregationConfigSchema.optional(),
       originalStepInstanceId: z.string(),
   }).optional(),

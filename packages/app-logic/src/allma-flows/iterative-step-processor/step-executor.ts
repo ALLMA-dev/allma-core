@@ -11,7 +11,7 @@ import {
   DelayOptions,
   TransientStepError,
 } from '@allma/core-types';
-import { log_info, log_debug, offloadIfLarge, log_warn, log_error } from '@allma/core-sdk';
+import { log_info, log_debug, offloadIfLarge, log_warn, log_error, isObject } from '@allma/core-sdk';
 import { JSONPath } from 'jsonpath-plus';
 import { getStepHandler } from '../../allma-core/step-handlers/handler-registry.js';
 import { hasInternalModuleHandler } from '../../allma-core/module-registry.js';
@@ -47,7 +47,6 @@ const executeDelay = async (delayConfig: DelayOptions | undefined, correlationId
     const max = delayConfig.delayTo;
     duration = Math.floor(Math.random() * (max - min + 1)) + min;
   } else {
-    // This case should be prevented by the Zod schema validation, but as a safeguard:
     log_warn('Invalid delay configuration, skipping delay.', { delayConfig }, correlationId);
     return;
   }
@@ -64,8 +63,8 @@ export const executeStandardStep = async (
   stepInstanceConfig: StepInstance,
   stepDef: StepDefinition,
   runtimeState: FlowRuntimeState,
-  stepInput: Record<string, any>, // Input is now prepared by the caller
-  inputMappingEvents: MappingEvent[], // Input mapping events are passed in
+  stepInput: Record<string, any>, 
+  inputMappingEvents: MappingEvent[],
   stepStartTime: string,
   correlationId: string,
 ): Promise<{ updatedRuntimeState: FlowRuntimeState; nextStepId: string | undefined }> => {
@@ -88,26 +87,20 @@ export const executeStandardStep = async (
     correlationId,
   );
 
-  // The `stepInput` has already been prepared (hydrated or not) by the caller.
   const finalStepInput = { ...stepInput };
 
   if (stepInstanceConfig.literals) {
-    // Create context combining current runtime state and the input mapped so far
     const templateContextForLiterals = { ...runtimeState.currentContextData, ...runtimeState, ...finalStepInput };
-    
-    // Render literals to support Handlebars templating and JSONPath
     const renderedLiterals = await renderNestedTemplates(stepInstanceConfig.literals, templateContextForLiterals, correlationId);
     
     if (renderedLiterals) {
       for (const [targetPath, literalValue] of Object.entries(renderedLiterals)) {
         log_debug(`Applying literal value`, { targetPath, valuePreview: JSON.stringify(literalValue)?.substring(0, 200) }, correlationId);
-        // The key of a literal is a dot-notation path for the target object (finalStepInput).
         setByDotNotation(finalStepInput, targetPath, literalValue);
       }
     }
   }
 
-  // Pass the raw Step Definition directly to the handler. 
   const finalStepDefForHandler = stepDef;
   const templateContext = { ...runtimeState.currentContextData, ...runtimeState, ...finalStepInput };
 
@@ -122,7 +115,6 @@ export const executeStandardStep = async (
     attemptNumber: currentAttempt,
   };
 
-  // Log START with input mapping events and the full context from which mappings were derived.
   if (runtimeState.enableExecutionLogs) {
     await executionLoggerClient.logStepExecution({
       ...baseRecord,
@@ -130,13 +122,13 @@ export const executeStandardStep = async (
       eventTimestamp: stepStartTime,
       inputMappingResult: finalStepInput,
       mappingEvents: inputMappingEvents,
-      inputMappingContext: inputContext, // Log the captured "before" context
+      inputMappingContext: inputContext, 
       templateContextMappingContext: templateContext,
-      stepInstanceConfig: stepInstanceConfig, // Log the exact config used
+      stepInstanceConfig: stepInstanceConfig, 
     });
   }
 
-  let outputDataForMapping: Record<string, any> | undefined;
+  let outputDataForMapping: Record<string, any> = {};
   let logDetailsForRecord: any = {};
   let executionError: any = null;
 
@@ -158,31 +150,29 @@ export const executeStandardStep = async (
           const handler = getStepHandler(finalStepDefForHandler.stepType);
           stepHandlerResult = await handler(finalStepDefForHandler, finalStepInput, runtimeState);
         }
-        lastTransientError = null; // Success, clear any previous transient error
-        break; // Exit retry loop on success
+        lastTransientError = null; 
+        break; 
       } catch (error: any) {
         if (error instanceof TransientStepError) {
           lastTransientError = error;
           if (attempt < MAX_INTERNAL_RETRIES) {
-            const delay = Math.pow(2, attempt) * INITIAL_BACKOFF_MS + Math.random() * 50; // Exponential backoff with jitter
+            const delay = Math.pow(2, attempt) * INITIAL_BACKOFF_MS + Math.random() * 50; 
             log_warn(
               `Step handler caught a transient error. Retrying in ${delay.toFixed(2)}ms... (Attempt ${attempt}/${MAX_INTERNAL_RETRIES})`,
               { error: error.message, step: currentStepInstanceId },
               correlationId,
             );
             await new Promise(res => setTimeout(res, delay));
-            continue; // Continue to the next attempt
+            continue; 
           }
         }
-        // If not a TransientStepError or retries exhausted, re-throw to be caught by the outer block
         throw error;
       }
     }
 
     if (lastTransientError) {
-      // If the loop finished because retries were exhausted
       log_error(`Step handler failed after ${MAX_INTERNAL_RETRIES} attempts due to a persistent transient error.`, { error: lastTransientError.message }, correlationId);
-      throw lastTransientError; // Throw the last captured transient error
+      throw lastTransientError; 
     }
     // --- END: GENERIC RETRY LOOP ---
 
@@ -190,7 +180,6 @@ export const executeStandardStep = async (
       runtimeState._internal.currentStepHandlerResult = stepHandlerResult;
     }
 
-    // Execute "after" delay if configured (this is the default)
     if (stepInstanceConfig.delay?.position !== 'before') {
       await executeDelay(stepInstanceConfig.delay, correlationId);
     }
@@ -220,19 +209,20 @@ export const executeStandardStep = async (
     }
     // --- END: INTEGRATED SECURITY VALIDATION ---
 
+    outputDataForMapping = stepHandlerResult!.outputData || {};
+
     // --- GENERIC OUTPUT VALIDATION LOGIC ---
-    const outputDataForValidation = stepHandlerResult!.outputData;
-    if ((stepInstanceConfig as any).outputValidation?.requiredFields && outputDataForValidation) {
+    if ((stepInstanceConfig as any).outputValidation?.requiredFields && outputDataForMapping) {
       log_info(
         'Performing generic output validation.',
         { requiredFields: (stepInstanceConfig as any).outputValidation.requiredFields },
         correlationId,
       );
       for (const fieldPath of (stepInstanceConfig as any).outputValidation.requiredFields) {
-        const matches = JSONPath({ path: fieldPath, json: outputDataForValidation, wrap: true });
+        const matches = JSONPath({ path: fieldPath, json: outputDataForMapping, wrap: true });
         if (matches.length === 0 || matches[0] === null || matches[0] === undefined) {
           const errorMessage = `Required output field validation failed. Path '${fieldPath}' was missing or null/undefined in the step output.`;
-          log_warn(errorMessage, { output: outputDataForValidation }, correlationId);
+          log_warn(errorMessage, { output: outputDataForMapping }, correlationId);
           throw new ContentBasedRetryableError(errorMessage);
         }
       }
@@ -240,17 +230,13 @@ export const executeStandardStep = async (
     }
     // --- END: GENERIC OUTPUT VALIDATION LOGIC ---
 
-    // Deconstruct the handler result for mapping and logging.
-    outputDataForMapping = stepHandlerResult!.outputData || {};
-    
-    // Extract meta information for logs and remove it from data passed to mapping
     if (outputDataForMapping._meta) {
       logDetailsForRecord = outputDataForMapping._meta;
       delete outputDataForMapping._meta;
     }
     
-    // Merge the original step input with the output data.
-    outputDataForMapping = { ...finalStepInput, ...outputDataForMapping };
+    // NOTE: We deliberately do NOT merge `finalStepInput` into `outputDataForMapping` here anymore.
+    // `outputDataForMapping` remains the PURE step output, avoiding data snowballing in payloads.
 
   } catch (error: any) {
     const stepEndTime = new Date().toISOString();
@@ -267,7 +253,6 @@ export const executeStandardStep = async (
           { error: error.message },
           correlationId,
         );
-        // Log the intermediate failure and throw to trigger retry logic
         if (runtimeState.enableExecutionLogs) {
           await executionLoggerClient.logStepExecution({
             ...baseRecord,
@@ -291,10 +276,7 @@ export const executeStandardStep = async (
     if (stepInstanceConfig.onError?.continueOnFailure) {
       log_warn(`Step '${currentStepInstanceId}' failed but continueOnFailure is active. Suppressing error.`, { error: error.message }, correlationId);
 
-      // Capture the error to treat as the result
       executionError = error;
-
-      // Construct the error object to be passed as output
       outputDataForMapping = {
         errorName: error.name || 'StepError',
         errorMessage: error.message,
@@ -308,12 +290,9 @@ export const executeStandardStep = async (
       };
 
     } else {
-      // 3. Fallback: Log and Re-throw for standard failure handling (Retry/Fallback/Fail)
-
-      // Include TransientStepError as retryable by Step Functions!
+      // 3. Fallback: Log and Re-throw for standard failure handling
       const isRetryableBySfn = error instanceof RetryableStepError || error instanceof ContentBasedRetryableError || error instanceof TransientStepError;
 
-      // Determine the log status
       let logStatus: 'RETRYING_SFN' | 'RETRYING_CONTENT' | 'FAILED' = 'FAILED';
       if (error instanceof RetryableStepError || error instanceof TransientStepError) logStatus = 'RETRYING_SFN';
       else if (error instanceof ContentBasedRetryableError) logStatus = 'RETRYING_CONTENT';
@@ -348,18 +327,18 @@ export const executeStandardStep = async (
           inputMappingResult: finalStepInput,
           mappingEvents: allMappingEvents,
           inputMappingContext: inputContext,
-          outputMappingContext: inputContext, // No new context generated on failure
+          outputMappingContext: inputContext, 
           logDetails: error.details?.logDetails,
           templateContextMappingContext: templateContext,
           stepInstanceConfig: stepInstanceConfig,
         });
       }
 
-      throw error; // Propagate to SFN or Error Handler
+      throw error;
     }
   }
 
-  // --- Post-Execution Processing (Success or Continued Failure) ---
+  // --- Post-Execution Processing ---
 
   const stepEndTime = new Date().toISOString();
   const stepDurationMs = new Date(stepEndTime).getTime() - new Date(stepStartTime).getTime();
@@ -370,19 +349,17 @@ export const executeStandardStep = async (
 
   const templateMappingEvents = logDetailsForRecord?._templateContextMappingEvents;
 
-  // Offload large outputs to S3 before merging into runtime state to protect SFN state limit.
+  // Offload large outputs to S3 before mapping. (S3 only receives pure output)
   const s3KeyPrefix = `step_outputs/${runtimeState.flowExecutionId}/${stepInstanceConfig.stepInstanceId}`;
 
   let finalOutputForMapping;
   if (stepInstanceConfig.forceS3Offload) {
     log_info(`'forceS3Offload' is true for step '${currentStepInstanceId}'. Offloading output regardless of size.`, {}, correlationId);
-    // Using a threshold of 0 forces offload for any non-empty payload.
     finalOutputForMapping = await offloadIfLarge(outputDataForMapping, EXECUTION_TRACES_BUCKET_NAME, s3KeyPrefix, correlationId, 0);
   } else if (stepInstanceConfig.disableS3Offload) {
     log_info(`S3 offload is disabled for step '${currentStepInstanceId}'.`, {}, correlationId);
     finalOutputForMapping = outputDataForMapping;
 
-    // Warn if the payload is dangerously large
     if (outputDataForMapping) {
       try {
         const payloadString = JSON.stringify(outputDataForMapping);
@@ -399,15 +376,52 @@ export const executeStandardStep = async (
       }
     }
   } else {
-    // Default behavior: offload if it exceeds the configured threshold.
     finalOutputForMapping = await offloadIfLarge(outputDataForMapping, EXECUTION_TRACES_BUCKET_NAME, s3KeyPrefix, correlationId);
   }
 
-  // Apply output mappings.
-  const effectiveOutputMappings =
-    stepInstanceConfig.outputMappings === undefined
-      ? { [`$.steps_output.${currentStepInstanceId}`]: '$' }
-      : stepInstanceConfig.outputMappings;
+  // --- SMART OUTPUT MAPPING (Targeted Input Fallback) ---
+  // Attach the input to the mapping object as a NON-ENUMERABLE property.
+  // This allows JSONPath mappings to access `$._step_input.xyz` while keeping it completely 
+  // hidden from JSON.stringify (preventing wildcard '$' mappings from bloating state).
+  if (isObject(finalOutputForMapping)) {
+      Object.defineProperty(finalOutputForMapping, '_step_input', {
+          value: finalStepInput,
+          enumerable: false,
+          writable: false,
+          configurable: true
+      });
+  }
+
+  const effectiveOutputMappings = stepInstanceConfig.outputMappings === undefined
+      ? { [`$.steps_output.${currentStepInstanceId}`]: '$' } // Fixed default syntax
+      : { ...stepInstanceConfig.outputMappings };
+
+  // Evaluate requested paths. If a field isn't in output but IS in input, seamlessly route the mapping to `_step_input`.
+  for (const targetPath of Object.keys(effectiveOutputMappings)) {
+      const sourcePath = effectiveOutputMappings[targetPath];
+      
+      // Skip wildcard mapping paths as they explicitly target the root (which is pure output)
+      if (sourcePath !== '$' && sourcePath !== '$.') {
+          try {
+              // 1. Try finding the value in the PURE output data
+              const outputMatches = JSONPath({ path: sourcePath, json: outputDataForMapping });
+              
+              if (!outputMatches || outputMatches.length === 0) {
+                  // 2. Not found in output. Try finding it in the INPUT data.
+                  const inputMatches = JSONPath({ path: sourcePath, json: finalStepInput });
+                  
+                  if (inputMatches && inputMatches.length > 0) {
+                      // 3. Match found in input! Rewrite the mapping to explicitly target the non-enumerable fallback property.
+                      const rewrittenSourcePath = sourcePath.replace(/^\$\.?/, '$._step_input.');
+                      effectiveOutputMappings[targetPath] = rewrittenSourcePath;
+                      log_debug(`Smart Mapping: Rewrote '${targetPath}' to resolve from input using '${rewrittenSourcePath}'`, {}, correlationId);
+                  }
+              }
+          } catch (e) {
+              // Ignore JSONPath syntax errors here; processStepOutput will catch and log them correctly.
+          }
+      }
+  }
 
   let outputMappingEvents: MappingEvent[] = [];
   if (Object.keys(effectiveOutputMappings).length > 0 && finalOutputForMapping) {
@@ -424,22 +438,20 @@ export const executeStandardStep = async (
 
   logDetailsForRecord.transitionEvaluation = transitionDetails;
 
-  // Log successful completion (or continued failure as completion), if enabled
   if (runtimeState.enableExecutionLogs) {
     const s3Pointer = await executionLoggerClient.logStepExecution({
       ...baseRecord,
-      status: 'COMPLETED', // Treat as completed for SFN flow purposes
+      status: 'COMPLETED', 
       eventTimestamp: stepEndTime,
       endTime: stepEndTime,
       durationMs: stepDurationMs,
       logDetails: logDetailsForRecord,
       inputMappingResult: finalStepInput,
-      outputData: finalOutputForMapping, // Pass the OFF-LOADED output data (or error object)
+      outputData: finalOutputForMapping, 
       mappingEvents: allMappingEvents,
       inputMappingContext: inputContext,
       outputMappingContext: runtimeState.currentContextData,
       stepInstanceConfig: stepInstanceConfig,
-      // If it was a continued failure, include error info for visibility
       ...(executionError && {
         errorInfo: {
           errorName: executionError.name || 'HandledError',

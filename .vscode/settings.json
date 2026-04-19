@@ -1,3 +1,9 @@
 {
-    "git.detectSubmodulesLimit": 15
+    "git.detectSubmodulesLimit": 15,
+    "js/ts.tsserver.maxMemory": 1024,
+    "files.watcherExclude": {
+  "**/node_modules/**": true,
+  "**/.git/**": true,
+  "**/dist/**": true
+}
 }

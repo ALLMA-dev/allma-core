@@ -1,3 +1,5 @@
+// packages/app-logic/src/allma-flows/iterative-step-processor/parallel-handler.ts
+
 import { JSONPath } from 'jsonpath-plus';
 import { v4 as uuidv4 } from 'uuid';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
@@ -20,7 +22,7 @@ import {
     MappingEvent,
 } from '@allma/core-types';
 import {
-    log_info, log_error, log_warn, log_debug, resolveS3Pointer, offloadIfLarge,
+    log_info, log_error, log_warn, log_debug, resolveS3Pointer, offloadIfLarge, fetchDistributedMapResults
 } from '@allma/core-sdk';
 import { processStepOutput, getSmartValueByJsonPath } from '../../allma-core/data-mapper.js';
 import { executionLoggerClient } from '../../allma-core/execution-logger-client.js';
@@ -37,11 +39,6 @@ const SFN_INLINE_PAYLOAD_LIMIT_BYTES = 100 * 1024;
 const GLOBAL_MAX_CONCURRENCY_STR = process.env[ENV_VAR_NAMES.MAX_CONCURRENT_STEP_EXECUTIONS];
 const GLOBAL_MAX_CONCURRENCY = GLOBAL_MAX_CONCURRENCY_STR ? parseInt(GLOBAL_MAX_CONCURRENCY_STR, 10) : 20;
 
-/**
- * Aggregates the results from parallel branch executions based on the defined strategy.
- * Mutates runtimeState on failure.
- * @returns The aggregated data, or null if aggregation causes the flow to fail.
- */
 function aggregateBranchOutputs(
     branchOutputs: BranchResult[],
     aggregationConfig: AggregationConfig,
@@ -144,9 +141,6 @@ function aggregateBranchOutputs(
     return { aggregatedData: aggregatedResult };
 }
 
-/**
- * Handles the aggregation of results from a parallel step.
- */
 export const handleParallelAggregation = async (
     parallelAggregateInput: Exclude<ProcessorInput['parallelAggregateInput'], undefined>,
     runtimeState: FlowRuntimeState,
@@ -165,7 +159,20 @@ export const handleParallelAggregation = async (
         maxConcurrency: 0,
     };
 
-    const resolutionPromises = parallelAggregateInput.branchOutputs.map(async (branchResult) => {
+    let branchOutputs = parallelAggregateInput.branchOutputs || [];
+
+    // Check if Distributed Map results exist in S3 (from PARALLEL_FORK_S3)
+    if (parallelAggregateInput.mapResultsDetails?.MapRunArn && parallelAggregateInput.mapResultsDetails?.ResultWriterDetails?.Bucket) {
+        log_info('Detected Distributed Map results. Fetching from S3 manifest...', { mapResultsDetails: parallelAggregateInput.mapResultsDetails }, correlationId);
+        try {
+            branchOutputs = await fetchDistributedMapResults(parallelAggregateInput.mapResultsDetails, correlationId);
+        } catch (e: any) {
+            log_error(`Failed to fetch Distributed Map results: ${e.message}`, { error: e }, correlationId);
+            throw new PermanentStepError(`Failed to fetch Distributed Map results: ${e.message}`);
+        }
+    }
+
+    const resolutionPromises = branchOutputs.map(async (branchResult) => {
         let finalizeOutput = branchResult.output;
         
         // Parse stringified JSON output from SFN RUN_JOB execution if necessary
@@ -265,7 +272,7 @@ export const handleParallelAggregation = async (
                 startTime: runtimeState._internal?.currentStepStartTime || new Date().toISOString(),
                 eventTimestamp: new Date().toISOString(),
                 endTime: new Date().toISOString(),
-                inputMappingResult: parallelAggregateInput.branchOutputs,
+                inputMappingResult: resolvedBranchOutputs, // Log the actual resolved outputs used for aggregation
                 errorInfo: runtimeState.errorInfo,
                 outputMappingContext: runtimeState.currentContextData,
             });
@@ -313,7 +320,7 @@ export const handleParallelAggregation = async (
             startTime: runtimeState._internal?.currentStepStartTime || new Date().toISOString(),
             eventTimestamp: eventTimestamp,
             endTime: eventTimestamp,
-            inputMappingResult: parallelAggregateInput.branchOutputs,
+            inputMappingResult: resolvedBranchOutputs, // Record the actual array we tried to aggregate
             outputData: finalOutputForMapping, 
             mappingEvents: outputMappingEvents, 
             outputMappingContext: runtimeState.currentContextData, // Ensured the final context is captured
@@ -326,9 +333,6 @@ export const handleParallelAggregation = async (
     return { updatedRuntimeState: runtimeState, nextStepId };
 };
 
-/**
- * Handles a parallel fork step by preparing branch payloads.
- */
 export const handleParallelFork = async (
     stepInstanceConfig: StepInstance,
     runtimeState: FlowRuntimeState,
