@@ -265,6 +265,13 @@ export interface StageConfig {
   };
 
   /**
+   * Optional list of AWS Bedrock Inference Profile ARNs to grant access to.
+   * Allows routing requests to cross-region models using AWS Bedrock Inference Profiles.
+   * @example ['arn:aws:bedrock:us-west-2:123456789012:inference-profile/global.anthropic.claude-haiku...']
+   */
+  bedrockInferenceProfileArns?: string[];
+
+  /**
    * Optional path to a file or directory containing an initial Allma configuration to load.
    * The path can point to either a single JSON file or a directory.
    *

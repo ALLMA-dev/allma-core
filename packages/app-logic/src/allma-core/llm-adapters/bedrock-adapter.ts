@@ -1,4 +1,3 @@
-
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 
 // For a list of supported models and their API structures, see:
@@ -12,7 +11,7 @@ import {
     PermanentStepError,
     TransientStepError
 } from '@allma/core-types';
-import { log_info, log_debug, log_error } from '@allma/core-sdk';
+import { log_info, log_debug, log_error, log_warn } from '@allma/core-sdk';
 
 /**
  * Adapter for invoking AI models through AWS Bedrock.
@@ -29,17 +28,56 @@ export class BedrockAdapter implements LlmProviderAdapter {
 
     /**
      * Determines the underlying model provider from the Bedrock model ID string.
-     * @param modelId - The Bedrock model ID (e.g., 'anthropic.claude-3-sonnet-20240229-v1:0').
+     * Supports standard model IDs, Inference Profile IDs, and full ARNs.
+     * @param modelId - The Bedrock model ID (e.g., 'anthropic.claude-3-sonnet-20240229-v1:0' or 'arn:aws:bedrock:...').
      * @returns The provider name (e.g., 'anthropic').
      */
     private getProviderFromModelId(modelId: string): string {
-        const globalPrefix = 'global.';
-        let providerId = modelId;
-        if (modelId.startsWith(globalPrefix)) {
-            // If it's a global model, strip the prefix to identify the provider family (e.g., 'anthropic').
-            providerId = modelId.substring(globalPrefix.length);
+        let coreId = modelId;
+
+        // If the modelId is a full ARN, extract the resource name (the part after the last '/')
+        if (coreId.startsWith('arn:aws:bedrock:')) {
+            const parts = coreId.split('/');
+            coreId = parts[parts.length - 1];
         }
-        return providerId.split('.')[0];
+
+        // Remove geographic routing prefixes commonly used by Inference Profiles
+        const routingPrefixes = ['global.', 'us.', 'eu.', 'apac.'];
+        for (const prefix of routingPrefixes) {
+            if (coreId.startsWith(prefix)) {
+                coreId = coreId.substring(prefix.length);
+                break; // Only one prefix will match
+            }
+        }
+
+        // Return the provider part (e.g., 'anthropic', 'amazon', 'meta', 'cohere')
+        return coreId.split('.')[0];
+    }
+
+    /**
+     * Resolves the conflict between temperature and topP. Bedrock models often strictly forbid
+     * sending both parameters simultaneously.
+     */
+    private resolveSamplingParams(request: LlmGenerationRequest, defaultTemp: number): { temperature?: number, topP?: number } {
+        let { temperature, topP, correlationId, modelId } = request;
+        
+        const hasTemp = temperature !== undefined && temperature !== null;
+        const hasTopP = topP !== undefined && topP !== null;
+
+        if (hasTemp && hasTopP) {
+            log_warn(`Bedrock configuration conflict: 'temperature' and 'top_p' cannot both be specified for ${modelId}. Prioritizing temperature.`, { dropped: 'topP', temperature }, correlationId);
+            topP = undefined;
+        }
+
+        // If neither is provided, explicitly apply the default temperature
+        if (!hasTemp && !hasTopP) {
+            temperature = defaultTemp;
+        }
+
+        return {
+            ...(temperature !== undefined && temperature !== null ? { temperature } : {}),
+            ...(topP !== undefined && topP !== null ? { topP } : {}),
+        };
     }
 
     /**
@@ -48,19 +86,27 @@ export class BedrockAdapter implements LlmProviderAdapter {
      * @returns A stringified JSON payload.
      */
     private buildAnthropicPayload(request: LlmGenerationRequest): string {
-        const { prompt, maxOutputTokens, temperature, topP, topK, stopSequences } = request;
+        const { prompt, maxOutputTokens, topK, stopSequences } = request;
 
         const anthropicVersion = request.customConfig?.anthropic_version || 'bedrock-2023-05-31';
 
-        const payload = {
+        const payload: any = {
             anthropic_version: anthropicVersion,
             messages: [{ role: 'user', content: prompt }],
             max_tokens: maxOutputTokens ?? 4096,
-            temperature: temperature ?? 0.7,
-            top_p: topP ?? 1.0,
-            top_k: topK ?? 250,
             stop_sequences: stopSequences,
         };
+
+        if (topK !== undefined && topK !== null) {
+            payload.top_k = topK;
+        } else {
+            payload.top_k = 250;
+        }
+
+        const sampling = this.resolveSamplingParams(request, 0.7);
+        if (sampling.temperature !== undefined) payload.temperature = sampling.temperature;
+        if (sampling.topP !== undefined) payload.top_p = sampling.topP;
+
         return JSON.stringify(payload);
     }
 
@@ -85,8 +131,8 @@ export class BedrockAdapter implements LlmProviderAdapter {
      * @returns A stringified JSON payload. [1, 2]
      */
     private buildAmazonPayload(request: LlmGenerationRequest): string {
-        const { prompt, maxOutputTokens, temperature, topP, stopSequences, seed } = request;
-        const payload = {
+        const { prompt, maxOutputTokens, stopSequences, seed } = request;
+        const payload: any = {
             // The top-level structure now requires a 'messages' array.
             messages: [{
                 role: 'user',
@@ -96,11 +142,14 @@ export class BedrockAdapter implements LlmProviderAdapter {
             inferenceConfig: {
                 maxTokens: maxOutputTokens ?? 8192,
                 stopSequences: stopSequences ?? [],
-                temperature: temperature ?? 0.5,
-                topP: topP ?? 0.9,
                 ...(seed !== undefined && { seed: seed }),
             },
         };
+
+        const sampling = this.resolveSamplingParams(request, 0.5);
+        if (sampling.temperature !== undefined) payload.inferenceConfig.temperature = sampling.temperature;
+        if (sampling.topP !== undefined) payload.inferenceConfig.topP = sampling.topP;
+
         return JSON.stringify(payload);
     }
 
@@ -127,15 +176,18 @@ export class BedrockAdapter implements LlmProviderAdapter {
      * @returns A stringified JSON payload.
      */
     private buildOpenaiPayload(request: LlmGenerationRequest): string {
-        const { prompt, maxOutputTokens, temperature, topP, stopSequences } = request;
+        const { prompt, maxOutputTokens, stopSequences } = request;
 
-        const payload = {
+        const payload: any = {
             messages: [{ role: 'user', content: prompt }],
             max_tokens: maxOutputTokens ?? 4096,
-            temperature: temperature ?? 0.7,
-            top_p: topP ?? 1.0,
             stop: stopSequences,
         };
+
+        const sampling = this.resolveSamplingParams(request, 0.7);
+        if (sampling.temperature !== undefined) payload.temperature = sampling.temperature;
+        if (sampling.topP !== undefined) payload.top_p = sampling.topP;
+
         return JSON.stringify(payload);
     }
 

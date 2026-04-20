@@ -88,5 +88,8 @@ export const defaultConfig: StageConfig = {
 
   // --- Secrets ---
   // This MUST be overridden in the user's config.
-  aiApiKeySecretArn: 'YOUR_AI_API_KEY_SECRET_ARN'
+  aiApiKeySecretArn: 'YOUR_AI_API_KEY_SECRET_ARN',
+
+  // --- Bedrock Settings ---
+  bedrockInferenceProfileArns: [],
 };

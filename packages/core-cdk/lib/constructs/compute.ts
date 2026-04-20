@@ -261,10 +261,27 @@ export class AllmaCompute extends Construct {
       ],
     }));
 
+    const bedrockResources = [
+      `arn:aws:bedrock:${cdk.Aws.REGION}::foundation-model/*`, 
+      `arn:aws:bedrock:*::foundation-model/*`,                 
+      `arn:aws:bedrock:::foundation-model/*`,
+      // Allows general access to inference profiles if no explicit ARNs are provided,
+      // but also respects standard AWS patterns.
+      `arn:aws:bedrock:*:*:inference-profile/*`,
+      `arn:aws:bedrock:*:*:application-inference-profile/*`
+    ];
+
+    if (stageConfig.bedrockInferenceProfileArns && stageConfig.bedrockInferenceProfileArns.length > 0) {
+      bedrockResources.push(...stageConfig.bedrockInferenceProfileArns);
+    }
+
     this.orchestrationLambdaRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
-      actions: ['bedrock:InvokeModel'],
-      resources: [`arn:aws:bedrock:${cdk.Aws.REGION}::foundation-model/*`],
+      actions: [
+        'bedrock:InvokeModel',
+        'bedrock:InvokeModelWithResponseStream'
+      ],
+      resources: Array.from(new Set(bedrockResources)),
     }));
 
     this.orchestrationLambdaRole.addToPolicy(new iam.PolicyStatement({
