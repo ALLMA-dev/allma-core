@@ -1,5 +1,6 @@
 import { resolveS3Pointer } from './s3Utils.js';
 import { isS3OutputPointerWrapper } from '@allma/core-types';
+import { deepMerge, isObject } from './objectUtils.js';
 
 /**
  * Recursively traverses an object or array and resolves any S3 pointers it finds.
@@ -19,8 +20,9 @@ export async function hydrateInputFromS3Pointers(data: any, correlationId?: stri
           // but AVOID recursing into the potentially massive resolved S3 data.
           const hydratedOtherKeys = await hydrateInputFromS3Pointers(otherKeys, correlationId);
           
-          if (typeof resolvedData === 'object' && resolvedData !== null && !Array.isArray(resolvedData)) {
-              mergedData = { ...resolvedData, ...hydratedOtherKeys };
+          // Use deepMerge to prevent shallow overwriting of nested objects like 'triggeringEmail'
+          if (isObject(resolvedData)) {
+              mergedData = deepMerge(resolvedData, hydratedOtherKeys);
           } else {
               mergedData = { content: resolvedData, ...hydratedOtherKeys };
           }
@@ -28,7 +30,7 @@ export async function hydrateInputFromS3Pointers(data: any, correlationId?: stri
       
       return mergedData;
     }
-    if (data && typeof data === 'object') {
+    if (isObject(data)) {
       const hydratedObject: Record<string, any> = {};
       for (const key in data) {
         if (Object.prototype.hasOwnProperty.call(data, key)) {

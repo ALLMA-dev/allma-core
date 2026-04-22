@@ -245,11 +245,15 @@ export class AllmaOrchestration extends Construct {
         resultPath: '$', 
     });
 
-    const parallelMapState = new sfn.Map(this, 'ExecuteBranchesInParallel', {
+    const parallelMapState = new sfn.DistributedMap(this, 'ExecuteBranchesInParallel', {
         itemsPath: sfn.JsonPath.stringAt('$.branchesToExecute'),
         maxConcurrencyPath: sfn.JsonPath.stringAt('$.mapContext.aggregationConfig.maxConcurrency'),
-        resultPath: '$.mapResultsArray',
-        parameters: {
+        resultPath: '$.mapResultsDetails',
+        resultWriter: new sfn.ResultWriter({
+            bucket: props.executionTracesBucket,
+            prefix: 'map_results_inline',
+        }),
+        itemSelector: {
             'mapContext.$': '$.mapContext',
             'branchItem.$': '$$.Map.Item.Value',
         },
@@ -266,7 +270,7 @@ export class AllmaOrchestration extends Construct {
         }),
         resultWriter: new sfn.ResultWriter({
             bucket: props.executionTracesBucket,
-            prefix: 'map_results',
+            prefix: 'map_results_manifest',
         }),
         maxConcurrencyPath: sfn.JsonPath.stringAt('$.s3ItemReader.aggregationConfig.maxConcurrency'),
         itemSelector: {
@@ -298,7 +302,7 @@ export class AllmaOrchestration extends Construct {
           'runtimeState.$': '$.mapContext.runtimeState',
           'sfnAction': SfnActionType.PARALLEL_AGGREGATE,
           'parallelAggregateInput': {
-              'branchOutputs.$': '$.mapResultsArray',
+              'mapResultsDetails.$': '$.mapResultsDetails',
               'aggregationConfig.$': '$.mapContext.aggregationConfig',
               'originalStepInstanceId.$': '$.mapContext.originalStepInstanceId',
           }
@@ -429,6 +433,7 @@ export class AllmaOrchestration extends Construct {
     pollingSubFlowTask.addCatch(normalizeErrorState, failureCatchConfig);
     startSyncFlowExecutionTask.addCatch(normalizeErrorState, failureCatchConfig);
     processAsyncResultAndContinue.addCatch(normalizeErrorState, failureCatchConfig);
+    parallelMapState.addCatch(normalizeErrorState, failureCatchConfig);
     parallelMapStateFromS3.addCatch(normalizeErrorState, failureCatchConfig);
 
     iterativeStepTask.addRetry(lambdaServiceErrorRetryPolicy);
@@ -480,7 +485,6 @@ export class AllmaOrchestration extends Construct {
                     sfn.JsonPath.stringAt('$.branchItem.branchId'),
                     sfn.JsonPath.uuid()
                 ),
-                'mergedContextData.$': 'States.JsonMerge($.mapContext.runtimeState.currentContextData, $.branchItem.branchInput, false)',
             },
         });
 
@@ -500,7 +504,7 @@ export class AllmaOrchestration extends Construct {
                     'status': 'RUNNING',
                     'startTime.$': '$$.State.EnteredTime',
                     'stepRetryAttempts': {},
-                    'currentContextData.$': '$.mergedContextData',
+                    'currentContextData.$': 'States.JsonMerge($.mapContext.runtimeState.currentContextData, $.branchItem.branchInput, false)',
                     '_internal': {
                         'branchDefinition.$': '$.branchItem.branchDefinition',
                         'currentStepStartTime.$': '$$.State.EnteredTime',

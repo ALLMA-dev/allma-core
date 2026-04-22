@@ -7,7 +7,7 @@ import {
   MappingEventType,
   MappingEventStatus,
 } from '@allma/core-types';
-import { log_debug, log_warn, log_info, log_error, resolveS3Pointer } from '@allma/core-sdk';
+import { log_debug, log_warn, log_info, log_error, resolveS3Pointer, deepMerge, isObject } from '@allma/core-sdk';
 
 /**
  * Sets a value on a nested object using a dot-notation or bracket-notation path.
@@ -147,8 +147,8 @@ async function traverseSimplePath(
       
       const { _s3_output_pointer, ...otherKeys } = currentContext;
       if (Object.keys(otherKeys).length > 0) {
-        if (typeof resolvedData === 'object' && resolvedData !== null && !Array.isArray(resolvedData)) {
-            currentContext = { ...resolvedData, ...otherKeys };
+        if (isObject(resolvedData)) {
+            currentContext = deepMerge(resolvedData, otherKeys);
         } else {
             currentContext = { content: resolvedData, ...otherKeys };
         }
@@ -189,11 +189,11 @@ async function traverseSimplePath(
 
       const resolvedData = await resolveS3Pointer(s3Pointer, correlationId);
       
-      // Preserve other keys if it's a mixed object (e.g. { _s3_output_pointer: {}, normalizedData: {} })
+      // Preserve other keys using deep merge to avoid shallow destruction of sibling keys
       const { _s3_output_pointer, ...otherKeys } = currentContext;
       if (Object.keys(otherKeys).length > 0) {
-        if (typeof resolvedData === 'object' && resolvedData !== null && !Array.isArray(resolvedData)) {
-            currentContext = { ...resolvedData, ...otherKeys };
+        if (isObject(resolvedData)) {
+            currentContext = deepMerge(resolvedData, otherKeys);
         } else {
             currentContext = { content: resolvedData, ...otherKeys };
         }
@@ -311,23 +311,64 @@ export async function getSmartValueByJsonPath(
 
 /**
  * Helper function to safely set a value in a nested object using a JSONPath string.
- * This function manually traverses the path and creates nested objects/arrays if they don't exist.
+ * This function manually traverses the path, hydrates intermediate S3 pointers IN PLACE,
+ * and creates nested objects/arrays if they don't exist.
  * @param obj The object to modify.
  * @param path The JSONPath string (e.g., '$.a.b[0].c').
  * @param value The value to set.
  * @param correlationId Optional correlation ID for logging.
  */
-function setValueByJsonPath(obj: Record<string, any>, path: string, value: any, correlationId?: string): void {
+async function setValueByJsonPath(
+  obj: Record<string, any>, 
+  path: string, 
+  value: any, 
+  correlationId?: string
+): Promise<MappingEvent[]> {
+  const events: MappingEvent[] = [];
   // Use the library's utility to correctly parse the path string into segments.
   // e.g., "$['a']['b'][0]['c']" -> ['$', 'a', 'b', 0, 'c']
   const pathSegments = JSONPath.toPathArray(path);
 
   if (pathSegments[0] !== '$') {
     log_warn(`JSONPath for output mapping must start with root '$'. Path: ${path}`, {}, correlationId);
-    return;
+    return events;
   }
 
-  let currentContext = obj;
+  // Cast currentContext to 'any' to bypass TS7053 index signature errors while safely traversing
+  let currentContext: any = obj;
+
+  // Hydrate root context if necessary to satisfy immediate assignment and updates
+  if (isS3OutputPointerWrapper(currentContext)) {
+      const s3Pointer = currentContext._s3_output_pointer;
+      const resolvedData = await resolveS3Pointer(s3Pointer, correlationId);
+      const { _s3_output_pointer, ...otherKeys } = currentContext;
+      
+      // Clear current wrapper properties directly to keep the reference
+      // Assigning to a mutable reference circumvents TypeScript's type narrowing
+      const mutableContext = currentContext as any;
+      for (const key of Object.keys(mutableContext)) {
+          delete mutableContext[key];
+      }
+      
+      let mergedData = resolvedData;
+      if (Object.keys(otherKeys).length > 0) {
+         if (isObject(resolvedData)) {
+            mergedData = deepMerge(resolvedData, otherKeys);
+         } else {
+            mergedData = { content: resolvedData, ...otherKeys };
+         }
+      }
+      
+      Object.assign(mutableContext, mergedData);
+      
+      events.push({
+        type: MappingEventType.S3_POINTER_RESOLVE,
+        timestamp: new Date().toISOString(),
+        status: MappingEventStatus.INFO,
+        message: `Resolved root S3 pointer during output mapping path traversal.`,
+        details: { s3Pointer },
+      });
+  }
 
   // Traverse the path segments to find the parent object of the target key.
   // We loop until the second-to-last segment.
@@ -345,7 +386,40 @@ function setValueByJsonPath(obj: Record<string, any>, path: string, value: any, 
       }
       log_debug(`Autovivified path segment '${String(segment)}'`, { path }, correlationId);
     }
-    currentContext = currentContext[segment];
+    
+    let nextContext = currentContext[segment];
+    
+    // Check if it's an S3 wrapper, and if so, hydrate it IN PLACE so mutations stick
+    if (isS3OutputPointerWrapper(nextContext)) {
+        const s3Pointer = nextContext._s3_output_pointer;
+        log_debug(`Hydrating S3 pointer at segment '${String(segment)}' during output mapping`, { path }, correlationId);
+        const resolvedData = await resolveS3Pointer(s3Pointer, correlationId);
+        
+        const { _s3_output_pointer, ...otherKeys } = nextContext;
+        
+        let mergedData = resolvedData;
+        if (Object.keys(otherKeys).length > 0) {
+            if (isObject(resolvedData)) {
+                mergedData = deepMerge(resolvedData, otherKeys);
+            } else {
+                mergedData = { content: resolvedData, ...otherKeys };
+            }
+        }
+        
+        // Mutate the object reference in the parent
+        currentContext[segment] = mergedData;
+        nextContext = currentContext[segment];
+        
+        events.push({
+          type: MappingEventType.S3_POINTER_RESOLVE,
+          timestamp: new Date().toISOString(),
+          status: MappingEventStatus.INFO,
+          message: `Resolved S3 pointer found at path segment '${String(segment)}' during output mapping.`,
+          details: { s3Pointer },
+        });
+    }
+
+    currentContext = nextContext;
   }
 
   // Get the final segment (the key or index to set the value on).
@@ -355,6 +429,8 @@ function setValueByJsonPath(obj: Record<string, any>, path: string, value: any, 
   } else {
     log_warn(`Could not determine final key for path: ${path}. Assignment skipped.`, {}, correlationId);
   }
+  
+  return events;
 }
 
 /**
@@ -482,10 +558,13 @@ export async function processStepOutput(
                 log_debug(`Output mapping requires properties from offloaded data. Hydrating root S3 pointer.`, {}, correlationId);
                 const resolvedData = await resolveS3Pointer(stepOutputData._s3_output_pointer, correlationId);
                 
-                if (typeof resolvedData === 'object' && resolvedData !== null && !Array.isArray(resolvedData)) {
-                     hydratedStepOutputData = { ...resolvedData, ...stepOutputData };
+                // Exclude the _s3_output_pointer to avoid deep-merging it back onto the hydrated object
+                const { _s3_output_pointer, ...otherKeys } = stepOutputData;
+                
+                if (isObject(resolvedData)) {
+                     hydratedStepOutputData = deepMerge(resolvedData, otherKeys);
                 } else {
-                     hydratedStepOutputData = { content: resolvedData, ...stepOutputData };
+                     hydratedStepOutputData = { content: resolvedData, ...otherKeys };
                 }
                 didHydrateRoot = true;
             }
@@ -502,7 +581,8 @@ export async function processStepOutput(
       if (valueToApply !== undefined) {
         const clonedValueToApply =
           typeof valueToApply === 'object' && valueToApply !== null ? structuredClone(valueToApply) : valueToApply;
-        setValueByJsonPath(contextData, targetContextJsonPath, clonedValueToApply, correlationId);
+        const setEvents = await setValueByJsonPath(contextData, targetContextJsonPath, clonedValueToApply, correlationId);
+        events.push(...setEvents);
         event.details.resolvedValuePreview = JSON.stringify(clonedValueToApply)?.substring(0, 200);
         
         if (isWrapper && isRootMapping) {
