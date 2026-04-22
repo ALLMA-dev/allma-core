@@ -140,8 +140,10 @@ export const StepInstanceSchema = BaseStepDefinitionSchema.and(z.object({
   transitions: z.array(z.object({
     condition: z.string(), // Is JsonPathString but zod struggles with `.or()` in deep merges
     nextStepInstanceId: z.string().min(1),
+    maxTransitions: z.number().int().min(0).optional().default(5).describe("Max Transitions|number|Maximum number of times this transition can be taken per flow execution. 0 means infinite."),
   })).optional(),
   defaultNextStepInstanceId: z.string().min(1).optional(),
+  defaultNextMaxTransitions: z.number().int().min(0).optional().default(5).describe("Default Next Max Transitions|number|Maximum number of times the default transition can be taken. 0 means infinite."),
   delay: DelayOptionsSchema.optional(),
   disableS3Offload: z.boolean().optional(),
   forceS3Offload: z.boolean().optional(),

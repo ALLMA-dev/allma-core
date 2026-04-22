@@ -28,6 +28,7 @@ export const FlowRuntimeStateSchema: z.ZodType<any> = z.object({
   currentContextDataS3Pointer: S3PointerSchema.optional(),
   errorInfo: AllmaErrorSchema.optional(),
   stepRetryAttempts: z.record(z.string(), z.number().int().min(0)).optional().default({}),
+  transitionCounts: z.record(z.string(), z.number().int().min(0)).optional().default({}),
   executionOverrides: z.object({
     stepOverrides: FlowStepOverridesSchema.optional(),
   }).optional(),

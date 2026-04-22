@@ -25,13 +25,14 @@ import {
 import { processStepOutput, getSmartValueByJsonPath } from '../../allma-core/data-mapper.js';
 import { executionLoggerClient } from '../../allma-core/execution-logger-client.js';
 import { resolveNextStep } from './transition-resolver.js';
+import { enforceTransitionLimits } from './transition-limits.js';
 
 // Configure client with adaptive retry strategy to smoothly handle massive traffic spikes
 const s3Client = new S3Client({ maxAttempts: 10, retryMode: 'adaptive' });
 const EXECUTION_TRACES_BUCKET_NAME = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME];
 
 // Reduced to 100KB to ensure that combining it with runtimeState doesn't exceed SFN's 256KB limit.
-const SFN_INLINE_PAYLOAD_LIMIT_BYTES = 100 * 1024; 
+const SFN_INLINE_PAYLOAD_LIMIT_BYTES = 100 * 1024;
 
 // Read global limit. Default to a safe "soft limit" of 20 if undefined.
 const GLOBAL_MAX_CONCURRENCY_STR = process.env[ENV_VAR_NAMES.MAX_CONCURRENT_STEP_EXECUTIONS];
@@ -47,22 +48,29 @@ function aggregateBranchOutputs(
 
     let effectiveDataPath = aggregationConfig.dataPath;
 
-    if (!effectiveDataPath) {
-        log_warn(`No 'dataPath' provided in aggregationConfig. Defaulting to aggregating the '$.output' field of the branch context to prevent data snowballing. To aggregate the entire context, explicitly set dataPath to '$'.`, { stepInstanceId: runtimeState.currentStepInstanceId }, correlationId);
-        effectiveDataPath = '$.output';
+    // SFN orchestration explicitly extracts `$.runtimeState.currentContextData.output` for inline payloads.
+    // We normalize S3 payloads to match this. Therefore, the object we receive is ALREADY the output.
+    // If no dataPath is provided (or if legacy '$.output' is requested), we default to root ('') to prevent null results.
+    if (!effectiveDataPath || effectiveDataPath === '$.output') {
+        effectiveDataPath = '';
     }
-    
+
     // Step 1: Process all branch outputs to extract data or preserve errors.
     const processedOutputs = branchOutputs.map(branchResult => {
         if (branchResult.error) {
             return { branchId: branchResult.branchId, error: branchResult.error };
         }
-        
+
         const dataToExtractFrom = branchResult.output;
         let extractedValue: any;
 
-        if (effectiveDataPath === '$' || effectiveDataPath === '$.') {
-            // User explicitly requested the entire branch context
+        // Failsafe: if dataPath is STILL exactly $.output, but our object doesn't possess it, safely route to root.
+        if (effectiveDataPath === '$.output' && dataToExtractFrom && typeof dataToExtractFrom === 'object' && !('output' in dataToExtractFrom)) {
+            effectiveDataPath = '';
+        }
+
+        if (effectiveDataPath === '' || effectiveDataPath === '$.') {
+            // User explicitly requested the entire branch context (which is now just the output)
             extractedValue = dataToExtractFrom;
         } else {
             // Targeted extraction using JSONPath
@@ -111,7 +119,7 @@ function aggregateBranchOutputs(
                 aggregatedResult._branchErrors = errorResults;
             }
             break;
-            
+
         case AggregationStrategy.SUM:
             aggregatedResult = successfulResults.reduce((sum, output) => {
                 if (typeof output === 'number') {
@@ -153,7 +161,7 @@ export const handleParallelAggregation = async (
     correlationId: string
 ): Promise<{ updatedRuntimeState: FlowRuntimeState; nextStepId: string | undefined; }> => {
     log_info('Performing parallel branch aggregation.', { originalStepInstanceId: parallelAggregateInput.originalStepInstanceId }, correlationId);
-    
+
     const originalStepId = parallelAggregateInput.originalStepInstanceId;
     const stepInstanceConfig = flowDef.steps[originalStepId];
     if (!stepInstanceConfig) throw new Error(`Config for parent parallel step '${originalStepId}' not found.`);
@@ -179,7 +187,7 @@ export const handleParallelAggregation = async (
 
     const resolutionPromises = branchOutputs.map(async (branchResult) => {
         let finalizeOutput = branchResult.output;
-        
+
         // Parse stringified JSON output from SFN RUN_JOB execution if necessary
         if (typeof finalizeOutput === 'string') {
             try {
@@ -198,9 +206,9 @@ export const handleParallelAggregation = async (
                 finalizeOutput = resolvedContext.output || {};
             } catch (e: any) {
                 log_error(`Failed to resolve S3 pointer for branch '${branchResult.branchId}'. Treating as branch error.`, { error: e.message }, correlationId);
-                return { 
-                    branchId: branchResult.branchId, 
-                    error: { errorName: 'S3PointerResolutionError', errorMessage: e.message, isRetryable: false } 
+                return {
+                    branchId: branchResult.branchId,
+                    error: { errorName: 'S3PointerResolutionError', errorMessage: e.message, isRetryable: false }
                 };
             }
         }
@@ -218,12 +226,12 @@ export const handleParallelAggregation = async (
                 log_info(`Resolving S3 final context pointer for branch '${branchResult.branchId}' before aggregation.`, {}, correlationId);
                 try {
                     const resolvedData = await resolveS3Pointer(finalizeOutput.finalContextDataS3Pointer, correlationId, true);
-                    finalizeOutput = resolvedData; 
+                    finalizeOutput = resolvedData;
                 } catch (e: any) {
                     log_error(`Failed to resolve S3 pointer for branch '${branchResult.branchId}'. Treating as branch error.`, { error: e.message }, correlationId);
-                    return { 
-                        branchId: branchResult.branchId, 
-                        error: { errorName: 'S3PointerResolutionError', errorMessage: e.message, isRetryable: false } 
+                    return {
+                        branchId: branchResult.branchId,
+                        error: { errorName: 'S3PointerResolutionError', errorMessage: e.message, isRetryable: false }
                     };
                 }
             } else if (finalizeOutput.finalContextData) {
@@ -233,24 +241,32 @@ export const handleParallelAggregation = async (
 
         // Fallback for standard S3 output pointers if manually passed or correctly extracted
         if (finalizeOutput && isS3OutputPointerWrapper(finalizeOutput)) {
-             log_info(`Resolving direct S3 output pointer for branch '${branchResult.branchId}' before aggregation.`, {}, correlationId);
-             try {
-                 const resolvedData = await resolveS3Pointer(finalizeOutput._s3_output_pointer, correlationId, true);
-                 const { _s3_output_pointer, ...otherKeys } = finalizeOutput;
-                 
-                 let finalOutput = resolvedData;
-                 if (Object.keys(otherKeys).length > 0) {
-                     if (typeof resolvedData === 'object' && resolvedData !== null && !Array.isArray(resolvedData)) {
-                         finalOutput = { ...resolvedData, ...otherKeys };
-                     } else {
-                         finalOutput = { content: resolvedData, ...otherKeys };
-                     }
-                 }
-                 
-                 return { ...branchResult, output: finalOutput };
-             } catch (e: any) {
-                 return { branchId: branchResult.branchId, error: { errorName: 'S3OutputPointerResolutionError', errorMessage: e.message, isRetryable: false } };
-             }
+            log_info(`Resolving direct S3 output pointer for branch '${branchResult.branchId}' before aggregation.`, {}, correlationId);
+            try {
+                const resolvedData = await resolveS3Pointer(finalizeOutput._s3_output_pointer, correlationId, true);
+                const { _s3_output_pointer, ...otherKeys } = finalizeOutput;
+
+                // SFN inline naturally returns $.runtimeState.currentContextData.output
+                // _s3_output_pointer resolves to the FULL currentContextData.
+                // We must extract `.output` here so S3 payloads structurally match inline payloads.
+                let normalizedOutput = resolvedData;
+                if (resolvedData && typeof resolvedData === 'object' && 'output' in resolvedData) {
+                    normalizedOutput = resolvedData.output;
+                }
+
+                let finalOutput = normalizedOutput;
+                if (Object.keys(otherKeys).length > 0) {
+                    if (typeof normalizedOutput === 'object' && normalizedOutput !== null && !Array.isArray(normalizedOutput)) {
+                        finalOutput = { ...normalizedOutput, ...otherKeys };
+                    } else {
+                        finalOutput = { content: normalizedOutput, ...otherKeys };
+                    }
+                }
+
+                return { ...branchResult, output: finalOutput };
+            } catch (e: any) {
+                return { branchId: branchResult.branchId, error: { errorName: 'S3OutputPointerResolutionError', errorMessage: e.message, isRetryable: false } };
+            }
         }
 
         return { ...branchResult, output: finalizeOutput };
@@ -304,15 +320,16 @@ export const handleParallelAggregation = async (
     }
 
     const effectiveOutputMappings = stepInstanceConfig.outputMappings === undefined
-        ? { [`$.steps_output.${originalStepId}`]: '$' } 
+        ? { [`$.steps_output.${originalStepId}`]: '$' }
         : stepInstanceConfig.outputMappings;
 
     let outputMappingEvents: MappingEvent[] = [];
     if (Object.keys(effectiveOutputMappings).length > 0 && finalOutputForMapping) {
         outputMappingEvents = await processStepOutput(effectiveOutputMappings, finalOutputForMapping, runtimeState.currentContextData, correlationId);
     }
-    
+
     const { nextStepId, transitionDetails } = await resolveNextStep(stepInstanceConfig, runtimeState);
+    enforceTransitionLimits(stepInstanceConfig, nextStepId, transitionDetails, runtimeState, correlationId);
 
     const eventTimestamp = new Date().toISOString();
     if (runtimeState.enableExecutionLogs) {
@@ -326,8 +343,8 @@ export const handleParallelAggregation = async (
             eventTimestamp: eventTimestamp,
             endTime: eventTimestamp,
             inputMappingResult: resolvedBranchOutputs, // Record the actual array we tried to aggregate
-            outputData: finalOutputForMapping, 
-            mappingEvents: outputMappingEvents, 
+            outputData: finalOutputForMapping,
+            mappingEvents: outputMappingEvents,
             outputMappingContext: runtimeState.currentContextData, // Ensured the final context is captured
             logDetails: {
                 transitionEvaluation: transitionDetails,
@@ -348,13 +365,13 @@ export const handleParallelFork = async (
     }
 
     log_info(`Step '${stepInstanceConfig.stepInstanceId}' is a parallel fork. Preparing branches.`, {}, correlationId);
-    
+
     const { itemsPath, parallelBranches, aggregationConfig } = stepInstanceConfig;
 
     const branchTemplates = parallelBranches || [];
     if (branchTemplates.length === 0) {
-         log_warn(`Step '${stepInstanceConfig.stepInstanceId}' is PARALLEL_FORK_MANAGER but has no parallelBranches defined.`, {}, correlationId);
-         return null;
+        log_warn(`Step '${stepInstanceConfig.stepInstanceId}' is PARALLEL_FORK_MANAGER but has no parallelBranches defined.`, {}, correlationId);
+        return null;
     }
 
     if (!itemsPath) {
@@ -379,7 +396,7 @@ export const handleParallelFork = async (
         ...aggregationConfig,
         maxConcurrency: effectiveMaxConcurrency,
     };
-    
+
     const { value: itemsValue, events } = await getSmartValueByJsonPath(itemsPath, runtimeState.currentContextData, true, correlationId);
 
     let itemsToProcess: any[] = [];
@@ -388,15 +405,15 @@ export const handleParallelFork = async (
     } else if (itemsValue) {
         itemsToProcess = [itemsValue];
     }
-    
+
     if (!EXECUTION_TRACES_BUCKET_NAME) {
         throw new PermanentStepError('ALLMA_EXECUTION_TRACES_BUCKET_NAME is not configured.');
     }
-    
+
     const branchesToExecute: BranchExecutionPayload[] = [];
     for (const item of itemsToProcess) {
         const itemContext = { ...runtimeState.currentContextData, currentItem: item };
-        
+
         for (const branchTemplate of branchTemplates) {
             if (branchTemplate.condition) {
                 const { value: conditionMet } = await getSmartValueByJsonPath(branchTemplate.condition, itemContext, true, correlationId);
@@ -404,7 +421,7 @@ export const handleParallelFork = async (
                     continue;
                 }
             }
-            
+
             // Offload the `currentItem` if it's large before creating the payload
             const offloadedItem = await offloadIfLarge(
                 item,
@@ -429,7 +446,7 @@ export const handleParallelFork = async (
             });
         }
     }
-    
+
     // Check the size of the combined branches AND the runtimeState context to ensure
     // the Lambda's response payload won't exceed the 256KB Step Functions limit.
     const branchesSize = Buffer.byteLength(JSON.stringify(branchesToExecute), 'utf-8');
@@ -438,7 +455,7 @@ export const handleParallelFork = async (
 
     if (totalOutputSize > SFN_INLINE_PAYLOAD_LIMIT_BYTES) {
         log_warn(`Branch payload + state is large (${totalOutputSize} bytes). Automatically creating S3 manifest and switching to Distributed Map.`, {}, correlationId);
-        
+
         const offloadedSharedContext = await offloadIfLarge(
             runtimeState.currentContextData,
             EXECUTION_TRACES_BUCKET_NAME,
@@ -446,7 +463,7 @@ export const handleParallelFork = async (
             correlationId,
             0 // Force offload for state payload limits
         );
-        
+
         if (offloadedSharedContext && isS3OutputPointerWrapper(offloadedSharedContext)) {
             runtimeState.currentContextData = { _s3_context_pointer: offloadedSharedContext._s3_output_pointer };
         }
@@ -477,7 +494,7 @@ export const handleParallelFork = async (
     }
 
     const eventTimestamp = new Date().toISOString();
-    
+
     if (branchesToExecute.length === 0) {
         log_info('No branches eligible for execution in parallel step.', {}, correlationId);
         if (runtimeState.enableExecutionLogs) {
@@ -516,9 +533,9 @@ export const handleParallelFork = async (
             eventTimestamp: eventTimestamp,
             endTime: eventTimestamp,
             durationMs: 0,
-            inputMappingContext: runtimeState.currentContextData, 
+            inputMappingContext: runtimeState.currentContextData,
             mappingEvents: events,
-            outputData: { 
+            outputData: {
                 itemsPath: itemsPath,
                 resolvedItemCount: itemsToProcess.length,
                 executedBranchCount: branchesToExecute.length,

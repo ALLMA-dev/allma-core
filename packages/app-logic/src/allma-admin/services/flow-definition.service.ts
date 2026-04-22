@@ -49,7 +49,6 @@ async function hydrateFlow(flow: FlowDefinition | undefined): Promise<FlowDefini
     return hydratedFlow;
 }
 
-
 const initialVersionFactory = (id: string, now: string, input: CreateFlowInput): FlowDefinition => {
     const startStepId = `start_step_${uuidv4().substring(0, 8)}`;
     return {
@@ -63,6 +62,7 @@ const initialVersionFactory = (id: string, now: string, input: CreateFlowInput):
                 displayName: 'Start',
                 stepDefinitionId: 'system-noop',
                 position: { x: 250, y: 50 },
+                defaultNextMaxTransitions: 5,
             }
         },
         startStepInstanceId: startStepId,
@@ -83,8 +83,6 @@ const entityManager = new VersionedEntityManager<FlowMetadataStorageItem, FlowDe
     versionSchema: FlowDefinitionSchema,
     initialVersionFactory,
 });
-
-
 
 /**
  * Custom update logic for Flow Definitions to handle validation and hydration of step properties.

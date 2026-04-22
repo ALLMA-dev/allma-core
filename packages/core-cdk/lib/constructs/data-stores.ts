@@ -163,6 +163,12 @@ export class AllmaDataStores extends Construct {
 
 
     // --- S3 Bucket for Execution Traces ---
+    
+    // AWS requires a minimum of 30 days before an object can be transitioned to STANDARD_IA
+    const traceRetentionDays = stageConfig.logging.retentionDays.traces;
+    const transitionDays = traceRetentionDays - 2;
+    const canTransitionToIA = isProd && transitionDays >= 30;
+
     this.allmaExecutionTracesBucket = new s3.Bucket(this, 'AllmaExecutionTracesBucket', {
       bucketName: `${stageConfig.allmaExecutionTracesBucketName}-${cdk.Aws.ACCOUNT_ID}-${cdk.Aws.REGION}`,
       encryption: s3.BucketEncryption.S3_MANAGED,
@@ -172,10 +178,10 @@ export class AllmaDataStores extends Construct {
       autoDeleteObjects: !isProd, // Useful for non-prod cleanup
       lifecycleRules: [{
         id: 'TraceLogRetention',
-        expiration: cdk.Duration.days(stageConfig.logging.retentionDays.traces),
-        transitions: isProd ? [{
+        expiration: cdk.Duration.days(traceRetentionDays),
+        transitions: canTransitionToIA ? [{
           storageClass: s3.StorageClass.INFREQUENT_ACCESS,
-          transitionAfter: cdk.Duration.days(stageConfig.logging.retentionDays.traces - 2),
+          transitionAfter: cdk.Duration.days(transitionDays),
         }] : [],
       }],
     });

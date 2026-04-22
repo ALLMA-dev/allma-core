@@ -39,7 +39,7 @@ export type MappingEvent = z.infer<typeof MappingEventSchema>;
  * Schema for logging the details of a transition evaluation.
  */
 export const TransitionEvaluationEventSchema = z.object({
-  type: z.enum(['CONDITION', 'DEFAULT', 'END_OF_PATH']),
+  type: z.enum(['CONDITION', 'DEFAULT', 'END_OF_PATH', 'MAX_TRANSITIONS_REACHED']),
   condition: z.string().optional(),
   resolvedValue: z.any().optional(),
   result: z.boolean(),

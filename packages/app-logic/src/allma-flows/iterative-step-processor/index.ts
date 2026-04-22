@@ -28,6 +28,7 @@ import { handleParallelFork, handleParallelAggregation } from './parallel-handle
 import { prepareStepInput } from '../../allma-core/data-mapper.js';
 import { executionLoggerClient } from '../../allma-core/execution-logger-client.js';
 import { handleSyncFlowStart, handleSyncFlowResult } from './sync-flow-handler.js';
+import { enforceTransitionLimits } from './transition-limits.js';
 
 const EXECUTION_TRACES_BUCKET_NAME = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME];
 const SFN_SAFE_PAYLOAD_LIMIT = 100 * 1024; // 100KB safe threshold to ensure total output stays well under 256KB
@@ -72,7 +73,8 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
                 flowDef = await loadFlowDefinition(runtimeState.flowDefinitionId, runtimeState.flowDefinitionVersion, correlationId);
             }
             runtimeState = await handleSyncFlowResult(originalEvent, runtimeState, flowDef, correlationId);
-            const { nextStepId } = await resolveNextStep(flowDef.steps[runtimeState.currentStepInstanceId!], runtimeState);
+            const { nextStepId, transitionDetails } = await resolveNextStep(flowDef.steps[runtimeState.currentStepInstanceId!], runtimeState);
+            enforceTransitionLimits(flowDef.steps[runtimeState.currentStepInstanceId!], nextStepId, transitionDetails, runtimeState, correlationId);
             runtimeState.currentStepInstanceId = nextStepId;
         } else if (resumePayload || pollingResult) {
             if (!flowDef) {
@@ -81,7 +83,8 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
             runtimeState = await handleAsyncResume(originalEvent, runtimeState, flowDef);
 
             const completedStepConfig = flowDef.steps[runtimeState.currentStepInstanceId!];
-            const { nextStepId } = await resolveNextStep(completedStepConfig, runtimeState);
+            const { nextStepId, transitionDetails } = await resolveNextStep(completedStepConfig, runtimeState);
+            enforceTransitionLimits(completedStepConfig, nextStepId, transitionDetails, runtimeState, correlationId);
             runtimeState.currentStepInstanceId = nextStepId;
         }
 
@@ -230,7 +233,8 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
                     
                     return forkOutput;
                 }
-                const { nextStepId } = await resolveNextStep(stepInstance, runtimeState);
+                const { nextStepId, transitionDetails } = await resolveNextStep(stepInstance, runtimeState);
+                enforceTransitionLimits(stepInstance, nextStepId, transitionDetails, runtimeState, correlationId);
                 runtimeState.currentStepInstanceId = nextStepId;
 
             } else if (stepType === StepType.START_FLOW_EXECUTION && (stepInstance as any).customConfig?.sync === true) {

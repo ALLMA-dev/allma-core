@@ -21,6 +21,7 @@ import { processStepOutput, setByDotNotation } from '../../allma-core/data-mappe
 import { executionLoggerClient } from '../../allma-core/execution-logger-client.js';
 import { resolveNextStep } from './transition-resolver.js';
 import { renderNestedTemplates } from '../../allma-core/utils/template-renderer.js';
+import { enforceTransitionLimits } from './transition-limits.js';
 
 const EXECUTION_TRACES_BUCKET_NAME = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME]!;
 // The actual SFN limit is 256KB, so let's warn above a safe threshold like 240KB.
@@ -430,6 +431,7 @@ export const executeStandardStep = async (
   }
 
   const { nextStepId, transitionDetails } = await resolveNextStep(stepInstanceConfig, runtimeState);
+  enforceTransitionLimits(stepInstanceConfig, nextStepId, transitionDetails, runtimeState, correlationId); 
 
   const allMappingEvents: MappingEvent[] = [...inputMappingEvents, ...outputMappingEvents];
   if (templateMappingEvents) {
