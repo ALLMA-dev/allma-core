@@ -108,6 +108,10 @@ export class AllmaOrchestration extends Construct {
         stateMachine: sfn.StateMachine.fromStateMachineArn(this, 'PollingSubStateMachine', pollingStateMachineArn),
         integrationPattern: sfn.IntegrationPattern.RUN_JOB,
         input: sfn.TaskInput.fromJsonPathAt('$.pollingTaskInput'),
+        // Drop the massive stringified Input payload automatically attached by SFN
+        resultSelector: {
+            'Output.$': '$.Output' 
+        },
         resultPath: '$.pollingResult'
     });
     pollingSubFlowTask.addRetry(sfnTaskServiceErrorRetryPolicy);
@@ -117,6 +121,10 @@ export class AllmaOrchestration extends Construct {
         stateMachine: selfRefStateMachine,
         integrationPattern: sfn.IntegrationPattern.RUN_JOB, // .sync execution
         input: sfn.TaskInput.fromJsonPathAt('$.syncFlowExecutionInput'),
+        // Drop the massive stringified Input payload automatically attached by SFN
+        resultSelector: {
+            'Output.$': '$.Output' 
+        },
         resultPath: '$.syncFlowResult'
     });
     startSyncFlowExecutionTask.addRetry(sfnTaskServiceErrorRetryPolicy);
@@ -245,6 +253,7 @@ export class AllmaOrchestration extends Construct {
         resultPath: '$', 
     });
 
+    // Immunity to size limits: DistributedMap outputs natively to S3 JSON array.
     const parallelMapState = new sfn.DistributedMap(this, 'ExecuteBranchesInParallel', {
         itemsPath: sfn.JsonPath.stringAt('$.branchesToExecute'),
         maxConcurrencyPath: sfn.JsonPath.stringAt('$.mapContext.aggregationConfig.maxConcurrency'),
@@ -258,7 +267,7 @@ export class AllmaOrchestration extends Construct {
             'branchItem.$': '$$.Map.Item.Value',
         },
     });
-    parallelMapState.itemProcessor(this.createBranchProcessorChain('InMemoryMap', selfRefStateMachine, sfnTaskServiceErrorRetryPolicy));
+    parallelMapState.itemProcessor(this.createBranchProcessorChain('DistributedInlineMap', selfRefStateMachine, sfnTaskServiceErrorRetryPolicy));
 
     const s3MapProcessorChain = this.createBranchProcessorChain('S3Map', selfRefStateMachine, sfnTaskServiceErrorRetryPolicy);
 
@@ -296,22 +305,8 @@ export class AllmaOrchestration extends Construct {
         resultPath: '$'
     });
 
-    const prepareForAggregationPassState = new sfn.Pass(this, 'PrepareAggregationInput', {
-      inputPath: '$',
-      parameters: {
-          'runtimeState.$': '$.mapContext.runtimeState',
-          'sfnAction': SfnActionType.PARALLEL_AGGREGATE,
-          'parallelAggregateInput': {
-              'mapResultsDetails.$': '$.mapResultsDetails',
-              'aggregationConfig.$': '$.mapContext.aggregationConfig',
-              'originalStepInstanceId.$': '$.mapContext.originalStepInstanceId',
-          }
-      },
-      resultPath: '$',
-    });
-
-    const prepareForAggregationFromS3PassState = new sfn.Pass(this, 'PrepareAggregationFromS3Input', {
-      inputPath: '$',
+    // Unifies the execution graph for both array and S3 driven maps
+    const prepareForAggregationPassState = new sfn.Pass(this, 'PrepareUnifiedAggregationInput', {
       parameters: {
           'runtimeState.$': '$.mapContext.runtimeState',
           'sfnAction': SfnActionType.PARALLEL_AGGREGATE,
@@ -405,19 +400,19 @@ export class AllmaOrchestration extends Construct {
         .when(sfn.Condition.isPresent('$.runtimeState'), chooseNextSfnTaskType)
         .otherwise(initTask);
 
+    // PERFECTLY CONNECTED GRAPH ROUTING
     initTask.next(chooseNextSfnTaskType);
     waitForEventTask.next(processAsyncResultAndContinue);
     pollingSubFlowTask.next(processAsyncResultAndContinue);
     startSyncFlowExecutionTask.next(processAsyncResultAndContinue);
 
-    prepareForMapPassState.next(parallelMapState);
+    prepareForMapPassState.next(parallelMapState); 
     parallelMapState.next(prepareForAggregationPassState);
-
+    
     parallelMapStateFromS3.next(transformS3MapOutput);
-    transformS3MapOutput.next(prepareForAggregationFromS3PassState);
+    transformS3MapOutput.next(prepareForAggregationPassState);
     
     prepareForAggregationPassState.next(iterativeStepTask);
-    prepareForAggregationFromS3PassState.next(iterativeStepTask);
     iterativeStepTask.next(checkISPCompletionChoice);
     processAsyncResultAndContinue.next(checkISPCompletionChoice); 
 
@@ -504,6 +499,7 @@ export class AllmaOrchestration extends Construct {
                     'status': 'RUNNING',
                     'startTime.$': '$$.State.EnteredTime',
                     'stepRetryAttempts': {},
+                    // Merge context dynamically to skip parent-level state bloat
                     'currentContextData.$': 'States.JsonMerge($.mapContext.runtimeState.currentContextData, $.branchItem.branchInput, false)',
                     '_internal': {
                         'branchDefinition.$': '$.branchItem.branchDefinition',
@@ -512,7 +508,10 @@ export class AllmaOrchestration extends Construct {
                     }
                 }
             }),
-
+            // Drop massive metadata and duplicated 'Input' string
+            resultSelector: {
+                'Output.$': '$.Output'
+            },
             resultPath: '$.sfnSubExecutionResult',
         });
         executeBranch.addRetry(retryPolicy);
@@ -535,7 +534,7 @@ export class AllmaOrchestration extends Construct {
         });
 
         // Route strictly by inspecting if it's a serialized Object or Array 
-        // to bypass Auto-Parsed responses AND primitives
+        // to bypass Auto-Parsed responses AND primitives, ensuring `StringToJson` never crashes
         checkOutputIsJson
             .when(sfn.Condition.or(
                 sfn.Condition.stringMatches('$.sfnSubExecutionResult.Output', '{*'),
