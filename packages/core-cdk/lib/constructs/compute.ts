@@ -268,7 +268,9 @@ export class AllmaCompute extends Construct {
       // Allows general access to inference profiles if no explicit ARNs are provided,
       // but also respects standard AWS patterns.
       `arn:aws:bedrock:*:*:inference-profile/*`,
-      `arn:aws:bedrock:*:*:application-inference-profile/*`
+      `arn:aws:bedrock:*:*:application-inference-profile/*`,
+      `arn:aws:bedrock:*::inference-profile/*`,
+      `arn:aws:bedrock:*::application-inference-profile/*`
     ];
 
     if (stageConfig.bedrockInferenceProfileArns && stageConfig.bedrockInferenceProfileArns.length > 0) {
@@ -284,10 +286,20 @@ export class AllmaCompute extends Construct {
       resources: Array.from(new Set(bedrockResources)),
     }));
 
+    // AWS MARKETPLACE POLICY FOR BEDROCK THIRD-PARTY MODELS
     this.orchestrationLambdaRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
-      actions: ['lambda:InvokeFunction'],
-      resources: [`arn:aws:lambda:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:function:AllmaIngestion-*`],
+      actions: [
+        'aws-marketplace:ViewSubscriptions',
+        'aws-marketplace:Subscribe',
+        'aws-marketplace:Unsubscribe'
+      ],
+      resources: ['*'], // Marketplace policies must use '*'
+      conditions: {
+        StringEquals: {
+          'aws:CalledViaLast': 'bedrock.amazonaws.com'
+        }
+      }
     }));
 
     // --- Config Importer Lambda ---
