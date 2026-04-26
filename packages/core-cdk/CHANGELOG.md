@@ -1,5 +1,11 @@
 # @allma/core-cdk
 
+## 1.1.7
+
+### Patch Changes
+
+- bc48608: Steps Output and aggregation of branches fixes
+
 ## 1.1.6
 
 ### Patch Changes
