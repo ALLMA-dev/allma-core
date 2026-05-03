@@ -13,6 +13,7 @@ import { AllmaOrchestration } from './constructs/orchestration.js';
 import { ApiConstruct } from './constructs/api.construct.js';
 import { PollingOrchestrator } from './constructs/polling-orchestrator.js';
 import { EmailIntegration } from './constructs/email-integration.js';
+import { AllmaMonitoring } from './constructs/monitoring.js';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import * as iam from 'aws-cdk-lib/aws-iam';
@@ -168,6 +169,13 @@ export class AllmaStack extends cdk.Stack {
         maxConcurrency: 50,
       }));
     }
+
+    // --- Monitoring & Alerts Construct ---
+    new AllmaMonitoring(this, 'AllmaMonitoring', {
+      stageConfig,
+      flowOrchestratorStateMachineArn: orchestration.flowOrchestratorStateMachine.stateMachineArn,
+      pollingStateMachineArn: pollingOrchestrator.pollingStateMachine.stateMachineArn,
+    });
 
     const api = new ApiConstruct(this, 'AllmaApiFeature', {
       eventBridgeSchedulerRoleArn: schedulerRole.roleArn,

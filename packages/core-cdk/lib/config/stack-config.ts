@@ -240,6 +240,23 @@ export interface StageConfig {
   };
 
   /**
+   * Configuration for alerting and monitoring system health.
+   */
+  monitoring?: {
+    /**
+     * Optional: Provide an existing SNS Topic ARN to route alerts to.
+     * If not provided, a new SNS Topic will be created automatically.
+     */
+    alertsTopicArn?: string;
+    
+    /**
+     * Optional: A list of email addresses to automatically subscribe to the alerts topic.
+     * @example ['oncall@mycompany.com']
+     */
+    alertEmails?: string[];
+  };
+
+  /**
    * The ARN of the AWS Secrets Manager secret containing the AI API key.
    * @example 'arn:aws:secretsmanager:us-east-1:123456789012:secret:...'
    */

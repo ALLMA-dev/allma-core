@@ -92,4 +92,9 @@ export const defaultConfig: StageConfig = {
 
   // --- Bedrock Settings ---
   bedrockInferenceProfileArns: [],
+
+  // --- Monitoring Settings ---
+  monitoring: {
+    alertEmails: [],
+  },
 };
