@@ -46,12 +46,14 @@ export function StandardStepAccordionItem({ step, stepNumber, onOpenDiff, onOpen
         stepInstanceId: step.stepInstanceId,
         attemptNumber: step.attemptNumber,
         branchExecutionId: step.branchExecutionId,
+        eventTimestamp: step.eventTimestamp,
     }, isExpanded && isDetailsOmitted);
 
     const displayStep = fetchedStepData || step;
     const hasWarning = stepHasWarning(displayStep);
     
-    const itemValue = `${displayStep.stepInstanceId}-${displayStep.startTime}`;
+    // Ensure uniqueness explicitly for loops and fast executions
+    const itemValue = `${displayStep.stepInstanceId}-${displayStep.eventTimestamp || displayStep.startTime}-${stepNumber}`;
 
     return (
         <Accordion.Item

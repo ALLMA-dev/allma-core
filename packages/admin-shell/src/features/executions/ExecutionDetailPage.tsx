@@ -203,10 +203,11 @@ export function ExecutionDetailPage() {
                 >
                     {steps.map((step, index) => {
                         const isParallelStep = step.stepType === StepType.PARALLEL_FORK_MANAGER;
+                        const uniqueKey = `${step.stepInstanceId}-${step.eventTimestamp || step.startTime}-${index}`;
                         
                         return isParallelStep ? (
                             <ParallelStepAccordionItem
-                                key={`${step.stepInstanceId}-${step.startTime}`}
+                                key={uniqueKey}
                                 flowExecutionId={flowExecutionId!}
                                 step={step}
                                 stepNumber={index + 1}
@@ -216,7 +217,7 @@ export function ExecutionDetailPage() {
                             />
                         ) : (
                             <StandardStepAccordionItem
-                                key={`${step.stepInstanceId}-${step.startTime}`}
+                                key={uniqueKey}
                                 step={step}
                                 stepNumber={index + 1}
                                 onOpenDiff={handleOpenDiff}

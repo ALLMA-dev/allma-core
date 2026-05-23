@@ -77,6 +77,7 @@ interface GetStepRecordDetailsParams {
     stepInstanceId: string;
     attemptNumber?: number;
     branchExecutionId?: string;
+    eventTimestamp?: string;
 }
 
 export const useGetStepRecordDetails = (params: GetStepRecordDetailsParams, isEnabled: boolean): UseQueryResult<AllmaStepExecutionRecord, Error> => {
@@ -88,6 +89,7 @@ export const useGetStepRecordDetails = (params: GetStepRecordDetailsParams, isEn
             });
             if (params.attemptNumber) queryParams.append('attemptNumber', String(params.attemptNumber));
             if (params.branchExecutionId) queryParams.append('branchExecutionId', params.branchExecutionId);
+            if (params.eventTimestamp) queryParams.append('eventTimestamp', params.eventTimestamp);
 
             const response = await axiosInstance.get<AdminApiResponse<AllmaStepExecutionRecord>>(
                 `/${ALLMA_ADMIN_API_VERSION}${ALLMA_ADMIN_API_ROUTES.FLOW_EXECUTION_STEP_RECORD(params.flowExecutionId)}?${queryParams.toString()}`

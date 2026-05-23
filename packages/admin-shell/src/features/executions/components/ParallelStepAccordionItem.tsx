@@ -79,11 +79,14 @@ export function ParallelStepAccordionItem({ flowExecutionId, step, stepNumber, o
     const showOverallWarning = managerHasWarning || branchesHaveWarning;
 
     const branchCountText = (step as any).outputData?.executedBranchCount ?? (totalBranches > 0 ? String(totalBranches) : '?');
+    
+    // Uniqueness to prevent looped steps combining states or caching values simultaneously
+    const itemValue = `${step.stepInstanceId}-${step.eventTimestamp || step.startTime}-${stepNumber}`;
 
     return (
         <Accordion.Item
-            value={`${step.stepInstanceId}-${step.startTime}`}
-            key={`${step.stepInstanceId}-${step.startTime}`}
+            value={itemValue}
+            key={itemValue}
             style={{
                 borderColor: isExpanded ? theme.colors.blue[5] : theme.colors.gray[3],
                 backgroundColor: isExpanded
@@ -193,7 +196,7 @@ export function ParallelStepAccordionItem({ flowExecutionId, step, stepNumber, o
                                 <Accordion variant="separated" multiple>
                                     {group.steps.map((branchStep: AllmaStepExecutionRecord, index: number) => (
                                         <StandardStepAccordionItem
-                                            key={`${branchStep.stepInstanceId}-${branchStep.startTime}`}
+                                            key={`${branchStep.stepInstanceId}-${branchStep.eventTimestamp || branchStep.startTime}-${index}`}
                                             step={branchStep}
                                             stepNumber={index + 1}
                                             onOpenDiff={onOpenDiff}
