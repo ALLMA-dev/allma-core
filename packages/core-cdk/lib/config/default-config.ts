@@ -39,7 +39,7 @@ export const defaultConfig: StageConfig = {
   lambdaArchitecture: LambdaArchitectureType.ARM_64,
   lambdaMemorySizes: {
     default: 256,
-    iterativeStepProcessor: 1024,
+    iterativeStepProcessor: 2048,
     adminApiHandler: 256,
     flowStartRequestListener: 256,
     crawlerWorker: 3008,
