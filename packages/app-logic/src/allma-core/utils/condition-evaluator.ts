@@ -5,7 +5,7 @@ import { MappingEvent } from '@allma/core-types';
 /**
  * Evaluates a single, simple condition.
  * This can be either a JSONPath for a truthiness check, or a simple comparison
- * of the form `JSONPath operator literal`.
+ * of the form `JSONPath operator literal` or `JSONPath operator JSONPath`.
  * @private
  */
 const evaluateSingleCondition = async (
@@ -18,27 +18,36 @@ const evaluateSingleCondition = async (
     const allEvents: MappingEvent[] = [];
 
     // Regular expression to parse simple comparison expressions.
-    // It captures: 1=JSONPath, 2=operator, 3=literal value.
-    // Updated to include 'undefined' explicitly as a literal.
-    const expressionRegex = /^\s*(\$\..+?)\s*([<>=!]{1,3})\s*(true|false|null|undefined|-?\d+(?:\.\d+)?|'[^']*'|"[^"]*")\s*$/;
+    // It captures: 1=JSONPath, 2=operator, 3=literal value or JSONPath on the right side.
+    // Updated to include 'undefined' explicitly as a literal, and `\$.+` for a right-side JSONPath.
+    const expressionRegex = /^\s*(\$\..+?)\s*([<>=!]{1,3})\s*(true|false|null|undefined|-?\d+(?:\.\d+)?|'[^']*'|"[^"]*"|\$.+)\s*$/;
     const match = condition.match(expressionRegex);
 
     if (match) {
-        const [, jsonPath, operator, literalValueStr] = match;
+        const [, jsonPath, operator, rightSideStr] = match;
         // Resolve the value from the context using the smart getter.
         // Conditions MUST operate on real data, so hydration is always enabled.
         const { value: pathValue, events } = await getSmartValueByJsonPath(jsonPath, context, true, correlationId);
         resolvedValue = pathValue;
         allEvents.push(...events);
 
-        // Parse the literal value from the regex match.
+        // Parse the literal or JSONPath value from the regex match.
         let compareValue: any;
-        if (literalValueStr === 'true') compareValue = true;
-        else if (literalValueStr === 'false') compareValue = false;
-        else if (literalValueStr === 'null') compareValue = null;
-        else if (literalValueStr === 'undefined') compareValue = undefined;
-        else if (!isNaN(Number(literalValueStr))) compareValue = Number(literalValueStr);
-        else compareValue = literalValueStr.slice(1, -1); // Unquote the string literal
+        if (rightSideStr === 'true') compareValue = true;
+        else if (rightSideStr === 'false') compareValue = false;
+        else if (rightSideStr === 'null') compareValue = null;
+        else if (rightSideStr === 'undefined') compareValue = undefined;
+        else if (!isNaN(Number(rightSideStr))) compareValue = Number(rightSideStr);
+        else if (rightSideStr.startsWith("'") || rightSideStr.startsWith('"')) {
+            compareValue = rightSideStr.slice(1, -1); // Unquote the string literal
+        } else if (rightSideStr.startsWith('$')) {
+            // It's a JSONPath on the right side! Resolve it dynamically.
+            const { value: rightPathValue, events: rightEvents } = await getSmartValueByJsonPath(rightSideStr, context, true, correlationId);
+            compareValue = rightPathValue;
+            allEvents.push(...rightEvents);
+        } else {
+            compareValue = rightSideStr; // Fallback
+        }
 
         // Perform the comparison based on the operator.
         switch (operator) {
@@ -80,7 +89,7 @@ const evaluateSingleCondition = async (
  * This function respects operator precedence: OR has lower precedence than AND, so the expression
  * is split by '||' first, and then each segment is evaluated as an AND chain.
  *
- * @param condition The condition string (e.g., "$.path.value > 10 || $.path.value == null").
+ * @param condition The condition string (e.g., "$.path.value > 10 || $.path.value == $.other.value").
  * @param context The data context against which the condition is evaluated.
  * @param correlationId For logging.
  * @returns A promise that resolves to an object containing the boolean result and any mapping events.
