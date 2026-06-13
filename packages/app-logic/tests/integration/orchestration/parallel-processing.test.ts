@@ -6,6 +6,7 @@ import { handler as iterativeStepProcessorHandler } from '../../../src/allma-flo
 
 // Mocks
 import * as stepHandlerRegistry from '../../../src/allma-core/step-handlers/handler-registry';
+import * as s3Utils from '@allma/core-sdk';
 
 // Helpers
 import { setupFlowInDB, cleanupAllTestFlows, closeDbConnection } from './_test-helpers';
@@ -26,7 +27,17 @@ vi.mock('../../../src/allma-core/execution-logger-client', () => ({
   },
 }));
 vi.mock('../../../src/allma-core/step-handlers/handler-registry');
+// Only `resolveS3Pointer` is overridden; the real `offloadIfLarge` (and everything else) is
+// preserved so the in-memory/aggregation tests below keep their original behavior.
+vi.mock('@allma/core-sdk', async (importOriginal) => {
+  const original = await importOriginal<typeof s3Utils>();
+  return {
+    ...original,
+    resolveS3Pointer: vi.fn(),
+  };
+});
 
+const mockedResolveS3Pointer = vi.mocked(s3Utils.resolveS3Pointer);
 const mockedGetStepHandler = vi.mocked(stepHandlerRegistry.getStepHandler);
 let originalRegistry: typeof stepHandlerRegistry;
 
@@ -44,6 +55,7 @@ describe('Integration: Iterative Step Processor - Parallel Processing', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mockedGetStepHandler.mockImplementation(originalRegistry.getStepHandler);
+        mockedResolveS3Pointer.mockReset();
     });
 
     it('should correctly prepare for a parallel fork (in-memory)', async () => {
@@ -237,8 +249,11 @@ describe('Integration: Iterative Step Processor - Parallel Processing', () => {
         expect(result.runtimeState.currentContextData.results).toBeUndefined(); // Output mapping should not run
     });
 
-    it('should return PARALLEL_FORK_S3 action when itemsPath resolves to an S3 pointer', async () => {
+    it('should hydrate an S3 pointer at itemsPath and fork in-memory over the resolved items', async () => {
         // ARRANGE
+        // Regression coverage for the redesign (commit 9e6b2ad) in which an `itemsPath` that
+        // resolves to an S3 pointer is HYDRATED (its contents are read into memory) and then
+        // iterated, rather than being handed to a Distributed Map as a pre-existing manifest.
         const flowId = `s3-fork-flow-${uuidv4()}`;
         const flowDef: FlowDefinition = {
             id: flowId, version: 1, isPublished: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
@@ -257,6 +272,9 @@ describe('Integration: Iterative Step Processor - Parallel Processing', () => {
         await setupFlowInDB(flowDef);
 
         const s3Pointer = { bucket: 'manifest-bucket', key: 'manifests/items.jsonl' };
+        const resolvedItems = [{ id: 1 }, { id: 2 }, { id: 3 }];
+        mockedResolveS3Pointer.mockResolvedValue(resolvedItems);
+
         const initialInput: ProcessorInput = {
             runtimeState: {
                 flowDefinitionId: flowId, flowDefinitionVersion: 1,
@@ -277,11 +295,16 @@ describe('Integration: Iterative Step Processor - Parallel Processing', () => {
         const result = await iterativeStepProcessorHandler(initialInput, {} as any, {} as any) as ProcessorOutput;
 
         // ASSERT
-        expect(result.sfnAction).toBe(SfnActionType.PARALLEL_FORK_S3);
-        expect(result.parallelForkInput).toBeUndefined();
-        expect(result.s3ItemReader).toBeDefined();
-        expect(result.s3ItemReader?.bucket).toBe(s3Pointer.bucket);
-        expect(result.s3ItemReader?.key).toBe(s3Pointer.key);
-        expect(result.s3ItemReader?.originalStepInstanceId).toBe('s3_fork_step');
+        // The pointer must have been hydrated (read into memory) rather than used directly.
+        expect(mockedResolveS3Pointer).toHaveBeenCalled();
+        expect(mockedResolveS3Pointer.mock.calls[0][0]).toEqual(s3Pointer);
+
+        // The hydrated array is small, so it forks in-memory rather than via a Distributed Map.
+        expect(result.sfnAction).toBe(SfnActionType.PARALLEL_FORK);
+        expect(result.s3ItemReader).toBeUndefined();
+        expect(result.parallelForkInput?.branchesToExecute).toHaveLength(3);
+        expect(result.parallelForkInput?.branchesToExecute[0].branchInput.currentItem).toEqual({ id: 1 });
+        expect(result.parallelForkInput?.branchesToExecute[2].branchInput.currentItem).toEqual({ id: 3 });
+        expect(result.parallelForkInput?.originalStepInstanceId).toBe('s3_fork_step');
     });
 });

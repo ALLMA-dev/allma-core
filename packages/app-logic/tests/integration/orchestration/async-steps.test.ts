@@ -120,7 +120,6 @@ describe('Integration: Iterative Step Processor - Async Steps', () => {
                 'poll_step': {
                     stepInstanceId: 'poll_step', stepType: StepType.POLL_EXTERNAL_API,
                     stepDefinitionId: 'system-poll-external-api',
-                    moduleIdentifier: 'system/poll-external-api',
                     name: 'Poll External API', // Add name to bypass merge logic
                     apiCallDefinition: {
                         apiUrlTemplate: { template: 'http://test.com' },

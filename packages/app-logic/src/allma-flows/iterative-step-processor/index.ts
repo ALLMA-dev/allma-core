@@ -11,7 +11,6 @@ import {
     StepInstanceSchema,
     FlowRuntimeState,
     AllmaError,
-    ContentBasedRetryableError,
     isS3Pointer,
     isS3OutputPointerWrapper,
     ENV_VAR_NAMES,
@@ -337,7 +336,12 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
             if (runtimeState.status === 'RUNNING') runtimeState.status = 'COMPLETED';
         }
     } catch (error: any) {
-        if (error instanceof RetryableStepError || error instanceof ContentBasedRetryableError) {
+        // Only RetryableStepError is propagated to Step Functions for an automatic retry.
+        // A ContentBasedRetryableError reaching this point means content-retries are either
+        // exhausted or not configured (see step-executor, which converts to RetryableStepError
+        // while attempts remain); it is therefore terminal and must be handled gracefully
+        // (fallback step or FAILED status) rather than rethrown.
+        if (error instanceof RetryableStepError) {
             throw error;
         }
 
@@ -428,7 +432,9 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
         ...(pollingTaskInput && { pollingTaskInput })
     };
 
-    if (EXECUTION_TRACES_BUCKET_NAME) {
+    // The final safety-net offload respects the step's `disableS3Offload` flag, consistent
+    // with the per-step output handling in step-executor and parallel-handler.
+    if (EXECUTION_TRACES_BUCKET_NAME && !stepInstance?.disableS3Offload) {
         const offloadedContext = await offloadIfLarge(
             runtimeState.currentContextData,
             EXECUTION_TRACES_BUCKET_NAME,
@@ -439,8 +445,8 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
 
         if (offloadedContext && isS3OutputPointerWrapper(offloadedContext)) {
             log_warn(`IterativeStepProcessor context size exceeded threshold. Auto-offloaded currentContextData to S3.`, {}, correlationId);
-            runtimeState.currentContextData = { 
-                _s3_context_pointer: offloadedContext._s3_output_pointer 
+            runtimeState.currentContextData = {
+                _s3_context_pointer: offloadedContext._s3_output_pointer
             };
         }
     }
