@@ -87,8 +87,8 @@ export const handleFileDownload: StepHandler = async (
         });
 
         // 4. Stream to S3 using Upload
-        const contentType = response.headers['content-type'] || 'application/octet-stream';
-        const contentLength = response.headers['content-length'];
+        const contentType = (response.headers['content-type'] as string | undefined) || 'application/octet-stream';
+        const contentLength = response.headers['content-length'] as string | undefined;
 
         // Use Upload instead of PutObjectCommand to handle streaming correctly
         const upload = new Upload({
