@@ -1,5 +1,11 @@
 # @allma/core-types
 
+## 1.1.3
+
+### Patch Changes
+
+- 0ce23e0: Integration tests fixes, build fixes
+
 ## 1.1.2
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @allma/admin-shell
 
+## 2.0.4
+
+### Patch Changes
+
+- 0ce23e0: Integration tests fixes, build fixes
+- Updated dependencies [0ce23e0]
+  - @allma/core-sdk@1.0.11
+  - @allma/core-types@1.1.3
+
 ## 2.0.3
 
 ### Patch Changes
