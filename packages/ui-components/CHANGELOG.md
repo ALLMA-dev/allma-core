@@ -1,5 +1,11 @@
 # @allma/ui-components
 
+## 1.0.4
+
+### Patch Changes
+
+- 0ce23e0: Integration tests fixes, build fixes
+
 ## 1.0.3
 
 ### Patch Changes
