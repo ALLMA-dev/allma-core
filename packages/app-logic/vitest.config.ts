@@ -21,12 +21,12 @@ export default defineConfig({
       // Measure the whole src tree (not just imported files) so coverage reflects real
       // progress across the codebase. Thresholds start low and ratchet up (TEST_PLAN Phase 5).
       all: true,
-      // Start at 0 (no src specs yet) and ratchet up per module as Phase 1+ lands.
+      // Global floors — ratcheted up as each module gains tests (TEST_PLAN Phase 5).
       thresholds: {
-        lines: 0,
-        functions: 0,
-        statements: 0,
-        branches: 0,
+        lines: 3,
+        functions: 5,
+        statements: 3,
+        branches: 20,
       },
     },
   },
