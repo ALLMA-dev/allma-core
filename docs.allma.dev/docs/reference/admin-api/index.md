@@ -6,6 +6,20 @@ title: Admin API Overview
 
 The Allma Admin API provides a comprehensive set of RESTful endpoints for programmatically managing and interacting with your Allma instance. It is the same API used by the Allma Admin Panel UI.
 
+### Base URL & Versioning
+
+The API is served from a versioned base path. Every request is made against:
+
+```
+https://<your-admin-api-domain>/v1
+```
+
+The version segment (`v1`) is the API's deployment stage (the `apiMappingKey`, which defaults to `v1`). Every endpoint path documented in this reference is **relative to that base URL** and begins with `/allma`. For example, the endpoint documented as `GET /allma/flow-executions` resolves to:
+
+```
+GET https://<your-admin-api-domain>/v1/allma/flow-executions
+```
+
 ### Authentication
 
 All endpoints are secured and require a valid JWT bearer token obtained from your configured authentication provider (e.g., AWS Cognito). The token must be included in the `Authorization` header of every request.

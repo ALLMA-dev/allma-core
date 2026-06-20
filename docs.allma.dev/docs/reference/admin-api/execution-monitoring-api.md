@@ -10,7 +10,7 @@ These endpoints are used to query and retrieve details about historical and in-p
 
 ### List Executions
 
-`GET /flow-executions`
+`GET /allma/flow-executions`
 
 Retrieves a paginated list of execution summaries for a specific flow definition.
 
@@ -44,7 +44,7 @@ Retrieves a paginated list of execution summaries for a specific flow definition
 
 ### Get Execution Details
 
-`GET /flow-executions/{flowExecutionId}`
+`GET /allma/flow-executions/{flowExecutionId}`
 
 Retrieves the complete, detailed step-by-step log for a single flow execution.
 
@@ -67,7 +67,7 @@ Retrieves the complete, detailed step-by-step log for a single flow execution.
 
 ### Get Parallel Branch Steps
 
-`GET /flow-executions/{flowExecutionId}/branch-steps`
+`GET /allma/flow-executions/{flowExecutionId}/branch-steps`
 
 For a parallel execution, this retrieves the step logs for the child branches.
 
