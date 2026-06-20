@@ -108,6 +108,11 @@ export function StandardStepAccordionItem({ step, stepNumber, onOpenDiff, onOpen
                     <Group justify="center" p="xl"><Loader size="sm" /><Text size="sm" c="dimmed">Loading large step details...</Text></Group>
                 ) : fetchError ? (
                     <Alert color="red" title="Failed to load details">{fetchError.message}</Alert>
+                ) : isDetailsOmitted && !fetchedStepData ? (
+                    <Alert color="orange" title="Step details unavailable">
+                        The detailed record for this step could not be loaded. Its summary is shown above, but the
+                        full input/output context is not available.
+                    </Alert>
                 ) : (displayStep as any)._large_payload_link ? (
                      <Alert color="blue" title="Step Record Too Large">
                         <Text size="sm" mb="sm">{(displayStep as any)._s3_error}</Text>

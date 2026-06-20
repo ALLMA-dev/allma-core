@@ -214,33 +214,29 @@ export const ExecutionMonitoringService = {
         }) as AllmaStepExecutionRecord[];
 
         if (matchingSteps.length === 0) return null;
-        
-        // Take the latest attempt if attemptNumber wasn't specified
+
+        // Take the latest attempt if attemptNumber wasn't specified.
         matchingSteps.sort((a, b) => b.eventTimestamp.localeCompare(a.eventTimestamp));
-        const stepToFetch = matchingSteps[0];
+        const latestEvent = matchingSteps[0];
 
-        if (stepToFetch.fullRecordS3Pointer) {
-            try {
-                // EXPLICIT FALSE: Enforce 4MB limit to protect the API Gateway endpoint
-                const fullRecordFromS3 = await resolveS3Pointer(stepToFetch.fullRecordS3Pointer, correlationId, false);
-                
-                if (fullRecordFromS3?._is_large_s3_payload) {
-                    return { 
-                        ...stepToFetch, 
-                        _detailsOmittedForSize: true, 
-                        _large_payload_link: fullRecordFromS3.presignedUrl,
-                        _s3_error: `Step details too large (${(fullRecordFromS3.sizeBytes / 1024 / 1024).toFixed(2)} MB) to load inline. Please download the log file.` 
-                    } as any;
-                }
+        // A single logical step is logged as MULTIPLE events (e.g. STARTED, then COMPLETED/FAILED,
+        // plus any retry events), each with its own eventTimestamp, sort key and S3 pointer. The input
+        // context (`inputMappingContext`) is captured on the STARTED event, while output/error context
+        // lives on the terminal event. Resolving a single event's record therefore drops whichever
+        // context lives on the others — which is why a failed step previously rendered with an empty
+        // input context. Resolve and consolidate ALL events for this step, identically to
+        // getExecutionDetails, so the returned record carries the full merged context.
+        const fullEvents = await resolveFullStepRecords(matchingSteps, correlationId ?? flowExecutionId);
+        const consolidatedSteps = consolidateStepEvents(fullEvents);
 
-                return { ...fullRecordFromS3, ...stepToFetch };
-            } catch (e: any) {
-                log_error(`Failed to resolve S3 pointer for specific step record`, { pointer: stepToFetch.fullRecordS3Pointer, error: e.message }, correlationId);
-                return { ...stepToFetch, _s3_error: `Failed to load full record from S3: ${e.message}` } as any;
-            }
-        }
-        
-        return stepToFetch;
+        // Return the consolidated record for the same attempt/branch as the latest event.
+        const target = consolidatedSteps.find(s =>
+            s.stepInstanceId === latestEvent.stepInstanceId &&
+            (s.attemptNumber ?? 1) === (latestEvent.attemptNumber ?? 1) &&
+            (s.branchExecutionId ?? null) === (latestEvent.branchExecutionId ?? null)
+        );
+
+        return target ?? consolidatedSteps[0] ?? latestEvent ?? null;
     },
 
     /**
