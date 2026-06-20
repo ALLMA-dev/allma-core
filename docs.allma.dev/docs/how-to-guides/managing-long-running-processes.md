@@ -11,8 +11,6 @@ Many critical business workflows aren't fully automated; they require human inte
 
 To create a simple expense approval workflow. The flow will pause until a manager approves or rejects the expense by calling an API, and then continue down the appropriate path.
 
-![Wait and Resume Flow Diagram](https://i.imgur.com/your-diagram-image.png) <!-- TODO: Add a real diagram -->
-
 ### The "Wait and Resume" Lifecycle
 
 1.  **Execution:** The Allma flow runs until it reaches a `WAIT_FOR_EXTERNAL_EVENT` step.

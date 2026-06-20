@@ -14,8 +14,8 @@ const config: Config = {
   url: 'https://docs.allma.dev',
   baseUrl: '/',
 
-  organizationName: 'ALLMA-dev', // Replace with your GitHub org
-  projectName: 'allma-core', // Replace with your repo name
+  organizationName: 'ALLMA-dev',
+  projectName: 'allma-core',
 
   onBrokenLinks: 'throw',
 
@@ -44,7 +44,7 @@ const config: Config = {
   ],
 
   themeConfig: {
-    image: 'img/docusaurus-social-card.jpg',
+    image: 'img/ALLMA-logo.png',
     colorMode: {
       respectPrefersColorScheme: true,
     },

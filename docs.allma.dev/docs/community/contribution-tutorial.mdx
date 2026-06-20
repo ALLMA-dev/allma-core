@@ -25,12 +25,12 @@ We will add a new `DATA_TRANSFORMATION` system module called **`string-case-conv
 Every module starts with a contract. This defines its configuration using **Zod** for type safety and runtime validation.
 
 1.  **Create the file:**
-    `packages/allma-core/types/src/steps/data-transformation/string-case-converter.ts`
+    `packages/core-types/src/steps/data-transformation/string-case-converter.ts`
 
 2.  **Add the schema:**
     This schema defines the "API" for our module. Anyone using it must provide these fields.
 
-    ```typescript title="packages/allma-core/types/src/steps/data-transformation/string-case-converter.ts"
+    ```typescript title="packages/core-types/src/steps/data-transformation/string-case-converter.ts"
     import { z } from 'zod';
 
     // The configuration schema for our module's input
@@ -48,11 +48,11 @@ Every module starts with a contract. This defines its configuration using **Zod*
 Now, let's write the core business logic. This function is a standard `StepHandler` that is completely decoupled from AWS Lambda or other infrastructure concerns.
 
 1.  **Create the file:**
-    `packages/allma-core/logic/src/allma-core/data-transformers/string-case-converter.ts`
+    `packages/app-logic/src/allma-core/data-transformers/string-case-converter.ts`
 
 2.  **Add the handler logic:**
 
-    ```typescript title="packages/allma-core/logic/src/allma-core/data-transformers/string-case-converter.ts"
+    ```typescript title="packages/app-logic/src/allma-core/data-transformers/string-case-converter.ts"
     import { StringCaseConverterConfigSchema, StepHandler, StepHandlerOutput } from '@allma/core-types';
 
     export const executeStringCaseConverter: StepHandler = async (
@@ -87,11 +87,11 @@ Now, let's write the core business logic. This function is a standard `StepHandl
 This is the most important step for a fast development loop. Your test file acts as a local "harness" that simulates the Allma runtime, allowing you to test your logic in milliseconds.
 
 1.  **Create the test file:**
-    `packages/allma-core/logic/src/allma-core/data-transformers/__tests__/string-case-converter.test.ts`
+    `packages/app-logic/src/allma-core/data-transformers/__tests__/string-case-converter.test.ts`
 
 2.  **Add the tests:**
 
-    ```typescript title="packages/allma-core/logic/src/allma-core/data-transformers/__tests__/string-case-converter.test.ts"
+    ```typescript title="packages/app-logic/src/allma-core/data-transformers/__tests__/string-case-converter.test.ts"
     import { executeStringCaseConverter } from '../string-case-converter';
     import { StepType } from '@allma/core-types';
 
@@ -128,7 +128,7 @@ This is the most important step for a fast development loop. Your test file acts
 3.  **Run the tests:** Navigate to the `logic` package and run its test script.
 
     ```bash
-    cd packages/allma-core/logic
+    cd packages/app-logic
     npm test
     ```
     You should see your tests pass instantly!
@@ -138,9 +138,9 @@ This is the most important step for a fast development loop. Your test file acts
 Now that the logic is working and tested, we need to make the Allma platform aware of it.
 
 1.  **Add a System Identifier:** First, give your module a unique identifier.
-    Modify `packages/allma-core/types/src/steps/system-modules.ts`.
+    Modify `packages/core-types/src/steps/system-module-identifiers.ts`.
 
-    ```typescript title="packages/allma-core/types/src/steps/system-modules.ts"
+    ```typescript title="packages/core-types/src/steps/system-module-identifiers.ts"
     // Import the schema you created
     import { StringCaseConverterConfigSchema } from './data-transformation/string-case-converter.js';
     
@@ -165,9 +165,9 @@ Now that the logic is working and tested, we need to make the Allma platform awa
     ```
 
 2.  **Register the Handler:** Now, connect that identifier to your handler function.
-    Modify `packages/allma-core/logic/src/allma-core/step-handlers/data-transformation-handler.ts`.
+    Modify `packages/app-logic/src/allma-core/step-handlers/data-transformation-handler.ts`.
 
-    ```typescript title="packages/allma-core/logic/src/allma-core/step-handlers/data-transformation-handler.ts"
+    ```typescript title="packages/app-logic/src/allma-core/step-handlers/data-transformation-handler.ts"
     // Import your new handler function
     import { executeStringCaseConverter } from '../data-transformers/string-case-converter.js';
     

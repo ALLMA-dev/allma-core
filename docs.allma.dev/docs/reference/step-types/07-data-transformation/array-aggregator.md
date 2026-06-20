@@ -30,11 +30,11 @@ Use `inputMappings` to provide the configuration parameters.
 To calculate the average score from an array of review objects:
 ```json
 "inputMappings": {
-  "array": "$.steps_output.get_reviews.reviews_list",
-  "path": "score"
+  "array": "$.steps_output.get_reviews.reviews_list"
 },
 "literals": {
-  "operation": "avg"
+  "operation": "avg",
+  "path": "score"
 }
 ```
 
