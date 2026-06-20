@@ -23,10 +23,10 @@ export default defineConfig({
       all: true,
       // Global floors — ratcheted up as each module gains tests (TEST_PLAN Phase 5).
       thresholds: {
-        lines: 21,
-        functions: 31,
-        statements: 21,
-        branches: 78,
+        lines: 23,
+        functions: 36,
+        statements: 23,
+        branches: 77,
       },
     },
   },
