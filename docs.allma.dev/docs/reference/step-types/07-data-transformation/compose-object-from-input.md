@@ -8,7 +8,7 @@ title: compose-object-from-input
 
 A simple data transformation module that takes all of its inputs (from `inputMappings` and `literals`) and returns them as a single JSON object.
 
-This is extremely useful for preparing a structured payload for a subsequent step, such as `SQS_SEND` or `CUSTOM_LAMBDA_INVOKE`.
+This is extremely useful for preparing a structured payload for a subsequent step, such as `API_CALL` or `CUSTOM_LAMBDA_INVOKE`.
 
 ---
 

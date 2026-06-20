@@ -98,8 +98,6 @@ What happens after all retries are exhausted? Instead of letting the entire flow
 
 **Execution Path:**
 
- <!-- TODO: Add a real diagram -->
-
 1.  The `API_CALL` step fails.
 2.  The orchestrator performs its 3 configured retries.
 3.  All retries fail. The error is now considered permanent.

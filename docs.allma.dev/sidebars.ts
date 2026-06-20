@@ -56,9 +56,8 @@ const sidebars: SidebarsConfig = {
           type: 'category',
           label: 'Admin API Reference',
           link: {
-            type: 'generated-index',
-            title: 'Admin API Reference',
-            description: 'A complete guide to the Allma administrative REST API for managing flows, prompts, and monitoring executions.',
+            type: 'doc',
+            id: 'reference/admin-api/index',
           },
           items: [
             'reference/admin-api/flow-management-api',

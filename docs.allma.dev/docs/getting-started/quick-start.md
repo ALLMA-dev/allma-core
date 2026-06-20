@@ -25,7 +25,7 @@ First, clone the main Allma repository and install all dependencies from the roo
 
 ```bash
 git clone https://github.com/ALLMA-dev/allma-core.git
-cd allma
+cd allma-core
 npm install
 ```
 
@@ -71,7 +71,7 @@ export const myDevConfig: StageConfig = {
 First, navigate back to the **monorepo root** to build all the Allma packages.
 
 ```bash
-# In the monorepo root (e.g., allma/)
+# In the monorepo root (e.g., allma-core/)
 cd ../..
 npm run build
 ```
@@ -79,7 +79,7 @@ npm run build
 Now, return to your deployment project and deploy the stack to AWS.
 
 ```bash
-# In your deployment project (e.g., allma/examples/basic-deployment)
+# In your deployment project (e.g., allma-core/examples/basic-deployment)
 cd examples/basic-deployment
 npx cdk deploy --all
 ```
@@ -108,7 +108,7 @@ The Admin Shell is the web interface for managing and monitoring Allma.
 1.  **Build the Admin Shell:**
     From the monorepo root, run the build command for the admin shell application.
     ```bash
-    # In the monorepo root (e.g., allma/)
+    # In the monorepo root (e.g., allma-core/)
     npm run build --workspace=@allma/admin-shell
     ```
 

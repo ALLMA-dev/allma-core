@@ -90,7 +90,7 @@ Allma uses a single DynamoDB table (`AllmaConfigTable`) for all configuration da
 
 **Why?** This allows us to fetch related data in a single, efficient query. For example, to load a Flow in the Admin UI, we can query for `PK = FLOW_DEF#<flowId>` to get both the metadata (latest version, published version) and a list of all available versions at once. This is implemented in the generic `VersionedEntityManager` service.
 
-```typescript title="packages/allma-core/logic/src/allma-admin/services/versioned-entity.service.ts"
+```typescript title="packages/app-logic/src/allma-admin/services/versioned-entity.service.ts"
 // Simplified example of fetching versions
 async listVersions(id: string): Promise<Partial<TVersion>[]> {
     const { pk } = this.getKeys(id);
