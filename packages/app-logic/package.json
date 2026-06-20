@@ -6,7 +6,11 @@
   "scripts": {
     "build": "tsc",
     "postbuild": "rimraf ../core-cdk/dist-logic && cpy 'dist/**' ../core-cdk/dist-logic --cwd=. --flat=false",
-    "test": "vitest run",
+    "test": "vitest run --project unit",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration --passWithNoTests",
+    "test:coverage": "vitest run --project unit --coverage",
+    "test:watch": "vitest --project unit",
     "lint": "eslint .",
     "echo:env": "node -e \"console.log('Inside npm script:', process.env.AWS_REGION || 'not set')\""
   },
@@ -47,6 +51,9 @@
     "@types/chai": "^4.3.5",
     "@types/estree": "^1.0.5",
     "@types/mailparser": "^3.4.4",
+    "@vitest/coverage-v8": "^1.6.1",
+    "aws-sdk-client-mock": "^4.1.0",
+    "aws-sdk-client-mock-vitest": "^3.0.0",
     "chai": "^4.3.6",
     "cpy-cli": "^7.0.0",
     "eslint": "^9.8.0",
