@@ -24,7 +24,7 @@ export default defineConfig({
       // Global floors — ratcheted up as each module gains tests (TEST_PLAN Phase 5).
       thresholds: {
         lines: 25,
-        functions: 39,
+        functions: 41,
         statements: 25,
         branches: 77,
       },
