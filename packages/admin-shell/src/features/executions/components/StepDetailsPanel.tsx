@@ -1,5 +1,5 @@
-import { Accordion, Button, Group, SimpleGrid, Stack, Text, Tooltip } from "@mantine/core";
-import { IconGitCompare, IconPlayerPlay, IconSettings } from "@tabler/icons-react";
+import { Accordion, Alert, Button, Group, SimpleGrid, Stack, Text, Tooltip } from "@mantine/core";
+import { IconAlertTriangle, IconGitCompare, IconPlayerPlay, IconSettings } from "@tabler/icons-react";
 import { AllmaStepExecutionRecord, MappingEvent } from '@allma/core-types';
 import { EditableJsonView } from "@allma/ui-components";
 import { MappingEventsDisplay } from "./MappingEventsDisplay";
@@ -17,6 +17,25 @@ const ContextAccordionItem = ({ title, data, value }: { title: string; data: any
     );
 };
 
+/**
+ * Renders a context object, distinguishing three cases so the UI never silently shows an
+ * empty `{}` when context is actually unavailable:
+ *  - `undefined`/`null`  -> the context was not recorded for this step (e.g. a step that
+ *    failed before its output context was produced, or whose detailed record could not be loaded).
+ *  - an empty object     -> rendered as-is (the context genuinely was empty).
+ *  - a populated object  -> rendered via the JSON viewer.
+ */
+const ContextView = ({ value, missingLabel }: { value: unknown; missingLabel: string }) => {
+    if (value === undefined || value === null) {
+        return (
+            <Alert color="gray" variant="light" icon={<IconAlertTriangle size="1rem" />}>
+                {missingLabel}
+            </Alert>
+        );
+    }
+    return <EditableJsonView value={value} readOnly />;
+};
+
 interface StepDetailsPanelProps {
     step: AllmaStepExecutionRecord;
     onOpenDiff: () => void;
@@ -31,9 +50,17 @@ export function StepDetailsPanel({ step, onOpenDiff, onOpenConfig, onRedrive, is
     const logDetails = fullStepRecord.logDetails as Record<string, any> | undefined;
     const inputContext = fullStepRecord.inputMappingContext;
     const outputContext = fullStepRecord.outputMappingContext;
+    // Set by the backend when the full step record could not be hydrated from S3. Surfaced here so a
+    // partially-loaded step explains itself instead of silently showing empty context sections.
+    const s3Error = fullStepRecord._s3_error as string | undefined;
 
     return (
         <Stack>
+            {s3Error && !fullStepRecord._large_payload_link && (
+                <Alert color="orange" title="Some step details could not be loaded" icon={<IconAlertTriangle size="1rem" />}>
+                    {s3Error}
+                </Alert>
+            )}
             {!isSandbox && (
                 <Group justify="flex-end">
                     <Tooltip label="View the step's configuration from this flow version">
@@ -75,13 +102,13 @@ export function StepDetailsPanel({ step, onOpenDiff, onOpenConfig, onRedrive, is
                         </Tooltip>
                     </Group>
                     <Text size="xs" c="dimmed">The state of the entire flow *before* this step ran.</Text>
-                    <EditableJsonView value={inputContext || {}} readOnly />
+                    <ContextView value={inputContext} missingLabel="No input context was recorded for this step." />
                 </Stack>
-    
+
                 <Stack gap="xs">
                     <Text fw={500}>Final Context After Step</Text>
                     <Text size="xs" c="dimmed">The state of the entire flow *after* this step&apos;s output was merged.</Text>
-                    <EditableJsonView value={outputContext ?? {}} readOnly />
+                    <ContextView value={outputContext} missingLabel="No output context was recorded — the step did not complete successfully." />
                 </Stack>
             </SimpleGrid>
     

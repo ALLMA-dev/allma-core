@@ -375,6 +375,13 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
                     durationMs: runtimeState._internal?.currentStepStartTime ? (new Date(stepEndTime).getTime() - new Date(runtimeState._internal.currentStepStartTime).getTime()) : 0,
                     attemptNumber: runtimeState.stepRetryAttempts?.[runtimeState.currentStepInstanceId] || 1,
                     errorInfo: errorInfo,
+                    // Persist the input context so a failed step is always reviewable, even when the
+                    // failure occurred OUTSIDE executeStandardStep (e.g. input-mapping, parallel-fork
+                    // or sync-flow-start errors) and this is therefore the only record written. On
+                    // failure the step never mutates currentContextData, so it still holds the
+                    // "before step" state. This is the contextful counterpart of the FAILED record
+                    // written in executeStandardStep.
+                    inputMappingContext: runtimeState.currentContextData,
                     stepInstanceConfig: stepInstance,
                 });
             }
