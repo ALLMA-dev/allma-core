@@ -1,0 +1,9 @@
+{
+    "label": "Triggers / Start Points",
+    "position": 9,
+    "link": {
+        "type": "generated-index",
+        "title": "Trigger & Start Point Steps",
+        "description": "Steps that begin a flow execution from an external event, such as an inbound email or a recurring schedule."
+    }
+}

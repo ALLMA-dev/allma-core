@@ -31,7 +31,6 @@ tmp/
 .DS_Store
 *.swp
 *.swo
-This
 
 # Logs
 npm-debug.log*

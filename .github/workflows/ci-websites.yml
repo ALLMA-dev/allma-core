@@ -14,21 +14,29 @@ on:
       - 'allma.cdk/**'
       - 'docs.allma.dev/**'
 
+# Prevent overlapping deploys to the live site; let a newer push supersede an in-flight PR build.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-deploy-websites:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
 
       - name: Install dependencies for docs site
         run: npm install --prefix docs.allma.dev
 
+      # Builds the static site. Docusaurus is configured with `onBrokenLinks: 'throw'`,
+      # so this step doubles as a broken-link gate that fails the PR before merge.
       - name: Build docs site
         run: npm run build --prefix docs.allma.dev
 
@@ -38,7 +46,10 @@ jobs:
       - name: Build CDK
         run: npm run build --prefix allma.cdk
 
+      # Only publish to the live site on push to main (i.e. after a PR merges).
+      # On pull_request the steps above still run as a build/link-check gate, but we never deploy.
       - name: Deploy Websites Stack
+        if: github.event_name == 'push'
         run: >
           npx cdk deploy
           -c stage=prod
