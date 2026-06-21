@@ -5,6 +5,8 @@ import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedroc
 
 import {
     LLMProviderType,
+    LlmMediaContent,
+    LlmMediaKind,
     LlmProviderAdapter,
     LlmGenerationRequest,
     LlmGenerationResponse,
@@ -81,18 +83,40 @@ export class BedrockAdapter implements LlmProviderAdapter {
     }
 
     /**
+     * Builds a single Anthropic content block for a resolved media attachment. Images use an
+     * `image` block and PDFs use a `document` block; both carry base64 data under `source`.
+     */
+    private buildAnthropicMediaBlock(media: LlmMediaContent): Record<string, any> {
+        const blockType = media.kind === LlmMediaKind.DOCUMENT ? 'document' : 'image';
+        return {
+            type: blockType,
+            source: {
+                type: 'base64',
+                media_type: media.mimeType,
+                data: media.data,
+            },
+        };
+    }
+
+    /**
      * Builds the JSON payload for an Anthropic Claude model on Bedrock.
      * @param request - The standardized LlmGenerationRequest.
      * @returns A stringified JSON payload.
      */
     private buildAnthropicPayload(request: LlmGenerationRequest): string {
-        const { prompt, maxOutputTokens, topK, stopSequences } = request;
+        const { prompt, media, maxOutputTokens, topK, stopSequences } = request;
 
         const anthropicVersion = request.customConfig?.anthropic_version || 'bedrock-2023-05-31';
 
+        // With media present, `content` must be an array of typed blocks (media first, then text).
+        // Without media we keep the simple string form for backward compatibility.
+        const content = media && media.length > 0
+            ? [...media.map((m) => this.buildAnthropicMediaBlock(m)), { type: 'text', text: prompt }]
+            : prompt;
+
         const payload: any = {
             anthropic_version: anthropicVersion,
-            messages: [{ role: 'user', content: prompt }],
+            messages: [{ role: 'user', content }],
             max_tokens: maxOutputTokens ?? 4096,
             stop_sequences: stopSequences,
         };
@@ -215,6 +239,10 @@ export class BedrockAdapter implements LlmProviderAdapter {
         const { modelId, correlationId } = request;
         const provider = this.getProviderFromModelId(modelId);
         log_info(`BedrockAdapter: Requesting content from model`, { modelId, provider }, correlationId);
+
+        if (request.media?.length && provider !== 'anthropic') {
+            log_warn(`Media attachments are not supported for Bedrock provider '${provider}'; sending text only.`, { modelId, mediaCount: request.media.length }, correlationId);
+        }
 
         let body: string;
         let responseParser: (body: any) => { responseText: string; tokenUsage: { inputTokens: number; outputTokens: number } };

@@ -20,6 +20,7 @@ import {
 import { getLlmAdapter } from '../llm-adapters/adapter-registry.js';
 import { TemplateService } from '../template-service.js';
 import { loadPromptTemplate } from '../config-loader.js';
+import { getMediaAttachmentsConfig, resolveLlmMedia } from './llm/media-resolver.js';
 
 const EXECUTION_TRACES_BUCKET_NAME = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME]!;
 
@@ -204,6 +205,18 @@ export const handleLlmInvocation: StepHandler = async (
   log_debug('Final context keys for prompt template', { keys: Object.keys(templateContext), sizes: contextSizes }, correlationId);
   const finalPrompt = await templateService.render(promptTemplate.content, templateContext, correlationId);
 
+  // Resolve media (images/PDFs) once for all model attempts. Media lives on the prompt, not the
+  // model, so the same resolved set is sent to the primary and every fallback. Resolution happens
+  // here inside the Lambda, so base64 bytes never enter the Step Functions state.
+  const mediaSourceData = { ...runtimeState.currentContextData, ...runtimeState, ...stepInput };
+  const mediaAttachmentConfigs = getMediaAttachmentsConfig(
+    llmStepDef.mediaAttachments,
+    llmStepDef.mediaAttachmentsPath,
+    mediaSourceData,
+    correlationId
+  );
+  const resolvedMedia = await resolveLlmMedia(mediaAttachmentConfigs, correlationId);
+
   // Prepare this now, so it's available in both success and error paths
   const s3KeyPrefix = `step_outputs/${runtimeState.flowExecutionId}/${llmStepDef.id}/template_context`;
   const finalTemplateContextForLog = await offloadIfLarge(
@@ -242,6 +255,7 @@ export const handleLlmInvocation: StepHandler = async (
         provider: model.provider,
         modelId: model.modelId,
         prompt: finalPrompt,
+        ...(resolvedMedia.length > 0 && { media: resolvedMedia }),
         temperature: model.inferenceParameters.temperature ?? 0.7,
         maxOutputTokens: model.inferenceParameters.maxOutputTokens ?? 16000,
         topP: model.inferenceParameters.topP ?? 0.95,
@@ -323,7 +337,15 @@ export const handleLlmInvocation: StepHandler = async (
     throw new Error('All configured LLM models failed.');
   }
 
-  const { ...invocationParametersForLog } = finalGenerationRequest!;
+  // Strip raw base64 media from the logged invocation parameters — keep only a lightweight
+  // summary so large blobs never land in outputData or the S3 execution traces.
+  const { media: loggedMedia, ...restForLog } = finalGenerationRequest!;
+  const invocationParametersForLog = {
+    ...restForLog,
+    ...(loggedMedia && {
+      media: { count: loggedMedia.length, mimeTypes: loggedMedia.map((m) => m.mimeType) },
+    }),
+  };
 
   let finalOutputData: Record<string, any>;
   if (Array.isArray(parsedOutput) || typeof parsedOutput !== 'object' || parsedOutput === null) {

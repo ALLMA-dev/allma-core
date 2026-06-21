@@ -1,6 +1,6 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
-import { LLMProviderType, type LlmGenerationRequest } from '@allma/core-types';
+import { LLMProviderType, LlmMediaKind, type LlmGenerationRequest } from '@allma/core-types';
 import { mockClient, resetAwsClientMocks } from '../../_helpers/aws-mock.js';
 
 // @google/genai is a third-party SDK, so it is mocked as a collaborator. The secret fetch
@@ -62,6 +62,48 @@ describe('GeminiAdapter.generateContent', () => {
       responseText: 'hello world',
       tokenUsage: { inputTokens: 8, outputTokens: 3 },
     });
+  });
+
+  it('sends a single text part when no media is attached', async () => {
+    generateContentMock.mockResolvedValue({
+      text: 'ok',
+      candidates: [{ finishReason: 'STOP' }],
+      usageMetadata: {},
+    });
+
+    await adapter.generateContent(makeRequest());
+
+    expect(generateContentMock.mock.calls[0][0].contents).toEqual([
+      { role: 'user', parts: [{ text: 'Hello' }] },
+    ]);
+  });
+
+  it('prepends inlineData media parts before the text part', async () => {
+    generateContentMock.mockResolvedValue({
+      text: 'ok',
+      candidates: [{ finishReason: 'STOP' }],
+      usageMetadata: {},
+    });
+
+    await adapter.generateContent(
+      makeRequest({
+        media: [
+          { kind: LlmMediaKind.IMAGE, mimeType: 'image/png', data: 'imgdata' },
+          { kind: LlmMediaKind.DOCUMENT, mimeType: 'application/pdf', data: 'pdfdata' },
+        ],
+      })
+    );
+
+    expect(generateContentMock.mock.calls[0][0].contents).toEqual([
+      {
+        role: 'user',
+        parts: [
+          { inlineData: { mimeType: 'image/png', data: 'imgdata' } },
+          { inlineData: { mimeType: 'application/pdf', data: 'pdfdata' } },
+          { text: 'Hello' },
+        ],
+      },
+    ]);
   });
 
   it('requests JSON output mode when jsonOutputMode is set', async () => {

@@ -80,9 +80,15 @@ export class GeminiAdapter implements LlmProviderAdapter {
    * @returns A promise that resolves to a standardized LlmGenerationResponse object.
    */
   async generateContent(request: LlmGenerationRequest): Promise<LlmGenerationResponse> {
-    const { correlationId, modelId, prompt, temperature, maxOutputTokens, topP, topK, customConfig, jsonOutputMode, seed } = request;
+    const { correlationId, modelId, prompt, media, temperature, maxOutputTokens, topP, topK, customConfig, jsonOutputMode, seed } = request;
 
-    log_debug('GeminiAdapter: Exact prompt being sent to Gemini API', { promptPreview: prompt.substring(0, 200000) }, correlationId);
+    log_debug('GeminiAdapter: Exact prompt being sent to Gemini API', { promptPreview: prompt.substring(0, 200000), mediaCount: media?.length ?? 0 }, correlationId);
+
+    // Media parts (images/PDFs) are sent first, followed by the text prompt.
+    const parts = [
+      ...(media ?? []).map((m) => ({ inlineData: { mimeType: m.mimeType, data: m.data } })),
+      { text: prompt },
+    ];
 
     try {
       const client = await this.getClient(correlationId);
@@ -108,7 +114,7 @@ export class GeminiAdapter implements LlmProviderAdapter {
         try {
           const response = await client.models.generateContent({
             model: modelId,
-            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            contents: [{ role: "user", parts }],
             config: generationConfig
           });
 

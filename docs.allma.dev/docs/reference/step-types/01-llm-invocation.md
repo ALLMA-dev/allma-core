@@ -9,6 +9,8 @@ sidebar_position: 1
 
 Invokes a Large Language Model (LLM) to generate text, classify content, or produce structured JSON based on a dynamic prompt. This is the core step for integrating AI into any workflow.
 
+It also supports **multimodal (vision) input**: you can attach images and PDFs to the prompt for vision-capable models (`GEMINI` and `AWS_BEDROCK` Anthropic Claude). See [Media Attachments](#media-attachments-vision) below.
+
 ---
 
 ### Configuration Parameters
@@ -20,6 +22,8 @@ Invokes a Large Language Model (LLM) to generate text, classify content, or prod
 | `promptTemplateId`          | `string`                           |   Yes    | The ID of a versioned, reusable Prompt Template to use for this invocation. The flow will automatically load the latest **published** version of this template.                                        |
 | `inferenceParameters`       | `object`                           |    No    | Controls the generation behavior of the LLM. Includes `temperature`, `maxOutputTokens`, `topP`, `topK`, and `seed`.                                                                                    |
 | `templateContextMappings`   | `object`                           |    No    | Builds dynamic variables for your prompt template by collecting and formatting data from the Flow Context. Each key becomes a variable name (e.g., `chat_history`) available in your prompt.            |
+| `mediaAttachments`          | `{ s3Pointer \| url \| base64, mimeType? }[]` |    No    | A **static** list of images/PDFs to send to vision-capable models. Each item has **exactly one** source — `s3Pointer` (`{ bucket, key }`), `url` (public http(s)), or `base64` (inline data) — plus an optional `mimeType`. See [Media Attachments](#media-attachments-vision). |
+| `mediaAttachmentsPath`      | `string` (JSONPath)                |    No    | A **dynamic** JSONPath pointing to an array of media attachment objects in the flow context (e.g., `$.steps_output.fetch_images.files`). Mutually exclusive with `mediaAttachments`. |
 | `customConfig.jsonOutputMode` | `boolean`                          |    No    | Set to `true` to instruct the LLM to return valid JSON. The step will automatically parse the response. If parsing fails, it can trigger the `retryOnContentError` policy.                            |
 | `customConfig.anthropic_version`| `string`                           |    No    | (Bedrock/Anthropic only) Specify a different Anthropic version string, e.g., `bedrock-2023-05-31`.                                                                                                   |
 | `securityValidatorConfig`   | `object`                           |    No    | An integrated check to prevent prompt leaking or harmful content. Can check for `forbiddenStrings`.                                                                                                  |
@@ -74,6 +78,46 @@ If `jsonOutputMode` is `true`, the output is the parsed JSON object from the mod
   "$.flow_variables.summary_text": "$.llm_response"
 }
 ```
+
+---
+
+### Media Attachments (Vision) {#media-attachments-vision}
+
+Attach images and PDFs so a vision-capable model can "see" them alongside your text prompt. This is supported for **`GEMINI`** models and **`AWS_BEDROCK`** Anthropic Claude models. For any other provider/model the media is ignored and the prompt is sent as text only.
+
+**Supported media types:** `image/jpeg`, `image/png`, `image/gif`, `image/webp`, and `application/pdf`.
+
+Each attachment specifies **exactly one** source:
+
+| Source       | Shape                          | Behavior                                                                                                  |
+| ------------ | ------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| `s3Pointer`  | `{ bucket, key }`              | Fetched from S3 and base64-encoded at runtime. `mimeType` is inferred from the object's `ContentType` (or key extension) when omitted. |
+| `url`        | `string` (public http(s) URL)  | Fetched and base64-encoded at runtime. `mimeType` is inferred from the response `Content-Type` when omitted. |
+| `base64`     | `string` (inline base64 data)  | Used as-is. **`mimeType` is required** for this source.                                                   |
+
+:::warning Media attachments are mutually exclusive
+Set **either** `mediaAttachments` (static list) **or** `mediaAttachmentsPath` (dynamic JSONPath) — not both. When `mediaAttachmentsPath` resolves to `undefined`, the step runs with no media; if it resolves to a non-array or malformed objects, the step fails with a permanent error. An unsupported `mimeType` also fails permanently.
+:::
+
+The same resolved media is sent to the primary model **and** every configured fallback. Media is resolved inside the step (never stored in the execution state), and the raw base64 is **excluded** from the `_meta.llmInvocationParameters` trace — only a summary (`{ count, mimeTypes }`) is logged.
+
+**Example (static list with all three source types):**
+
+```json
+"mediaAttachments": [
+  { "s3Pointer": { "bucket": "my-bucket", "key": "uploads/invoice.pdf" } },
+  { "url": "https://example.com/diagram.png" },
+  { "base64": "iVBORw0KGgo...", "mimeType": "image/png" }
+]
+```
+
+**Example (dynamic list from context):**
+
+```json
+"mediaAttachmentsPath": "$.steps_output.fetch_images.files"
+```
+
+The data at that path must be an array of media attachment objects, e.g. `[{ "s3Pointer": { "bucket": "b", "key": "k.jpg" } }]`.
 
 ---
 
