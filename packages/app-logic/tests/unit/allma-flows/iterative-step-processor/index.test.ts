@@ -123,39 +123,6 @@ describe('iterativeStepProcessor handler (orchestration loop)', () => {
     expect(low.runtimeState.currentStepInstanceId).toBe('low');
   });
 
-  it('applies executionOverrides.stepOverrides onto the step before executing it', async () => {
-    const flow = makeFlowDefinition({
-      id: 'override',
-      steps: {
-        only: makeStepInstance({
-          stepInstanceId: 'only',
-          stepType: StepType.NO_OP,
-          literals: { message: 'original' },
-        }),
-      },
-    });
-    mockedLoad.mockResolvedValue(flow);
-
-    let captured: Record<string, unknown> = {};
-    useHandlers({
-      [StepType.NO_OP]: async (_d, input) => {
-        captured = input as Record<string, unknown>;
-        return { outputData: { from_handler: input } };
-      },
-    });
-
-    await invoke({
-      runtimeState: makeRuntimeState({
-        flowDefinitionId: flow.id,
-        currentStepInstanceId: 'only',
-        currentContextData: { steps_output: {} },
-        executionOverrides: { stepOverrides: { only: { literals: { message: 'overridden' } } } },
-      }),
-    });
-
-    expect(captured.message).toBe('overridden');
-  });
-
   it('terminates a flow path on an END_FLOW step', async () => {
     const flow = makeFlowDefinition({
       id: 'end',

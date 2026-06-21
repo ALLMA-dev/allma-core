@@ -182,6 +182,57 @@ describe('handleLlmInvocation', () => {
     ).rejects.toThrow('all dead');
   });
 
+  it('resolves static base64 media attachments and passes them to the adapter', async () => {
+    const generateContent = stubAdapter({ responseText: 'saw the image' });
+
+    const result = await handleLlmInvocation(
+      makeLlmStepDef({
+        mediaAttachments: [{ base64: 'AAAA', mimeType: 'image/png' }],
+      } as Partial<StepDefinition>),
+      {},
+      makeRuntimeState()
+    );
+
+    expect(generateContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        media: [{ kind: 'IMAGE', mimeType: 'image/png', data: 'AAAA' }],
+      })
+    );
+    // _meta must carry only a summary of the media, never the raw base64.
+    const loggedMedia = (result.outputData!._meta as { llmInvocationParameters: { media?: unknown } })
+      .llmInvocationParameters.media;
+    expect(loggedMedia).toEqual({ count: 1, mimeTypes: ['image/png'] });
+    expect(JSON.stringify(result.outputData)).not.toContain('AAAA');
+  });
+
+  it('resolves dynamic media attachments from a JSONPath in the context', async () => {
+    const generateContent = stubAdapter({ responseText: 'ok' });
+
+    await handleLlmInvocation(
+      makeLlmStepDef({
+        mediaAttachmentsPath: '$.currentContextData.assets',
+      } as Partial<StepDefinition>),
+      {},
+      makeRuntimeState({
+        currentContextData: { assets: [{ base64: 'BBBB', mimeType: 'application/pdf' }] },
+      })
+    );
+
+    expect(generateContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        media: [{ kind: 'DOCUMENT', mimeType: 'application/pdf', data: 'BBBB' }],
+      })
+    );
+  });
+
+  it('does not set a media field when no attachments are configured', async () => {
+    const generateContent = stubAdapter({ responseText: 'ok' });
+
+    await handleLlmInvocation(makeLlmStepDef(), {}, makeRuntimeState());
+
+    expect(generateContent.mock.calls[0][0]).not.toHaveProperty('media');
+  });
+
   it('rejects a structurally invalid step definition', async () => {
     await expect(
       handleLlmInvocation({ stepType: StepType.LLM_INVOCATION } as never, {}, makeRuntimeState())

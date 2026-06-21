@@ -9,16 +9,17 @@ This document is the authoritative guide for AI agents working in this repositor
 ### Table of Contents
 1. [Repository Boundaries (READ FIRST)](#repository-boundaries-read-first)
 2. [Task Routing](#task-routing)
-3. [Allma: The Serverless AI Orchestration Platform](#allma-the-serverless-ai-orchestration-platform)
-4. [Core Architecture & Principles](#core-architecture--principles)
-5. [Key Concepts: Flows & Steps](#key-concepts-flows--steps)
-6. [Core Capabilities & Step Types](#core-capabilities--step-types)
-7. [Management, Monitoring & Debugging: The Allma Admin Panel](#management-monitoring--debugging-the-allma-admin-panel)
-8. [Advanced Debugging Suite](#advanced-debugging-suite)
-9. [Extensibility & Integration](#extensibility--integration)
-10. [Repository Structure](#repository-structure)
-11. [Engineering Coding Style Guide](#engineering-coding-style-guide)
-12. [GitHub Details](#github-details)
+3. [Platform Documentation (Where to Read About Allma)](#platform-documentation-where-to-read-about-allma)
+4. [Allma: The Serverless AI Orchestration Platform](#allma-the-serverless-ai-orchestration-platform)
+5. [Core Architecture & Principles](#core-architecture--principles)
+6. [Key Concepts: Flows & Steps](#key-concepts-flows--steps)
+7. [Core Capabilities & Step Types](#core-capabilities--step-types)
+8. [Management, Monitoring & Debugging: The Allma Admin Panel](#management-monitoring--debugging-the-allma-admin-panel)
+9. [Advanced Debugging Suite](#advanced-debugging-suite)
+10. [Extensibility & Integration](#extensibility--integration)
+11. [Repository Structure](#repository-structure)
+12. [Engineering Coding Style Guide](#engineering-coding-style-guide)
+13. [GitHub Details](#github-details)
 
 ---
 
@@ -50,13 +51,39 @@ Before editing anything, classify the task and confirm scope:
 | If the task is about…                                              | Work in…                       | Authoritative rules            |
 | ------------------------------------------------------------------ | ------------------------------ | ------------------------------ |
 | Flow engine, step types, admin shell, SDK, types, CDK constructs   | `packages/*`, `allma.cdk/`     | **This file**                  |
-| The documentation website                                          | `docs.allma.dev/`              | This file + that package       |
+| Understanding how a feature/step/API behaves                       | Read `docs.allma.dev/docs/`    | See [Platform Documentation](#platform-documentation-where-to-read-about-allma) |
+| The documentation website (content or site config)                 | `docs.allma.dev/`              | This file + that package       |
 | A consumer/example application                                     | `examples/<app>/`              | `examples/<app>/AGENTS.md`     |
 
 Guidance:
 - If a request is ambiguous about whether it targets the platform or an example app, **ask before editing across that line.**
 - A platform task must not edit `examples/*`. An example task must not edit `packages/*` or `allma.cdk/` (treat the platform as a dependency).
 - When opening files for context inside `examples/<app>/`, defer to that app's `AGENTS.md` for build, test, and style conventions.
+
+---
+
+## Platform Documentation (Where to Read About Allma)
+
+The sections below in this file are a **high-level summary**. The complete, authoritative, human-facing documentation of how the platform behaves lives in the repository under **`docs.allma.dev/docs/`** (a Docusaurus 3 site). **Read it before designing or changing platform behavior** — especially when adding or modifying a step type, an admin API, or flow semantics. The Markdown/MDX sources are the source of truth; the live site at `https://docs.allma.dev` is built from them by CI.
+
+### Where things are
+
+| You need to understand…                                   | Read under `docs.allma.dev/docs/`                                                                 |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| What Allma is, install, first run                         | `getting-started/` (`introduction.md`, `quick-start.md`)                                           |
+| Core mental model (flows, steps, context, versioning)     | `getting-started/key-concepts/` (`flows-and-steps.md`, `data-context.md`, `versioning-publishing.md`, `architecture-principles.md`) |
+| Task-oriented walkthroughs                                | `how-to-guides/` (first AI flow, external APIs, parallel workloads, long-running, error handling)  |
+| **Every step type** (config, inputs, outputs, examples)   | `reference/step-types/` — numbered by family (`01-llm-invocation.md`, `02-api-call.md`, `04-flow-control/`, `05-data-load/`, `06-data-save/`, `07-data-transformation/`, `08-messaging/`, `09-triggers/`, plus `mcp-call.md`, `file-download.md`) |
+| The flow definition JSON schema                           | `reference/flow-definition-reference.md`                                                           |
+| The admin/management REST APIs                            | `reference/admin-api/` (flow management, flow control, execution monitoring, prompt management)    |
+| Contributing / deep architecture / maintainer process    | `community/` (`architecture-deep-dive.mdx`, `contribution-guide.mdx`, `contribution-tutorial.mdx`, `maintainer-guide.mdx`) |
+
+### How to read & keep it in sync
+
+- **Read first, code second.** When a task touches a step type or admin API, open its reference page under `docs.allma.dev/docs/reference/` for the contract and examples before editing `packages/*`.
+- **Docs are part of the change.** When you change platform behavior (a step's config/inputs/outputs, an API, flow semantics), update the matching page under `docs.allma.dev/docs/` in the same PR so the docs never drift from the code.
+- **Keep docs product-agnostic** — the same rules as platform code apply (no consumer/product names; only the generic `examples/basic-deployment` demo).
+- **Validate** doc changes with `npm run build --prefix docs.allma.dev`. `onBrokenLinks: 'throw'` is set, so a broken internal link fails the build. Building also catches malformed MDX. For docs-only PRs, add an *empty* changeset in `.changeset/` (the docs site package is private and unpublished). See the `docs.allma.dev/` package for its own conventions.
 
 ---
 
