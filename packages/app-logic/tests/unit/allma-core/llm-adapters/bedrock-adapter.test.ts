@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
-import { LLMProviderType, PermanentStepError, TransientStepError, type LlmGenerationRequest } from '@allma/core-types';
+import { LLMProviderType, LlmMediaKind, PermanentStepError, TransientStepError, type LlmGenerationRequest } from '@allma/core-types';
 import { mockClient, resetAwsClientMocks } from '../../_helpers/aws-mock.js';
 import { BedrockAdapter } from '../../../../src/allma-core/llm-adapters/bedrock-adapter.js';
 
@@ -39,6 +39,51 @@ describe('BedrockAdapter.generateContent', () => {
     const body = lastSentBody();
     expect(body.anthropic_version).toBeDefined();
     expect(body.messages).toEqual([{ role: 'user', content: 'Hello' }]);
+  });
+
+  it('keeps content as a plain string when no media is attached', async () => {
+    bedrockMock.on(InvokeModelCommand).resolves({ body: encode({ content: [{ text: 'x' }], usage: {} }) });
+
+    await adapter.generateContent(makeRequest());
+
+    expect(lastSentBody().messages).toEqual([{ role: 'user', content: 'Hello' }]);
+  });
+
+  it('builds an Anthropic content-block array (image + document) when media is attached', async () => {
+    bedrockMock.on(InvokeModelCommand).resolves({ body: encode({ content: [{ text: 'x' }], usage: {} }) });
+
+    await adapter.generateContent(
+      makeRequest({
+        media: [
+          { kind: LlmMediaKind.IMAGE, mimeType: 'image/png', data: 'imgdata' },
+          { kind: LlmMediaKind.DOCUMENT, mimeType: 'application/pdf', data: 'pdfdata' },
+        ],
+      })
+    );
+
+    const content = (lastSentBody().messages as Array<{ content: unknown }>)[0].content;
+    expect(content).toEqual([
+      { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'imgdata' } },
+      { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: 'pdfdata' } },
+      { type: 'text', text: 'Hello' },
+    ]);
+  });
+
+  it('ignores media for a non-Anthropic Bedrock provider (text only)', async () => {
+    bedrockMock.on(InvokeModelCommand).resolves({
+      body: encode({ output: { message: { content: [{ text: 'nova' }] } }, usage: {} }),
+    });
+
+    const result = await adapter.generateContent(
+      makeRequest({
+        modelId: 'amazon.nova-pro-v1:0',
+        media: [{ kind: LlmMediaKind.IMAGE, mimeType: 'image/png', data: 'imgdata' }],
+      })
+    );
+
+    expect(result.success).toBe(true);
+    const content = (lastSentBody().messages as Array<{ content: unknown }>)[0].content;
+    expect(content).toEqual([{ text: 'Hello' }]);
   });
 
   it('resolves the provider from an inference-profile prefixed model id', async () => {
