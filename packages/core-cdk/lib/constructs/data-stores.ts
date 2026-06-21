@@ -133,6 +133,26 @@ export class AllmaDataStores extends Construct {
       ],
     });
 
+    // GSI for the Admin UI Step Statistics view to aggregate step-execution records by time.
+    // Dedicated to step records (itemType = ALLMA_STEP_EXECUTION_RECORD) and projects only the
+    // attributes the aggregation needs, so the stats query never falls back to the base table.
+    this.allmaFlowExecutionLogTable.addGlobalSecondaryIndex({
+      indexName: 'GSI_StepStats_ByTime',
+      partitionKey: { name: 'itemType', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'startTime', type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.INCLUDE,
+      nonKeyAttributes: [
+        'stepType',
+        'status',
+        'flowDefinitionId',
+        'flowDefinitionVersion',
+        'durationMs',
+        'endTime',
+        'inputTokens',
+        'outputTokens',
+      ],
+    });
+
     // Table to store task tokens for paused flows.
     this.allmaFlowContinuationStateTable = new dynamodb.Table(this, 'AllmaFlowContinuationStateTable', {
       tableName: `AllmaFlowContinuationState-${stageConfig.stage}`,

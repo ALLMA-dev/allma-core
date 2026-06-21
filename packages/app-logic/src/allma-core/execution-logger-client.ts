@@ -136,10 +136,14 @@ class ExecutionLoggerClient {
                 stepDefinitionId: fullRecordData.stepDefinitionId,
                 stepDefinitionVersion: fullRecordData.stepDefinitionVersion,
                 stepType: fullRecordData.stepType,
+                flowDefinitionId: fullRecordData.flowDefinitionId,
+                flowDefinitionVersion: fullRecordData.flowDefinitionVersion,
                 status: fullRecordData.status,
                 startTime: fullRecordData.startTime,
                 endTime: fullRecordData.endTime,
                 durationMs: fullRecordData.durationMs,
+                ...(fullRecordData.inputTokens !== undefined && { inputTokens: fullRecordData.inputTokens }),
+                ...(fullRecordData.outputTokens !== undefined && { outputTokens: fullRecordData.outputTokens }),
                 attemptNumber: fullRecordData.attemptNumber,
                 ...(fullRecordData.errorInfo && { 
                     errorInfoSummary: {

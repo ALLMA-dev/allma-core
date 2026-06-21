@@ -23,6 +23,7 @@ export const ALLMA_ADMIN_API_ROUTES = {
 
   // Dashboard
   DASHBOARD_STATS: `/allma/${ARS.DASHBOARD}/stats`,
+  STEP_STATS: `/allma/${ARS.DASHBOARD}/step-stats`,
 
   // Agents
   AGENTS: `/allma/${ARS.AGENTS}`,

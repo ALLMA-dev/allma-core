@@ -23,6 +23,7 @@ interface AllmaAdminApiProps {
   adminPromptTemplateManagementLambda: lambda.IFunction;
   adminFlowControlLambda: lambda.IFunction;
   adminDashboardStatsLambda: lambda.IFunction;
+  adminStepStatsLambda: lambda.IFunction;
   adminImportExportLambda: lambda.IFunction;
   adminMcpConnectionManagementLambda: lambda.IFunction;
   adminAgentManagementLambda: lambda.IFunction;
@@ -46,6 +47,7 @@ export class AllmaAdminApi extends Construct {
       adminPromptTemplateManagementLambda,
       adminFlowControlLambda,
       adminDashboardStatsLambda,
+      adminStepStatsLambda,
       adminImportExportLambda,
       adminMcpConnectionManagementLambda,
       adminAgentManagementLambda
@@ -305,6 +307,14 @@ export class AllmaAdminApi extends Construct {
       path: ALLMA_ADMIN_API_ROUTES.DASHBOARD_STATS,
       methods: [apigwv2.HttpMethod.GET],
       integration: dashboardStatsIntegration,
+      authorizer: adminAuthorizer,
+    });
+
+    const stepStatsIntegration = new HttpLambdaIntegration('StepStatsIntegration', adminStepStatsLambda);
+    this.httpApi.addRoutes({
+      path: ALLMA_ADMIN_API_ROUTES.STEP_STATS,
+      methods: [apigwv2.HttpMethod.GET],
+      integration: stepStatsIntegration,
       authorizer: adminAuthorizer,
     });
 

@@ -35,4 +35,5 @@ export * from './endpoints.js';
 export * from './executionMonitoring.js';
 export * from './importExport.js';
 export * from './permissions.js';
+export * from './stepStats.js';
 export * from './utils.js';
