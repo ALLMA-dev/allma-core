@@ -26,11 +26,14 @@ export default defineConfig({
       // Measure the whole src tree (not just imported files) so coverage reflects real
       // progress across the codebase. Thresholds start low and ratchet up (TEST_PLAN Phase 6).
       all: true,
+      // Floors sit just under the current actuals — raise them as each phase lands
+      // (TEST_PLAN Phase 6). Whole-src denominator, so absolutes are low while individual
+      // covered modules sit at ~96-100%.
       thresholds: {
-        lines: 2,
-        functions: 2,
-        statements: 2,
-        branches: 30,
+        lines: 7,
+        functions: 18,
+        statements: 7,
+        branches: 55,
       },
     },
   },
