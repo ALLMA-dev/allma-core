@@ -30,10 +30,10 @@ export default defineConfig({
       // (TEST_PLAN Phase 6). Whole-src denominator, so absolutes are low while individual
       // covered modules sit at ~96-100%.
       thresholds: {
-        lines: 23,
-        functions: 60,
-        statements: 23,
-        branches: 68,
+        lines: 27,
+        functions: 62,
+        statements: 27,
+        branches: 69,
       },
     },
   },
