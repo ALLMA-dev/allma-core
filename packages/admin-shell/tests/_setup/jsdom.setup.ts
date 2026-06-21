@@ -1,5 +1,12 @@
 import '@testing-library/jest-dom/vitest';
-import { vi } from 'vitest';
+import { afterEach, vi } from 'vitest';
+import { cleanup } from '@testing-library/react';
+
+// Without `globals: true` Testing Library's automatic afterEach cleanup is never registered,
+// so mounted trees leak across tests. Register it once here for every dom-project spec.
+afterEach(() => {
+  cleanup();
+});
 
 /**
  * jsdom lacks a few browser APIs that Mantine and reactflow touch on mount. Stub them so
