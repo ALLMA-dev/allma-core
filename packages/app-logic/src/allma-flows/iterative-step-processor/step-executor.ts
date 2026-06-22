@@ -107,6 +107,9 @@ export const executeStandardStep = async (
 
   const baseRecord = {
     flowExecutionId: correlationId,
+    // Denormalized onto the step record so per-flow step statistics can be queried directly.
+    flowDefinitionId: runtimeState.flowDefinitionId,
+    flowDefinitionVersion: runtimeState.flowDefinitionVersion,
     branchId: runtimeState.branchId,
     branchExecutionId: runtimeState.branchExecutionId,
     stepInstanceId: currentStepInstanceId,
@@ -443,10 +446,18 @@ export const executeStandardStep = async (
   if (runtimeState.enableExecutionLogs) {
     const s3Pointer = await executionLoggerClient.logStepExecution({
       ...baseRecord,
-      status: 'COMPLETED', 
+      status: 'COMPLETED',
       eventTimestamp: stepEndTime,
       endTime: stepEndTime,
       durationMs: stepDurationMs,
+      // Promote token usage onto the queryable minimal record so step statistics can sum
+      // tokens without fetching the full record from S3 (populated for LLM steps).
+      ...(logDetailsForRecord?.tokenUsage?.inputTokens !== undefined && {
+        inputTokens: logDetailsForRecord.tokenUsage.inputTokens,
+      }),
+      ...(logDetailsForRecord?.tokenUsage?.outputTokens !== undefined && {
+        outputTokens: logDetailsForRecord.tokenUsage.outputTokens,
+      }),
       logDetails: logDetailsForRecord,
       inputMappingResult: finalStepInput,
       outputData: finalOutputForMapping, 

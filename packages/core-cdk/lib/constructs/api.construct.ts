@@ -133,6 +133,7 @@ export class ApiConstruct extends Construct {
         const adminExecutionMonitoringLambda = this.createNodejsLambda('AdminExecutionMonitoringLambda', `AllmaAdminExecMonitor-${stageConfig.stage}`, 'allma-admin/execution-monitoring.js', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars, apiConcurrency);
         const adminPromptTemplateManagementLambda = this.createNodejsLambda('AdminPromptTemplateManagementLambda', `AllmaAdminPromptTmplMgmt-${stageConfig.stage}`, 'allma-admin/prompt-template-management.js', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars, apiConcurrency);
         const adminDashboardStatsLambda = this.createNodejsLambda('AdminDashboardStatsLambda', `AllmaAdminDashboardStats-${stageConfig.stage}`, 'allma-admin/dashboard-stats.js', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars, apiConcurrency);
+        const adminStepStatsLambda = this.createNodejsLambda('AdminStepStatsLambda', `AllmaAdminStepStats-${stageConfig.stage}`, 'allma-admin/step-stats.js', adminApiLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, commonEnvVars, apiConcurrency);
         const adminFlowControlLambda = this.createNodejsLambda('AdminFlowControlLambda', `AllmaAdminFlowControl-${stageConfig.stage}`, 'allma-admin/flow-control.js', adminFlowControlLambdaRole, defaultLambdaTimeout, adminApiLambdaMemory, {
             ...commonEnvVars,
             [ENV_VAR_NAMES.ITERATIVE_STEP_PROCESSOR_LAMBDA_ARN]: iterativeStepProcessorLambda.functionArn,
@@ -157,6 +158,7 @@ export class ApiConstruct extends Construct {
             adminPromptTemplateManagementLambda,
             adminFlowControlLambda,
             adminDashboardStatsLambda,
+            adminStepStatsLambda,
             adminImportExportLambda,
             adminMcpConnectionManagementLambda,
             adminAgentManagementLambda,
