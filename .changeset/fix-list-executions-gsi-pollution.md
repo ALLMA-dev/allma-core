@@ -1,4 +1,5 @@
 ---
+"@allma/core-cdk": patch
 ---
 
 fix(executions): restore the flow-executions list for busy flows.
@@ -12,4 +13,6 @@ flows returned pages made entirely of (filtered-out) step records, so the API re
 the index, accumulating matching flow-execution records until the requested page is filled or the
 partition is exhausted, and derives the `nextToken` from the last record actually returned.
 
-(`allma-app-logic` is private and unpublished, so this changeset intentionally bumps no package.)
+The fix lives in `allma-app-logic`, which is private/unpublished but is compiled into
+`@allma/core-cdk`'s shipped `dist-logic/` at build time — so the bump is recorded against
+`@allma/core-cdk`.
