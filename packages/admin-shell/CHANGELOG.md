@@ -1,5 +1,12 @@
 # @allma/admin-shell
 
+## 5.0.0
+
+### Patch Changes
+
+- Updated dependencies [a7b39cd]
+  - @allma/core-types@1.4.0
+
 ## 4.0.0
 
 ### Minor Changes
