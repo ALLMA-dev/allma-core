@@ -247,4 +247,122 @@ describe('handleLlmInvocation', () => {
       handleLlmInvocation(makeLlmStepDef(), {}, makeRuntimeState())
     ).rejects.toThrow('has no content');
   });
+
+  describe('model selection templating', () => {
+    it('resolves templated modelId and llmProvider from the flow context', async () => {
+      const generateContent = stubAdapter({ responseText: 'ok' });
+
+      await handleLlmInvocation(
+        makeLlmStepDef({
+          llmProvider: '{{config.providers.primary}}',
+          modelId: '{{config.llmModels.bedrockSonnet}}',
+        } as unknown as Partial<StepDefinition>),
+        {},
+        makeRuntimeState({
+          currentContextData: {
+            config: {
+              providers: { primary: LLMProviderType.AWS_BEDROCK },
+              llmModels: { bedrockSonnet: 'anthropic.claude-3-sonnet-20240229-v1:0' },
+            },
+          },
+        })
+      );
+
+      expect(mockedGetLlmAdapter).toHaveBeenCalledWith(LLMProviderType.AWS_BEDROCK);
+      expect(generateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: LLMProviderType.AWS_BEDROCK,
+          modelId: 'anthropic.claude-3-sonnet-20240229-v1:0',
+        })
+      );
+    });
+
+    it('resolves a templated fallback entry from the flow context', async () => {
+      const generateContent = vi.fn();
+      generateContent
+        .mockResolvedValueOnce({ success: false, errorMessage: 'primary down' })
+        .mockResolvedValueOnce({
+          success: true,
+          provider: LLMProviderType.AWS_BEDROCK,
+          modelUsed: 'fallback',
+          responseText: 'recovered',
+        });
+      mockedGetLlmAdapter.mockReturnValue({ generateContent } as never);
+
+      const result = await handleLlmInvocation(
+        makeLlmStepDef({
+          modelId: 'primary-fail',
+          fallbacks: [
+            {
+              llmProvider: '{{flow_variables.fallbackProvider}}',
+              modelId: '{{flow_variables.fallbackModel}}',
+            },
+          ],
+        } as unknown as Partial<StepDefinition>),
+        {},
+        makeRuntimeState({
+          currentContextData: {
+            flow_variables: {
+              fallbackProvider: LLMProviderType.AWS_BEDROCK,
+              fallbackModel: 'anthropic.claude-3-haiku-20240307-v1:0',
+            },
+          },
+        })
+      );
+
+      expect(result.outputData).toMatchObject({ llm_response: 'recovered' });
+      expect(generateContent).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          provider: LLMProviderType.AWS_BEDROCK,
+          modelId: 'anthropic.claude-3-haiku-20240307-v1:0',
+        })
+      );
+    });
+
+    it('passes literal model IDs through unchanged', async () => {
+      const generateContent = stubAdapter({ responseText: 'ok' });
+
+      await handleLlmInvocation(
+        makeLlmStepDef({
+          llmProvider: LLMProviderType.GEMINI,
+          modelId: 'gemini-1.5-flash',
+        } as Partial<StepDefinition>),
+        {},
+        makeRuntimeState()
+      );
+
+      expect(generateContent).toHaveBeenCalledWith(
+        expect.objectContaining({ provider: LLMProviderType.GEMINI, modelId: 'gemini-1.5-flash' })
+      );
+    });
+
+    it('throws a clear error when a templated modelId resolves to empty', async () => {
+      stubAdapter({ responseText: 'unused' });
+
+      await expect(
+        handleLlmInvocation(
+          makeLlmStepDef({
+            modelId: '{{config.llmModels.missing}}',
+          } as unknown as Partial<StepDefinition>),
+          {},
+          makeRuntimeState({ currentContextData: { config: { llmModels: {} } } })
+        )
+      ).rejects.toThrow('modelId resolved to an empty or non-string value');
+    });
+
+    it('throws a clear error when a templated llmProvider resolves to an invalid value', async () => {
+      stubAdapter({ responseText: 'unused' });
+
+      await expect(
+        handleLlmInvocation(
+          makeLlmStepDef({
+            llmProvider: '{{config.providers.primary}}',
+          } as unknown as Partial<StepDefinition>),
+          {},
+          makeRuntimeState({ currentContextData: { config: { providers: { primary: 'NOT_A_PROVIDER' } } } })
+        )
+      ).rejects.toThrow('is not a valid LLM provider');
+    });
+  });
 });

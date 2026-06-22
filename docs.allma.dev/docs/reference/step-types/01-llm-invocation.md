@@ -17,8 +17,9 @@ It also supports **multimodal (vision) input**: you can attach images and PDFs t
 
 | Parameter                   | Type                               | Required | Description                                                                                                                                                                                          |
 | --------------------------- | ---------------------------------- | :------: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `llmProvider`               | `string`                           |   Yes    | The AI provider to use, such as `AWS_BEDROCK` or `GEMINI`.                                                                                                                                           |
-| `modelId`                   | `string`                           |   Yes    | The specific model identifier from the chosen provider (e.g., `anthropic.claude-3-sonnet-20240229-v1:0` for Bedrock, or `gemini-1.5-pro-latest` for Gemini).                                             |
+| `llmProvider`               | `string`                           |   Yes    | The AI provider to use, such as `AWS_BEDROCK` or `GEMINI`. Supports **Handlebars templating** — see [Templated Model Selection](#templated-model-selection).                                          |
+| `modelId`                   | `string`                           |   Yes    | The specific model identifier from the chosen provider (e.g., `anthropic.claude-3-sonnet-20240229-v1:0` for Bedrock, or `gemini-1.5-pro-latest` for Gemini). Supports **Handlebars templating** — see [Templated Model Selection](#templated-model-selection). |
+| `fallbacks`                 | `{ llmProvider, modelId, inferenceParameters?, customConfig? }[]` |    No    | An ordered list of fallback models to try if the primary model fails. Each entry's `llmProvider` and `modelId` also support **Handlebars templating** — see [Templated Model Selection](#templated-model-selection). |
 | `promptTemplateId`          | `string`                           |   Yes    | The ID of a versioned, reusable Prompt Template to use for this invocation. The flow will automatically load the latest **published** version of this template.                                        |
 | `inferenceParameters`       | `object`                           |    No    | Controls the generation behavior of the LLM. Includes `temperature`, `maxOutputTokens`, `topP`, `topK`, and `seed`.                                                                                    |
 | `templateContextMappings`   | `object`                           |    No    | Builds dynamic variables for your prompt template by collecting and formatting data from the Flow Context. Each key becomes a variable name (e.g., `chat_history`) available in your prompt.            |
@@ -28,6 +29,33 @@ It also supports **multimodal (vision) input**: you can attach images and PDFs t
 | `customConfig.anthropic_version`| `string`                           |    No    | (Bedrock/Anthropic only) Specify a different Anthropic version string, e.g., `bedrock-2023-05-31`.                                                                                                   |
 | `securityValidatorConfig`   | `object`                           |    No    | An integrated check to prevent prompt leaking or harmful content. Can check for `forbiddenStrings`.                                                                                                  |
 | `outputValidation`          | `object`                           |    No    | Validates the structure of the LLM's JSON output. `requiredFields` is an array of JSONPaths that must exist in the output. If any check fails, it can trigger `retryOnContentError`.                   |
+
+---
+
+### Templated Model Selection {#templated-model-selection}
+
+The model-selection fields — `llmProvider`, `modelId`, and every entry inside `fallbacks[]` — are rendered as **Handlebars templates** against the flow context at runtime, just like `inputMappings`, `customConfig`, and the prompt body. This lets a flow centralize and parameterize model choice instead of hardcoding model IDs in every step.
+
+```json
+{
+  "stepType": "LLM_INVOCATION",
+  "llmProvider": "{{config.providers.primary}}",
+  "modelId": "{{config.llmModels.bedrockSonnet}}",
+  "fallbacks": [
+    {
+      "llmProvider": "{{config.providers.fallback}}",
+      "modelId": "{{config.llmModels.bedrockHaiku}}"
+    }
+  ]
+}
+```
+
+The templates are resolved against the same context available to `templateContextMappings`, so `config.*`, `flow_variables.*`, `steps_output.*`, and `initialContextData.*` are all in scope.
+
+**Notes & guarantees:**
+
+- **Backward compatible.** Plain values without `{{ }}` (e.g. `"AWS_BEDROCK"`, `"gemini-1.5-pro-latest"`) pass through unchanged, so existing flows are unaffected.
+- **Validated after rendering.** A `modelId` that resolves to an empty/undefined value, or an `llmProvider` that does not resolve to a valid provider (`GEMINI`, `ANTHROPIC`, `OPENAI`, `AWS_BEDROCK`, `CUSTOM_LAMBDA`), fails the step with a clear error instead of silently calling the provider with a bad selection.
 
 ---
 

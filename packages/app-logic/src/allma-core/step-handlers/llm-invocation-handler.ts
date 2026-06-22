@@ -8,6 +8,8 @@ import {
   LlmGenerationRequest,
   MappingEvent,
   LlmGenerationResponse,
+  LLMProviderType,
+  LlmInvocationFallback,
 } from '@allma/core-types';
 import {
   log_debug,
@@ -21,6 +23,7 @@ import { getLlmAdapter } from '../llm-adapters/adapter-registry.js';
 import { TemplateService } from '../template-service.js';
 import { loadPromptTemplate } from '../config-loader.js';
 import { getMediaAttachmentsConfig, resolveLlmMedia } from './llm/media-resolver.js';
+import { renderNestedTemplates } from '../utils/template-renderer.js';
 
 const EXECUTION_TRACES_BUCKET_NAME = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME]!;
 
@@ -113,6 +116,33 @@ function recordModelSuccess(provider: string, modelId: string) {
 }
 // --------------------------------------------------------
 
+const VALID_LLM_PROVIDERS = new Set<string>(Object.values(LLMProviderType));
+
+/**
+ * Validate a model selection (primary or fallback) after Handlebars rendering and return the
+ * typed values. Templated model fields (e.g. `{{config.llmModels.bedrockSonnet}}`) are resolved
+ * before this runs, so a typo or a missing context value would otherwise reach the provider as an
+ * empty/garbage model id. We fail loudly here instead of silently invoking the provider with a bad
+ * selection.
+ */
+function validateResolvedModel(
+  provider: unknown,
+  modelId: unknown,
+  label: string,
+): { provider: LLMProviderType; modelId: string } {
+  if (typeof modelId !== 'string' || modelId.trim() === '') {
+    throw new Error(
+      `${label} modelId resolved to an empty or non-string value after template rendering. Check the model selection template against the flow context.`
+    );
+  }
+  if (typeof provider !== 'string' || !VALID_LLM_PROVIDERS.has(provider)) {
+    throw new Error(
+      `${label} llmProvider resolved to '${String(provider)}', which is not a valid LLM provider (expected one of: ${[...VALID_LLM_PROVIDERS].join(', ')}).`
+    );
+  }
+  return { provider: provider as LLMProviderType, modelId };
+}
+
 function getObjectSizes(obj: Record<string, any>): Record<string, number> {
   const sizes: Record<string, number> = {};
   for (const key of Object.keys(obj)) {
@@ -141,7 +171,33 @@ export const handleLlmInvocation: StepHandler = async (
 
   // The `stepDefinition` is now the single source of truth, fully merged by the processor.
   const { data: llmStepDef } = parsedStepDef;
-  const { llmProvider, promptTemplateId, modelId, fallbacks = [] } = llmStepDef;
+  const { promptTemplateId, fallbacks = [] } = llmStepDef;
+
+  // Resolve the model-selection fields through Handlebars against the flow context, the same way
+  // inputMappings, customConfig, literals, and the prompt body are resolved. This lets flows
+  // centralize/parameterize model choice, e.g. `modelId: "{{config.llmModels.bedrockSonnet}}"`.
+  // `renderNestedTemplates` recurses into `fallbacks[]`, so each entry's `modelId`/`llmProvider`
+  // string leaves are rendered too. Plain strings without `{{ }}` pass through unchanged, so
+  // existing flows are unaffected. The Zod schema already validated these as non-empty strings
+  // pre-render; we re-validate the resolved values below.
+  const modelTemplateSourceData = { ...runtimeState.currentContextData, ...runtimeState, ...stepInput };
+  const renderedModelSelection = (await renderNestedTemplates(
+    { llmProvider: llmStepDef.llmProvider, modelId: llmStepDef.modelId, fallbacks },
+    modelTemplateSourceData,
+    correlationId
+  )) as { llmProvider: unknown; modelId: unknown; fallbacks: LlmInvocationFallback[] };
+
+  const renderedFallbacks = renderedModelSelection.fallbacks ?? [];
+
+  const { provider: llmProvider, modelId } = validateResolvedModel(
+    renderedModelSelection.llmProvider,
+    renderedModelSelection.modelId,
+    'Primary model'
+  );
+  const validatedFallbacks = renderedFallbacks.map((f, idx) => {
+    const { provider, modelId: fbModelId } = validateResolvedModel(f.llmProvider, f.modelId, `Fallback[${idx}]`);
+    return { ...f, llmProvider: provider, modelId: fbModelId };
+  });
 
   // Determine final parameters. Use `inferenceParameters` as the single source of truth.
   const baseParams = llmStepDef.inferenceParameters || {};
@@ -154,7 +210,7 @@ export const handleLlmInvocation: StepHandler = async (
       inferenceParameters: baseParams,
       customConfig: baseCustomConfig
     },
-    ...fallbacks.map(f => ({
+    ...validatedFallbacks.map(f => ({
       provider: f.llmProvider,
       modelId: f.modelId,
       inferenceParameters: f.inferenceParameters || baseParams,
