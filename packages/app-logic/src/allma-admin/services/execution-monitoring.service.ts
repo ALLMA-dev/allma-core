@@ -358,9 +358,7 @@ export const ExecutionMonitoringService = {
         const queryParams: QueryCommandInput = {
             TableName: EXECUTION_LOG_TABLE_NAME,
             IndexName: 'GSI_ByFlow_StartTime',
-            Limit: pagination.limit,
             ScanIndexForward: false,
-            ExclusiveStartKey: exclusiveStartKey,
             KeyConditionExpression: 'flowDefinitionId = :pk',
             FilterExpression: filterExpressions.join(' AND '),
             ExpressionAttributeValues: expressionAttributeValues,
@@ -369,8 +367,52 @@ export const ExecutionMonitoringService = {
             queryParams.ExpressionAttributeNames = expressionAttributeNames;
         }
 
-        const { Items, LastEvaluatedKey } = await ddbDocClient.send(new QueryCommand(queryParams));
-        const items: FlowExecutionSummary[] = (Items || []).map(item => ({
+        // GSI_ByFlow_StartTime is keyed on (flowDefinitionId, startTime). Step-execution records are
+        // denormalized with both of those attributes, so they also land in this index even though
+        // they are filtered out by `itemType`. Because DynamoDB applies `Limit` *before* the
+        // FilterExpression, a single bounded query can return a page made entirely of step records,
+        // yielding an empty result for busy flows. We therefore page through the index, accumulating
+        // matching flow-execution records until the requested page size is filled or the partition is
+        // exhausted, and derive the nextToken from the last record we actually return.
+        const collected: Record<string, any>[] = [];
+        let lastEvaluatedKey = exclusiveStartKey;
+        let nextToken: string | undefined;
+        // Safeguard against unbounded scanning of a partition dominated by step records.
+        const MAX_PAGES = 20;
+
+        for (let page = 0; page < MAX_PAGES; page++) {
+            const { Items, LastEvaluatedKey }: QueryCommandOutput = await ddbDocClient.send(
+                new QueryCommand({ ...queryParams, ExclusiveStartKey: lastEvaluatedKey })
+            );
+
+            for (const item of Items || []) {
+                collected.push(item);
+                if (collected.length === pagination.limit) {
+                    // Resume the next page immediately after this record. ExclusiveStartKey for a GSI
+                    // query must carry both the index keys and the base-table primary keys.
+                    nextToken = Buffer.from(JSON.stringify({
+                        flowDefinitionId,
+                        startTime: item.startTime,
+                        flowExecutionId: item.flowExecutionId,
+                        eventTimestamp_stepInstanceId_attempt: item.eventTimestamp_stepInstanceId_attempt,
+                    })).toString('base64');
+                    break;
+                }
+            }
+
+            if (nextToken) break;
+
+            lastEvaluatedKey = LastEvaluatedKey;
+            if (!lastEvaluatedKey) break;
+
+            // Hit the page cap before filling the page: hand back the raw cursor so the caller can
+            // continue from exactly where we stopped rather than silently dropping executions.
+            if (page === MAX_PAGES - 1) {
+                nextToken = Buffer.from(JSON.stringify(lastEvaluatedKey)).toString('base64');
+            }
+        }
+
+        const items: FlowExecutionSummary[] = collected.map(item => ({
             flowExecutionId: item.flowExecutionId,
             status: item.status,
             startTime: item.startTime,
@@ -383,7 +425,7 @@ export const ExecutionMonitoringService = {
 
         return {
             items,
-            ...(LastEvaluatedKey && { nextToken: Buffer.from(JSON.stringify(LastEvaluatedKey)).toString('base64') })
+            ...(nextToken && { nextToken })
         };
     }
 
