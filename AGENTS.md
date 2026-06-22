@@ -235,6 +235,25 @@ allma-core/
 - **Published packages** (`@allma/*`) set `main`, `types`, and `files` for npm distribution and build with `tsc`/`tsup`. Do not add product-specific dependencies to them.
 - **`allma-app-logic`** is `private: true`, builds with `tsc`, and is tested with Vitest. Its code is bundled directly into CDK deployment assets rather than published.
 
+### Versioning & Releases (Changesets)
+
+Published `@allma/*` packages follow **semantic versioning**, driven by [Changesets](https://github.com/changesets/changesets). A code change that affects a published package must ship with a changeset (`npx changeset`, or a hand-written `.changeset/<name>.md`). On merge to `main`, the release workflow (`.github/workflows/release.yml`) consumes the pending changesets to open/update the **"Upcoming Release"** PR, and publishes to npm when that PR merges. `allma-app-logic` and `basic-deployment` are in the changeset `ignore` list and are never versioned/published.
+
+**Choosing the bump level — these are the rules; apply them exactly:**
+
+| Bump      | When to use it                                                                                                                              | Who decides            |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| **patch** | Backward-compatible bug fixes, internal refactors, docs/comment/test-only changes, dependency bumps with no API impact, and any small deployment-change push of a PR. **This is the default — when in doubt, use `patch`.** | You, automatically     |
+| **minor** | Backward-compatible **new** functionality: a new exported API, a new optional field/config, a new step type or capability that does not change existing behavior. | You, automatically     |
+| **major** | **Any breaking change**: removing/renaming an exported symbol, changing a function signature or required field, altering existing runtime behavior in a non-backward-compatible way, or breaking a persisted/wire contract (DynamoDB items, SFN payloads, public APIs). | **A human — never you** |
+
+**Hard rules:**
+- **Never select a `major` bump on your own.** A major version is breaking and must be **confirmed externally by a human maintainer**. If your change appears to warrant a major bump, do **not** write a `major` changeset — instead implement it as backward-compatible if at all possible, and surface the breaking-change question to the user with your reasoning. Only write `major` after the user has explicitly confirmed it in this conversation.
+- **Default to `patch`.** For routine fixes, deployment-change pushes, and small updates, use `patch`. Only step up to `minor` when you are genuinely adding new backward-compatible surface area.
+- **Prefer the smallest correct bump.** Do not inflate `patch → minor` or `minor → major` "to be safe" — a smaller bump is never the unsafe choice, an unnecessary `major` is.
+- **One changeset per logical change**, listing every published package it affects. `updateInternalDependencies` is `patch`, so internal dependents are bumped automatically — do not hand-roll those.
+- **Do not edit `package.json` `version` fields directly**, and do not run `changeset version` locally to land a release; let the release workflow own version numbers.
+
 ---
 
 ## Engineering Coding Style Guide
