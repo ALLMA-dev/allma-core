@@ -42,6 +42,16 @@ export const ENV_VAR_NAMES = {
     // Secrets and Credentials
     AI_API_KEY_SECRET_ARN: "AI_API_KEY_SECRET_ARN",
     COGNITO_USER_POOL_ID: "COGNITO_USER_POOL_ID",
+
+    // Gemini via Vertex AI
+    // When 'true', the Gemini adapter calls Vertex AI instead of the key-based
+    // Developer API. The remaining vars supply the Vertex project/location and
+    // (optionally) a service-account key secret; omit the key secret to rely on
+    // Application Default Credentials / Workload Identity Federation.
+    GEMINI_USE_VERTEX: "GEMINI_USE_VERTEX",
+    GCP_PROJECT_ID: "GCP_PROJECT_ID",
+    GCP_LOCATION: "GCP_LOCATION",
+    GCP_SA_KEY_SECRET_ARN: "GCP_SA_KEY_SECRET_ARN",
     EVENTBRIDGE_SCHEDULER_ROLE_ARN: "EVENTBRIDGE_SCHEDULER_ROLE_ARN",
 
     // System Limits and Behavior Configs

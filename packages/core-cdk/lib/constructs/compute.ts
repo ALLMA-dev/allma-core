@@ -94,6 +94,16 @@ export class AllmaCompute extends Construct {
       }));
     }
 
+    // Allow reading the GCP service-account key secret when Gemini is routed
+    // through Vertex AI with key-based auth. (WIF auth needs no secret.)
+    if (stageConfig.gemini?.serviceAccountKeySecretArn) {
+      this.orchestrationLambdaRole.addToPolicy(new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ['secretsmanager:GetSecretValue'],
+        resources: [stageConfig.gemini.serviceAccountKeySecretArn],
+      }));
+    }
+
     this.orchestrationLambdaRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: ['secretsmanager:GetSecretValue'],
@@ -169,6 +179,10 @@ export class AllmaCompute extends Construct {
       {
         ...commonEnvVars,
         [ENV_VAR_NAMES.AI_API_KEY_SECRET_ARN!]: stageConfig.aiApiKeySecretArn || '',
+        [ENV_VAR_NAMES.GEMINI_USE_VERTEX]: stageConfig.gemini?.useVertex ? 'true' : 'false',
+        [ENV_VAR_NAMES.GCP_PROJECT_ID]: stageConfig.gemini?.gcpProjectId || '',
+        [ENV_VAR_NAMES.GCP_LOCATION]: stageConfig.gemini?.gcpLocation || '',
+        [ENV_VAR_NAMES.GCP_SA_KEY_SECRET_ARN]: stageConfig.gemini?.serviceAccountKeySecretArn || '',
         [ENV_VAR_NAMES.ALLMA_FLOW_START_REQUEST_QUEUE_URL!]: props.flowStartRequestQueue?.queueUrl || '',
         [ENV_VAR_NAMES.MAX_CONCURRENT_STEP_EXECUTIONS]: stageConfig.orchestratorConcurrency ? String(stageConfig.orchestratorConcurrency) : '',
       },

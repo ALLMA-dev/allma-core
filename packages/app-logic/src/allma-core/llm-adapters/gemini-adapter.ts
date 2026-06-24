@@ -11,7 +11,18 @@ import { log_info, log_debug, log_warn, log_error } from '@allma/core-sdk';
 
 const secretsManagerClient = new SecretsManagerClient({});
 const geminiApiKeySecretArn = process.env[ENV_VAR_NAMES.AI_API_KEY_SECRET_ARN];
+
+// --- Vertex AI configuration ---
+// When GEMINI_USE_VERTEX is 'true', the adapter talks to Vertex AI (Google IAM /
+// OAuth) instead of the key-based Developer API. The same @google/genai SDK
+// serves both backends, so only client construction differs.
+const useVertex = process.env[ENV_VAR_NAMES.GEMINI_USE_VERTEX] === 'true';
+const gcpProjectId = process.env[ENV_VAR_NAMES.GCP_PROJECT_ID];
+const gcpLocation = process.env[ENV_VAR_NAMES.GCP_LOCATION];
+const gcpSaKeySecretArn = process.env[ENV_VAR_NAMES.GCP_SA_KEY_SECRET_ARN];
+
 let cachedApiKey: string | null = null;
+let cachedSaCredentials: { client_email: string; private_key: string } | null = null;
 let genAI: GoogleGenAI | null = null;
 
 const DEFAULT_SAFETY_SETTINGS: SafetySetting[] = [
@@ -63,12 +74,66 @@ export class GeminiAdapter implements LlmProviderAdapter {
   }
 
   /**
+   * Retrieves a GCP service-account key (`{ client_email, private_key }`) from
+   * AWS Secrets Manager for authenticating to Vertex AI. Cached per execution
+   * context. Only used when `GCP_SA_KEY_SECRET_ARN` is configured; otherwise the
+   * SDK authenticates via Application Default Credentials / Workload Identity
+   * Federation.
+   * @param correlationId - Optional ID for logging.
+   */
+  private async getServiceAccountCredentials(correlationId?: string): Promise<{ client_email: string; private_key: string }> {
+    if (cachedSaCredentials) return cachedSaCredentials;
+    log_info('Fetching GCP service-account key from Secrets Manager', { secretArn: gcpSaKeySecretArn }, correlationId);
+    const command = new GetSecretValueCommand({ SecretId: gcpSaKeySecretArn });
+    try {
+      const data = await secretsManagerClient.send(command);
+      if (data.SecretString) {
+        const key = JSON.parse(data.SecretString);
+        if (key.client_email && key.private_key) {
+          cachedSaCredentials = { client_email: key.client_email, private_key: key.private_key };
+          log_info('Successfully fetched and cached GCP service-account key.', {}, correlationId);
+          return cachedSaCredentials;
+        }
+      }
+      throw new Error('client_email/private_key not found in the GCP service-account key secret.');
+    } catch (error: any) {
+      log_error('Failed to retrieve GCP service-account key from Secrets Manager', { error: error.message }, correlationId);
+      throw error;
+    }
+  }
+
+  /**
    * Initializes and returns a singleton instance of the GoogleGenAI client.
+   * Constructs a Vertex AI client when `GEMINI_USE_VERTEX` is enabled, otherwise
+   * the key-based Gemini Developer API client. All downstream generation logic is
+   * identical across both backends.
    * @param correlationId - Optional ID for logging.
    * @returns An instance of the GoogleGenAI client.
    */
   private async getClient(correlationId?: string): Promise<GoogleGenAI> {
     if (genAI) return genAI;
+
+    if (useVertex) {
+      if (!gcpProjectId || !gcpLocation) {
+        throw new Error('Vertex AI mode (GEMINI_USE_VERTEX=true) requires GCP_PROJECT_ID and GCP_LOCATION to be set.');
+      }
+      const googleAuthOptions = gcpSaKeySecretArn
+        ? { credentials: await this.getServiceAccountCredentials(correlationId), projectId: gcpProjectId }
+        : undefined;
+      log_info('GeminiAdapter: initializing Vertex AI client', {
+        project: gcpProjectId,
+        location: gcpLocation,
+        auth: gcpSaKeySecretArn ? 'service-account-key' : 'application-default-credentials',
+      }, correlationId);
+      genAI = new GoogleGenAI({
+        vertexai: true,
+        project: gcpProjectId,
+        location: gcpLocation,
+        ...(googleAuthOptions && { googleAuthOptions }),
+      });
+      return genAI;
+    }
+
     const apiKey = await this.getApiKey(correlationId);
     genAI = new GoogleGenAI({ apiKey });
     return genAI;
