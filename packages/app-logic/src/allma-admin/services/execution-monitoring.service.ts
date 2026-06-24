@@ -1,14 +1,21 @@
 import { AttributeValue, DynamoDBClient, QueryCommandOutput } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, QueryCommand, QueryCommandInput } from '@aws-sdk/lib-dynamodb';
 import {
-    ENV_VAR_NAMES, FlowExecutionDetails, PaginatedResponse, FlowExecutionSummary, AllmaFlowExecutionRecord, 
-    AllmaStepExecutionRecord, ITEM_TYPE_ALLMA_FLOW_EXECUTION_RECORD, ITEM_TYPE_ALLMA_STEP_EXECUTION_RECORD, 
-    StepType, BranchStepsResponse, BranchExecutionGroup
+    ENV_VAR_NAMES, FlowExecutionDetails, PaginatedResponse, FlowExecutionSummary, AllmaFlowExecutionRecord,
+    AllmaStepExecutionRecord, ITEM_TYPE_ALLMA_FLOW_EXECUTION_RECORD, ITEM_TYPE_ALLMA_STEP_EXECUTION_RECORD,
+    StepType, BranchStepsResponse, BranchExecutionGroup, METADATA_SK_VALUE
 } from '@allma/core-types';
 import { log_error, resolveS3Pointer } from '@allma/core-sdk';
 
 const EXECUTION_LOG_TABLE_NAME = process.env[ENV_VAR_NAMES.ALLMA_FLOW_EXECUTION_LOG_TABLE_NAME]!;
 const ddbDocClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+
+// `GSI_ByFlow_StartTime` interleaves flow-execution records with step-execution records that share
+// the same partition. When listing executions we page through the index and filter, so these bound
+// the extra work: each underlying query reads at least MAX_LIST_PAGE_SIZE items, and we follow at
+// most MAX_LIST_PAGES of them before returning a continuation token.
+const MAX_LIST_PAGE_SIZE = 100;
+const MAX_LIST_PAGES = 20;
 
 /**
  * Fetches all raw DynamoDB records for a single flow execution.
@@ -355,35 +362,76 @@ export const ExecutionMonitoringService = {
             expressionAttributeValues[':s'] = filters.status;
         }
 
-        const queryParams: QueryCommandInput = {
-            TableName: EXECUTION_LOG_TABLE_NAME,
-            IndexName: 'GSI_ByFlow_StartTime',
-            Limit: pagination.limit,
-            ScanIndexForward: false,
-            ExclusiveStartKey: exclusiveStartKey,
-            KeyConditionExpression: 'flowDefinitionId = :pk',
-            FilterExpression: filterExpressions.join(' AND '),
-            ExpressionAttributeValues: expressionAttributeValues,
-        };
-        if (Object.keys(expressionAttributeNames).length > 0) {
-            queryParams.ExpressionAttributeNames = expressionAttributeNames;
+        // The GSI_ByFlow_StartTime index is partitioned on `flowDefinitionId` and sorted on
+        // `startTime`. Step-execution records also carry both of those attributes (denormalized for
+        // the step-statistics feature), so they share this partition with the flow-execution
+        // metadata records we want. DynamoDB applies `Limit` *before* `FilterExpression`, so a
+        // single Limited query against a busy flow can return a whole page of step records that are
+        // then filtered out, yielding an empty list even when executions exist. We therefore page
+        // through the index, keeping only flow-execution records, until we have enough.
+        const collected: FlowExecutionSummary[] = [];
+        let pageStartKey = exclusiveStartKey;
+        let pagesRead = 0;
+        // Read in chunks larger than the requested page so we skip over interleaved step records in
+        // fewer round-trips; MAX_PAGES bounds the work for pathological step:flow ratios.
+        const pageSize = Math.max(pagination.limit, MAX_LIST_PAGE_SIZE);
+
+        do {
+            const queryParams: QueryCommandInput = {
+                TableName: EXECUTION_LOG_TABLE_NAME,
+                IndexName: 'GSI_ByFlow_StartTime',
+                Limit: pageSize,
+                ScanIndexForward: false,
+                ExclusiveStartKey: pageStartKey,
+                KeyConditionExpression: 'flowDefinitionId = :pk',
+                FilterExpression: filterExpressions.join(' AND '),
+                ExpressionAttributeValues: expressionAttributeValues,
+            };
+            if (Object.keys(expressionAttributeNames).length > 0) {
+                queryParams.ExpressionAttributeNames = expressionAttributeNames;
+            }
+
+            const { Items, LastEvaluatedKey } = await ddbDocClient.send(new QueryCommand(queryParams));
+            for (const item of Items || []) {
+                collected.push({
+                    flowExecutionId: item.flowExecutionId,
+                    status: item.status,
+                    startTime: item.startTime,
+                    endTime: item.endTime,
+                    durationMs: item.startTime && item.endTime ? new Date(item.endTime).getTime() - new Date(item.startTime).getTime() : undefined,
+                    triggerSource: item.triggerSource,
+                    enableExecutionLogs: item.enableExecutionLogs,
+                    flowDefinitionVersion: item.flowDefinitionVersion,
+                });
+            }
+            pageStartKey = LastEvaluatedKey;
+            pagesRead++;
+        } while (pageStartKey && collected.length < pagination.limit && pagesRead < MAX_LIST_PAGES);
+
+        // If we over-collected within the final page, resume the next request from the last record
+        // we actually return (not the page's LastEvaluatedKey, which points past it). Flow-execution
+        // records always use METADATA as their base-table sort key, so the GSI exclusive-start key is
+        // fully reconstructable from the record's own attributes.
+        if (collected.length > pagination.limit) {
+            const items = collected.slice(0, pagination.limit);
+            const last = items[items.length - 1];
+            const resumeKey = {
+                flowDefinitionId,
+                startTime: last.startTime,
+                flowExecutionId: last.flowExecutionId,
+                eventTimestamp_stepInstanceId_attempt: METADATA_SK_VALUE,
+            };
+            return {
+                items,
+                nextToken: Buffer.from(JSON.stringify(resumeKey)).toString('base64'),
+            };
         }
 
-        const { Items, LastEvaluatedKey } = await ddbDocClient.send(new QueryCommand(queryParams));
-        const items: FlowExecutionSummary[] = (Items || []).map(item => ({
-            flowExecutionId: item.flowExecutionId,
-            status: item.status,
-            startTime: item.startTime,
-            endTime: item.endTime,
-            durationMs: item.startTime && item.endTime ? new Date(item.endTime).getTime() - new Date(item.startTime).getTime() : undefined,
-            triggerSource: item.triggerSource,
-            enableExecutionLogs: item.enableExecutionLogs,
-            flowDefinitionVersion: item.flowDefinitionVersion,
-        }));
-
+        // Otherwise we consumed whole pages; if the index still has more, hand back DynamoDB's own
+        // cursor so the next request continues exactly where this scan stopped.
         return {
-            items,
-            ...(LastEvaluatedKey && { nextToken: Buffer.from(JSON.stringify(LastEvaluatedKey)).toString('base64') })
+            items: collected,
+            ...(pageStartKey && { nextToken: Buffer.from(JSON.stringify(pageStartKey)).toString('base64') }),
         };
     }
 
