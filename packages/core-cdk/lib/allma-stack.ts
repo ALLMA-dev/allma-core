@@ -68,6 +68,9 @@ export class AllmaStack extends cdk.Stack {
     if (stageConfig.aiApiKeySecretArn === 'YOUR_AI_API_KEY_SECRET_ARN') {
       throw new Error('The `aiApiKeySecretArn` must be overridden in your stageConfig.');
     }
+    if (stageConfig.gemini?.useVertex && (!stageConfig.gemini.gcpProjectId || !stageConfig.gemini.gcpLocation)) {
+      throw new Error('When `gemini.useVertex` is true, both `gemini.gcpProjectId` and `gemini.gcpLocation` must be set in your stageConfig.');
+    }
 
     let configAssetHash: string | undefined = undefined;
 

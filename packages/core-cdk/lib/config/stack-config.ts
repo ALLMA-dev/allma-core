@@ -263,6 +263,49 @@ export interface StageConfig {
   aiApiKeySecretArn: string;
 
   /**
+   * Optional configuration for calling Gemini through **Vertex AI** instead of
+   * the key-based Gemini Developer API. Vertex offers far higher quota/limits,
+   * SLAs, and enterprise governance. When omitted (or `useVertex` is falsy), the
+   * Gemini adapter keeps using the API key from {@link aiApiKeySecretArn}.
+   *
+   * @see documents/wip/gemini-vertex-migration.md
+   */
+  gemini?: {
+    /**
+     * Route `provider: GEMINI` LLM invocations through Vertex AI.
+     * @default false
+     */
+    useVertex?: boolean;
+
+    /**
+     * The Google Cloud project ID that hosts Vertex AI.
+     * Required when `useVertex` is true.
+     * @example 'my-gcp-project'
+     */
+    gcpProjectId?: string;
+
+    /**
+     * The Vertex AI location/region requests are sent to.
+     * Required when `useVertex` is true.
+     * @example 'us-central1'
+     */
+    gcpLocation?: string;
+
+    /**
+     * Optional ARN of a Secrets Manager secret holding a GCP **service-account
+     * key** JSON (`{ client_email, private_key, ... }`). Provide this for the
+     * quickest path to a working Vertex call.
+     *
+     * Leave undefined to authenticate via Application Default Credentials /
+     * Workload Identity Federation (the recommended, key-less production setup),
+     * in which case the credential-config file must be made available to the
+     * Lambda (e.g. via `GOOGLE_APPLICATION_CREDENTIALS`).
+     * @example 'arn:aws:secretsmanager:us-east-1:123456789012:secret:gcp-sa-key'
+     */
+    serviceAccountKeySecretArn?: string;
+  };
+
+  /**
    * Optional configuration for AWS Simple Email Service (SES).
    * Required for email sending and receiving features.
    */
