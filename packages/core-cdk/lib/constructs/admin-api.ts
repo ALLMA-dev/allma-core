@@ -250,6 +250,13 @@ export class AllmaAdminApi extends Construct {
     });
 
     this.httpApi.addRoutes({
+      path: `${ALLMA_ADMIN_API_ROUTES.FLOW_EXECUTIONS}/{flowExecutionId}/progress`,
+      methods: [apigwv2.HttpMethod.GET],
+      integration: executionMonitoringIntegration,
+      authorizer: adminAuthorizer,
+    });
+
+    this.httpApi.addRoutes({
       path: `${ALLMA_ADMIN_API_ROUTES.FLOW_EXECUTIONS}/{flowExecutionId}/branch-steps`,
       methods: [apigwv2.HttpMethod.GET],
       integration: executionMonitoringIntegration,

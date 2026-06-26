@@ -135,6 +135,19 @@ export const StepInstanceSchema = BaseStepDefinitionSchema.and(z.object({
   stepInstanceId: z.string().min(1),
   stepDefinitionId: StepDefinitionIdSchema.optional().nullable(),
   displayName: z.string().optional(),
+  /**
+   * Optional progress milestone for this step. When a flow tags one or more steps as
+   * checkpoints, execution-progress views measure progress against these meaningful
+   * milestones (e.g. "Extracting documents") instead of every micro-step. The checkpoint
+   * travels with the step, so the set of checkpoints — and therefore the progress
+   * denominator — is derived from the flow definition and needs no separate list to maintain.
+   * `order` (optional) keeps progress monotonic and provides a stable "stage N of M" label.
+   */
+  checkpoint: z.object({
+    id: z.string().min(1).describe("Checkpoint ID|text|Stable identifier for this progress milestone; clients can map it to their own status text."),
+    label: z.string().min(1).describe("Checkpoint Label|text|Human-readable milestone shown in progress views."),
+    order: z.number().int().min(0).optional().describe("Checkpoint Order|number|Optional ordering used for monotonic progress and the 'stage N of M' label."),
+  }).optional(),
   position: z.object({ x: z.number(), y: z.number() }).optional(),
   fill: z.string().optional(), // UI-specific property
   transitions: z.array(z.object({

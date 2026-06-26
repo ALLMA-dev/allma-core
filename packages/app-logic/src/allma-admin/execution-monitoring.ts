@@ -49,6 +49,19 @@ router.get('/flow-executions/{flowExecutionId}', async (event, authContext, { fl
     return createApiGatewayResponse(200, buildSuccessResponse(details), correlationId);
 });
 
+// Route for getting live progress of a single execution (current step, stage, % complete).
+// GET /flow-executions/{flowExecutionId}/progress
+router.get('/flow-executions/{flowExecutionId}/progress', async (event, authContext, { flowExecutionId }) => {
+    const correlationId = event.requestContext.requestId;
+    const progress = await ExecutionMonitoringService.getExecutionProgress(flowExecutionId, correlationId);
+
+    if (!progress) {
+        return createApiGatewayResponse(404, buildErrorResponse(`Execution with ID ${flowExecutionId} not found.`, 'NOT_FOUND'), correlationId);
+    }
+
+    return createApiGatewayResponse(200, buildSuccessResponse(progress), correlationId);
+});
+
 // Route for getting the detailed view of a single step.
 // GET /flow-executions/{flowExecutionId}/step-record
 router.get('/flow-executions/{flowExecutionId}/step-record', async (event, authContext, { flowExecutionId }) => {

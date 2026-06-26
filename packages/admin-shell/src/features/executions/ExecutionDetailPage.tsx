@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { ExecutionsBreadcrumbs } from './ExecutionsBreadcrumbs';
 import { useDisclosure } from '@mantine/hooks';
 import { ExecutionSummary } from './components/ExecutionSummary';
+import { ExecutionProgressBar } from './components/ExecutionProgressBar';
 import { ContextDiffModal } from './components/ContextDiffModal';
 import { AllmaStepExecutionRecord, StepType, StepInstance } from '@allma/core-types';
 import { ParallelStepAccordionItem } from './components/ParallelStepAccordionItem';
@@ -192,9 +193,11 @@ export function ExecutionDetailPage() {
                         </Group>
                     </Alert>
                 )}
+                {flowExecutionId && <ExecutionProgressBar flowExecutionId={flowExecutionId} />}
+
                 <ExecutionSummary metadata={metadata} />
 
-                <Accordion 
+                <Accordion
                     variant="separated"
                     multiple
                     value={openItems}

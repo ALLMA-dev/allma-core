@@ -5,9 +5,15 @@ import {
     ALLMA_ADMIN_API_ROUTES,
     ALLMA_ADMIN_API_VERSION,
     BranchStepsResponse,
-    AllmaStepExecutionRecord
+    AllmaStepExecutionRecord,
+    ExecutionProgressResponse
 } from '@allma/core-types';
-import { EXECUTION_DETAIL_QUERY_KEY, EXECUTIONS_LIST_QUERY_KEY, BRANCH_STEPS_QUERY_KEY } from '../features/executions/constants';
+import {
+    EXECUTION_DETAIL_QUERY_KEY, EXECUTIONS_LIST_QUERY_KEY, BRANCH_STEPS_QUERY_KEY,
+    EXECUTION_PROGRESS_QUERY_KEY, EXECUTION_PROGRESS_POLL_INTERVAL_MS
+} from '../features/executions/constants';
+
+const TERMINAL_EXECUTION_STATUSES = ['COMPLETED', 'FAILED', 'TIMED_OUT', 'CANCELLED'];
 
 // ---- Fetch a list of flow executions ----
 
@@ -67,6 +73,33 @@ export const useGetExecutionDetail = (executionId: string | undefined): UseQuery
       throw new Error(response.data.error?.message || 'Failed to fetch execution details');
     },
     enabled: !!executionId, // Only run if executionId is provided
+  });
+};
+
+// ---- Fetch live progress for a single execution ----
+// Polls while the execution is still running and automatically stops once it reaches a
+// terminal status, so completed executions incur no further requests.
+
+export const useGetExecutionProgress = (executionId: string | undefined): UseQueryResult<ExecutionProgressResponse, Error> => {
+  return useQuery({
+    queryKey: [EXECUTION_PROGRESS_QUERY_KEY, executionId],
+    queryFn: async () => {
+      if (!executionId) throw new Error('Execution ID is undefined.');
+
+      const response = await axiosInstance.get<AdminApiResponse<ExecutionProgressResponse>>(
+        `/${ALLMA_ADMIN_API_VERSION}${ALLMA_ADMIN_API_ROUTES.FLOW_EXECUTION_PROGRESS(executionId)}`
+      );
+
+      if (response.data.success) {
+        return response.data.data;
+      }
+      throw new Error(response.data.error?.message || 'Failed to fetch execution progress');
+    },
+    enabled: !!executionId,
+    refetchInterval: (query) => {
+      const status = query.state.data?.root?.status;
+      return status && TERMINAL_EXECUTION_STATUSES.includes(status) ? false : EXECUTION_PROGRESS_POLL_INTERVAL_MS;
+    },
   });
 };
 
