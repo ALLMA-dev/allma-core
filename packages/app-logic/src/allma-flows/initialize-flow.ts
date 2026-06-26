@@ -70,6 +70,7 @@ export const handler: Handler<StartFlowExecutionInput, ProcessorOutput> = async 
                 rootFlowExecutionId: startState.rootFlowExecutionId ?? startState.flowExecutionId,
                 depth: startState.depth ?? 0,
                 executionKind: startState.executionKind ?? 'ROOT',
+                notificationConfig: startState.notificationConfig,
             });
         }
         
@@ -154,6 +155,7 @@ export const handler: Handler<StartFlowExecutionInput, ProcessorOutput> = async 
       parentStepInstanceId: startInput.parentStepInstanceId,
       depth,
       executionKind,
+      notificationConfig: startInput.notificationConfig,
       currentContextData: initialContextWithSystemValues,
       stepRetryAttempts: {},
       _internal: {
@@ -180,6 +182,7 @@ export const handler: Handler<StartFlowExecutionInput, ProcessorOutput> = async 
             rootFlowExecutionId,
             depth,
             executionKind,
+            notificationConfig: startInput.notificationConfig,
         });
         initialState._internal!.loggingBootstrapped = true; // Mark that the metadata record was created
         log_info('Main flow execution record queued for logging.', { flowExecutionId: effectiveFlowExecutionId }, correlationId);

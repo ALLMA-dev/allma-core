@@ -66,6 +66,10 @@ export class AllmaCompute extends Construct {
     const defaultLambdaTimeout = cdk.Duration.seconds(stageConfig.lambdaTimeouts.defaultSeconds);
     const defaultLambdaMemory = stageConfig.lambdaMemorySizes.default;
 
+    // Predictive ARN of the execution status topic (created by AllmaNotifications) so the
+    // orchestrator can publish STARTED/CHECKPOINT events without a construct dependency cycle.
+    const executionStatusTopicArn = `arn:aws:sns:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:AllmaExecutionStatusTopic-${stageConfig.stage}`;
+
     const commonEnvVars = {
       [ENV_VAR_NAMES.STAGE_NAME]: stageConfig.stage,
       [ENV_VAR_NAMES.LOG_LEVEL]: stageConfig.logging.logLevel,
@@ -149,6 +153,20 @@ export class AllmaCompute extends Construct {
       actions: ['dynamodb:GetItem', 'dynamodb:Query', 'dynamodb:Scan', 'dynamodb:UpdateItem', 'dynamodb:PutItem', 'dynamodb:DeleteItem'],
       resources: ['arn:aws:dynamodb:*:*:table/*'],
     }));
+    // Publish lifecycle events (Pillar C): the platform status topic plus any consumer-owned SNS
+    // sink named in a per-trigger notificationConfig (sqs:SendMessage is already granted above).
+    this.orchestrationLambdaRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['sns:Publish'],
+      resources: [executionStatusTopicArn, '*'],
+    }));
+    // Read consumer-owned HMAC signing secrets (by ARN) to sign STARTED/CHECKPOINT webhooks; raw
+    // secrets are read at send time only and never stored.
+    this.orchestrationLambdaRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['secretsmanager:GetSecretValue'],
+      resources: ['arn:aws:secretsmanager:*:*:secret:*'],
+    }));
     this.orchestrationLambdaRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: ['lambda:InvokeFunction'],
@@ -185,6 +203,7 @@ export class AllmaCompute extends Construct {
         [ENV_VAR_NAMES.GCP_SA_KEY_SECRET_ARN]: stageConfig.gemini?.serviceAccountKeySecretArn || '',
         [ENV_VAR_NAMES.ALLMA_FLOW_START_REQUEST_QUEUE_URL!]: props.flowStartRequestQueue?.queueUrl || '',
         [ENV_VAR_NAMES.MAX_CONCURRENT_STEP_EXECUTIONS]: stageConfig.orchestratorConcurrency ? String(stageConfig.orchestratorConcurrency) : '',
+        [ENV_VAR_NAMES.ALLMA_EXECUTION_STATUS_TOPIC_ARN]: executionStatusTopicArn,
       },
       undefined,
       undefined,

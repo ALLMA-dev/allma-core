@@ -8,7 +8,8 @@ export * from './runtime/index.js';
 export * from './steps/index.js';
 export * from './storage/index.js';
 export * from './mcp/connections.js';
-export * from './agent/agent.js'; 
+export * from './agent/agent.js';
+export * from './notifications/index.js';
 
 // Admin-specific types, often used by the Admin UI and its backend Lambdas.
 export * from './admin/index.js';

@@ -26,6 +26,8 @@ const CreateMetadataPayloadSchema = z.object({
       rootFlowExecutionId: true,
       depth: true,
       executionKind: true,
+      // Per-trigger notification callback (Pillar C) — persisted on the root for the dispatcher.
+      notificationConfig: true,
   })
 });
 

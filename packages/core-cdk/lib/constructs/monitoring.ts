@@ -3,6 +3,7 @@ import { Construct } from 'constructs';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as targets from 'aws-cdk-lib/aws-events-targets';
 import * as sns from 'aws-cdk-lib/aws-sns';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as subscriptions from 'aws-cdk-lib/aws-sns-subscriptions';
 import { StageConfig } from '../config/stack-config.js';
 
@@ -10,6 +11,12 @@ export interface AllmaMonitoringProps {
   stageConfig: StageConfig;
   flowOrchestratorStateMachineArn: string;
   pollingStateMachineArn: string;
+  /**
+   * Crash-safe terminal pipeline (Pillar C). When provided, an EventBridge rule routes every
+   * orchestrator execution status change (SUCCEEDED|FAILED|TIMED_OUT|ABORTED) to this Lambda so it
+   * can reconcile zombie-RUNNING records and deliver/publish the authoritative TERMINAL event.
+   */
+  lifecycleDispatcherLambda?: lambda.IFunction;
 }
 
 /**
@@ -75,6 +82,27 @@ export class AllmaMonitoring extends Construct {
         `https://${cdk.Aws.REGION}.console.aws.amazon.com/states/home?region=${cdk.Aws.REGION}#/executions/details/${events.EventField.fromPath('$.detail.executionArn')}`
       )
     }));
+
+    // 5. Crash-safe terminal pipeline: route orchestrator execution status changes (including
+    // SUCCEEDED) to the lifecycle dispatcher. Kept as a separate rule from the alerts rule above
+    // (which intentionally fires on failures only) because the dispatcher also needs success events.
+    if (props.lifecycleDispatcherLambda) {
+      const lifecycleRule = new events.Rule(this, 'ExecutionLifecycleRule', {
+        ruleName: `AllmaExecutionLifecycle-${stageConfig.stage}`,
+        description: 'Routes Allma orchestrator execution status changes to the lifecycle dispatcher (reconcile + notify).',
+        eventPattern: {
+          source: ['aws.states'],
+          detailType: ['Step Functions Execution Status Change'],
+          detail: {
+            status: ['SUCCEEDED', 'FAILED', 'TIMED_OUT', 'ABORTED'],
+            // Only the orchestrator state machine names executions by flowExecutionId; polling /
+            // branch sub-executions carry no metadata record and are intentionally excluded.
+            stateMachineArn: [props.flowOrchestratorStateMachineArn],
+          },
+        },
+      });
+      lifecycleRule.addTarget(new targets.LambdaFunction(props.lifecycleDispatcherLambda));
+    }
 
     // --- Outputs ---
     new cdk.CfnOutput(this, 'AllmaAlertsTopicArnOutput', {
