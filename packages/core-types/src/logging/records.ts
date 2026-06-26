@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { AllmaErrorSchema, S3PointerSchema } from '../common/core.js';
+import { ExecutionKindSchema } from '../common/enums.js';
 import { StartFlowExecutionInputSchema } from '../runtime/core.js';
 import { StepInstanceSchema } from '../steps/definitions.js';
 import { MappingEventSchema, TransitionEvaluationEventSchema } from './events.js';
@@ -7,6 +8,36 @@ import { MappingEventSchema, TransitionEvaluationEventSchema } from './events.js
 export const ITEM_TYPE_ALLMA_FLOW_EXECUTION_RECORD = 'ALLMA_FLOW_EXECUTION_RECORD' as const;
 export const ITEM_TYPE_ALLMA_STEP_EXECUTION_RECORD = 'ALLMA_STEP_EXECUTION_RECORD' as const;
 export const METADATA_SK_VALUE = 'METADATA';
+
+/**
+ * The most advanced checkpoint a flow execution has reached, as stamped onto its metadata record.
+ * Mirrors `StepInstance.checkpoint` so a single GET of the metadata item carries the milestone.
+ */
+export const StampedCheckpointSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  order: z.number().int().optional(),
+  /** 1-based position among all declared checkpoints, for a "stage N of M" label. */
+  ordinal: z.number().int().optional(),
+});
+export type StampedCheckpoint = z.infer<typeof StampedCheckpointSchema>;
+
+/**
+ * A compact, one-line roll-up of the deepest active work in an execution tree, written onto the
+ * ROOT execution's metadata record so a single GET of the root reflects "what's happening now"
+ * even while the parent is suspended by a synchronous sub-flow (Pillar B, §6.4). Guarded by
+ * `updatedAt` so the most recent writer wins (e.g. a parent overwrites a finished child's roll-up).
+ */
+export const ExecutionLiveStatusSchema = z.object({
+  activeExecutionId: z.string().uuid(),
+  depth: z.number().int(),
+  stepDisplayName: z.string().optional(),
+  checkpointId: z.string().optional(),
+  checkpointLabel: z.string().optional(),
+  percent: z.number().int().min(0).max(100).optional(),
+  updatedAt: z.string().datetime({ offset: true }),
+});
+export type ExecutionLiveStatus = z.infer<typeof ExecutionLiveStatusSchema>;
 
 /**
  * Schema for the main "header" record of a flow execution, stored in DynamoDB.
@@ -29,6 +60,33 @@ export const AllmaFlowExecutionRecordSchema = z.object({
   overallStatus: z.string().optional(),
   overallStartTime: z.string().datetime().optional(),
   flow_sort_key: z.string().optional(),
+
+  // --- Progress (Pillar A, §5.3) — stamped by the orchestrator at each step boundary so the
+  // metadata item is a single, lag-free thing to GET/poll. All optional for backward compat
+  // (pre-existing executions omit them; the read API falls back to deriving from step records).
+  currentStepInstanceId: z.string().optional(),
+  currentStepDisplayName: z.string().optional(),
+  currentStepType: z.string().optional(),
+  completedStepCount: z.number().int().optional(),
+  totalStepCount: z.number().int().optional(),
+  currentCheckpoint: StampedCheckpointSchema.optional(),
+  totalCheckpoints: z.number().int().optional(),
+  progressPercent: z.number().int().min(0).max(100).optional(),
+  progressUpdatedAt: z.string().datetime({ offset: true }).optional(),
+
+  // --- Execution-tree linkage (Pillar B, §6.1) — present on every execution created after this
+  // change. For a top-level execution: rootFlowExecutionId === flowExecutionId, depth === 0,
+  // executionKind === 'ROOT'. `triggerSource` is retained for display but is no longer the link.
+  parentFlowExecutionId: z.string().uuid().optional(),
+  parentStepInstanceId: z.string().optional(),
+  rootFlowExecutionId: z.string().uuid().optional(),
+  depth: z.number().int().min(0).optional(),
+  executionKind: ExecutionKindSchema.optional(),
+  /** GSI_ByRoot sort key: `<zero-padded depth>#<parentStepInstanceId>#<flowExecutionId>`. */
+  tree_sort_key: z.string().optional(),
+
+  // --- Bubble-up roll-up (Pillar B, §6.4) — written onto the ROOT record only.
+  liveStatus: ExecutionLiveStatusSchema.optional(),
 });
 export type AllmaFlowExecutionRecord = z.infer<typeof AllmaFlowExecutionRecordSchema>;
 

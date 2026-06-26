@@ -49,11 +49,14 @@ router.get('/flow-executions/{flowExecutionId}', async (event, authContext, { fl
     return createApiGatewayResponse(200, buildSuccessResponse(details), correlationId);
 });
 
-// Route for getting live progress of a single execution (current step, stage, % complete).
-// GET /flow-executions/{flowExecutionId}/progress
+// Route for getting live progress of an execution (current step, stage, % complete).
+// GET /flow-executions/{flowExecutionId}/progress?mode=single|tree
+//   single (default) → just this execution's node (stamped metadata preferred).
+//   tree             → this execution's whole sub-flow tree, assembled from GSI_ByRoot.
 router.get('/flow-executions/{flowExecutionId}/progress', async (event, authContext, { flowExecutionId }) => {
     const correlationId = event.requestContext.requestId;
-    const progress = await ExecutionMonitoringService.getExecutionProgress(flowExecutionId, correlationId);
+    const mode = event.queryStringParameters?.mode === 'tree' ? 'tree' : 'single';
+    const progress = await ExecutionMonitoringService.getExecutionProgress(flowExecutionId, correlationId, mode);
 
     if (!progress) {
         return createApiGatewayResponse(404, buildErrorResponse(`Execution with ID ${flowExecutionId} not found.`, 'NOT_FOUND'), correlationId);

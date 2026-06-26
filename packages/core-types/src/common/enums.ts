@@ -30,6 +30,14 @@ export enum SfnActionType {
 export const SfnActionTypeSchema = z.nativeEnum(SfnActionType);
 
 /**
+ * Classifies a flow execution within an execution tree (Pillar B). A top-level execution is a
+ * `ROOT`; sub-flows launched by a step are `SYNC_SUBFLOW`/`ASYNC_SUBFLOW`; `PARALLEL_BRANCH` is
+ * reserved for branch executions materialised as their own execution record.
+ */
+export const ExecutionKindSchema = z.enum(['ROOT', 'SYNC_SUBFLOW', 'ASYNC_SUBFLOW', 'PARALLEL_BRANCH']);
+export type ExecutionKind = z.infer<typeof ExecutionKindSchema>;
+
+/**
  * Defines the strategy for aggregating results from parallel branches.
  */
 export enum AggregationStrategy {
