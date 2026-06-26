@@ -1,11 +1,121 @@
 import { AttributeValue, DynamoDBClient, QueryCommandOutput } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, QueryCommand, QueryCommandInput } from '@aws-sdk/lib-dynamodb';
 import {
-    ENV_VAR_NAMES, FlowExecutionDetails, PaginatedResponse, FlowExecutionSummary, AllmaFlowExecutionRecord, 
-    AllmaStepExecutionRecord, ITEM_TYPE_ALLMA_FLOW_EXECUTION_RECORD, ITEM_TYPE_ALLMA_STEP_EXECUTION_RECORD, 
-    StepType, BranchStepsResponse, BranchExecutionGroup
+    ENV_VAR_NAMES, FlowExecutionDetails, PaginatedResponse, FlowExecutionSummary, AllmaFlowExecutionRecord,
+    AllmaStepExecutionRecord, ITEM_TYPE_ALLMA_FLOW_EXECUTION_RECORD, ITEM_TYPE_ALLMA_STEP_EXECUTION_RECORD,
+    StepType, BranchStepsResponse, BranchExecutionGroup,
+    FlowDefinition, ExecutionProgressNode, ExecutionProgressResponse
 } from '@allma/core-types';
-import { log_error, resolveS3Pointer } from '@allma/core-sdk';
+import { log_error, log_warn, resolveS3Pointer } from '@allma/core-sdk';
+import { loadFlowDefinition } from '../../allma-core/config-loader.js';
+
+const TERMINAL_FLOW_STATUSES = ['COMPLETED', 'FAILED', 'TIMED_OUT', 'CANCELLED'] as const;
+const STEP_REACHED_STATUSES = ['STARTED', 'COMPLETED', 'RETRYING_SFN', 'RETRYING_CONTENT'];
+const STEP_TERMINAL_STATUSES = ['COMPLETED', 'FAILED', 'SKIPPED'];
+const STEP_ACTIVE_STATUSES = ['STARTED', 'RETRYING_SFN', 'RETRYING_CONTENT'];
+
+/**
+ * Computes a live progress node for one flow execution from its metadata + step records and
+ * (when available) its flow definition. Derived at read time: requires no orchestrator changes.
+ *
+ * Current step = the most recent active (STARTED/RETRYING) step event that has no terminal event
+ * after it. Checkpoint progress = the highest-ordered declared checkpoint whose step has been
+ * reached. Falls back to step-count progress when the flow declares no checkpoints.
+ */
+export function _computeExecutionProgress(
+    metadata: AllmaFlowExecutionRecord,
+    stepEvents: AllmaStepExecutionRecord[],
+    flowDef: FlowDefinition | undefined,
+): ExecutionProgressNode {
+    const status = metadata.status;
+    const isTerminal = (TERMINAL_FLOW_STATUSES as readonly string[]).includes(status);
+
+    const sorted = [...stepEvents].sort((a, b) => a.eventTimestamp.localeCompare(b.eventTimestamp));
+
+    // Latest terminal event timestamp per step, to decide whether an active step is still running.
+    const latestTerminalByStep = new Map<string, string>();
+    for (const e of sorted) {
+        if (STEP_TERMINAL_STATUSES.includes(e.status)) latestTerminalByStep.set(e.stepInstanceId, e.eventTimestamp);
+    }
+
+    const completedStepIds = new Set(sorted.filter(e => e.status === 'COMPLETED').map(e => e.stepInstanceId));
+    const reachedStepIds = new Set(sorted.filter(e => STEP_REACHED_STATUSES.includes(e.status)).map(e => e.stepInstanceId));
+    const completedStepCount = completedStepIds.size;
+
+    // Current step: walk newest-first for an active event with no later terminal event for that step.
+    let currentStepEvent: AllmaStepExecutionRecord | undefined;
+    if (!isTerminal) {
+        for (let i = sorted.length - 1; i >= 0; i--) {
+            const e = sorted[i];
+            if (!STEP_ACTIVE_STATUSES.includes(e.status)) continue;
+            const term = latestTerminalByStep.get(e.stepInstanceId);
+            if (!term || term < e.eventTimestamp) { currentStepEvent = e; break; }
+        }
+    }
+
+    const totalStepCount = flowDef ? Object.keys(flowDef.steps).length : undefined;
+
+    // Declared checkpoints, ordered. `order` is optional; undefined sorts last but keeps definition order.
+    const checkpointSteps = flowDef
+        ? Object.entries(flowDef.steps)
+            .filter(([, s]) => (s as any).checkpoint)
+            .map(([stepInstanceId, s]) => ({ stepInstanceId, ...((s as any).checkpoint) }))
+            .sort((a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER))
+        : [];
+    const totalCheckpoints = checkpointSteps.length;
+
+    // Most advanced reached checkpoint (monotonic: take the last in sorted order that was reached).
+    let currentCheckpoint: ExecutionProgressNode['currentCheckpoint'];
+    let checkpointOrdinal = 0;
+    for (let i = 0; i < checkpointSteps.length; i++) {
+        if (reachedStepIds.has(checkpointSteps[i].stepInstanceId)) {
+            const { id, label, order } = checkpointSteps[i];
+            currentCheckpoint = { id, label, order, ordinal: i + 1 };
+            checkpointOrdinal = i + 1;
+        }
+    }
+
+    let progressPercent: number;
+    if (status === 'COMPLETED') {
+        progressPercent = 100; // clamp to 100% on success even if a late checkpoint was skipped
+    } else if (totalCheckpoints > 0) {
+        progressPercent = Math.round((100 * checkpointOrdinal) / totalCheckpoints);
+    } else if (totalStepCount && totalStepCount > 0) {
+        progressPercent = Math.round((100 * completedStepCount) / totalStepCount);
+    } else {
+        progressPercent = 0;
+    }
+    progressPercent = Math.max(0, Math.min(100, progressPercent));
+
+    const currentStepDef = currentStepEvent && flowDef ? (flowDef.steps[currentStepEvent.stepInstanceId] as any) : undefined;
+    const currentStepType = currentStepDef?.stepType ?? currentStepEvent?.stepType;
+    const isWaiting = currentStepType === StepType.WAIT_FOR_EXTERNAL_EVENT || currentStepType === StepType.POLL_EXTERNAL_API;
+
+    const currentStep = currentStepEvent
+        ? {
+            stepInstanceId: currentStepEvent.stepInstanceId,
+            displayName: currentStepDef?.displayName,
+            stepType: currentStepType,
+        }
+        : undefined;
+
+    return {
+        flowExecutionId: metadata.flowExecutionId,
+        flowDefinitionId: metadata.flowDefinitionId,
+        flowDefinitionVersion: metadata.flowDefinitionVersion,
+        status,
+        isWaiting,
+        currentStep,
+        currentCheckpoint,
+        completedStepCount,
+        totalStepCount,
+        totalCheckpoints: flowDef ? totalCheckpoints : undefined,
+        progressPercent,
+        startTime: metadata.startTime,
+        endTime: metadata.endTime,
+        children: [],
+    };
+}
 
 const EXECUTION_LOG_TABLE_NAME = process.env[ENV_VAR_NAMES.ALLMA_FLOW_EXECUTION_LOG_TABLE_NAME]!;
 const ddbDocClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -196,7 +306,55 @@ export const ExecutionMonitoringService = {
         }
         return { metadata, steps: consolidatedSteps, resolvedFinalContextData };
     },
-    
+
+    /**
+     * Returns live progress for a single execution: current step, stage (checkpoint),
+     * completed/total steps and a percentage. Computed from the minimal step records (no S3
+     * fetch) plus the flow definition. Progress derived from step records requires execution
+     * logging to be enabled for the flow; without it, only metadata-level status is reflected.
+     */
+    async getExecutionProgress(flowExecutionId: string, correlationId: string): Promise<ExecutionProgressResponse | null> {
+        const allItems = await _getExecutionRecords(flowExecutionId);
+        if (allItems.length === 0) return null;
+
+        const metadata = allItems.find(item => item.itemType === ITEM_TYPE_ALLMA_FLOW_EXECUTION_RECORD) as AllmaFlowExecutionRecord;
+        if (!metadata) return null;
+
+        // Minimal step records are sufficient for progress (status + stepInstanceId + timing);
+        // we deliberately avoid resolving the full S3 records here to keep this endpoint cheap to poll.
+        const mainLevelStepEvents = allItems.filter(
+            item => item.itemType === ITEM_TYPE_ALLMA_STEP_EXECUTION_RECORD && !item.branchId,
+        ) as AllmaStepExecutionRecord[];
+
+        let flowDef: FlowDefinition | undefined;
+        try {
+            flowDef = await loadFlowDefinition(metadata.flowDefinitionId, metadata.flowDefinitionVersion, correlationId);
+        } catch (e: any) {
+            // A missing/unparseable definition (e.g. deleted version) degrades gracefully to
+            // status-only progress rather than failing the request.
+            log_warn('Could not load flow definition for progress computation; returning partial progress.', { flowExecutionId, error: e.message }, correlationId);
+        }
+
+        const root = _computeExecutionProgress(metadata, mainLevelStepEvents, flowDef);
+
+        const headlineLabel =
+            root.currentCheckpoint?.label ??
+            root.currentStep?.displayName ??
+            root.currentStep?.stepInstanceId ??
+            (root.status === 'COMPLETED' ? 'Completed' : root.status);
+
+        return {
+            root,
+            headline: {
+                executionId: root.flowExecutionId,
+                label: headlineLabel,
+                percent: root.progressPercent,
+                status: root.status,
+                isWaiting: root.isWaiting,
+            },
+        };
+    },
+
     async getStepRecordDetails(flowExecutionId: string, stepInstanceId: string, attemptNumber?: number, branchExecutionId?: string, correlationId?: string): Promise<AllmaStepExecutionRecord | null> {
         const queryParams: QueryCommandInput = {
             TableName: EXECUTION_LOG_TABLE_NAME,

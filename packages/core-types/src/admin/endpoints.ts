@@ -53,7 +53,8 @@ export const ALLMA_ADMIN_API_ROUTES = {
 
   // Flow Executions
   FLOW_EXECUTIONS: `/allma/${ARS.FLOW_EXECUTIONS}`,
-  FLOW_EXECUTION_DETAIL: (executionId: string) => `/allma/${ARS.FLOW_EXECUTIONS}/${executionId}`, 
+  FLOW_EXECUTION_DETAIL: (executionId: string) => `/allma/${ARS.FLOW_EXECUTIONS}/${executionId}`,
+  FLOW_EXECUTION_PROGRESS: (executionId: string) => `/allma/${ARS.FLOW_EXECUTIONS}/${executionId}/progress`,
   FLOW_EXECUTION_BRANCH_STEPS: (executionId: string) => `/allma/${ARS.FLOW_EXECUTIONS}/${executionId}/branch-steps`,
   FLOW_EXECUTION_STEP_RECORD: (executionId: string) => `/allma/${ARS.FLOW_EXECUTIONS}/${executionId}/step-record`,
   FLOW_EXECUTION_REDRIVE: (executionId: string) => `/allma/${ARS.FLOW_EXECUTIONS}/${executionId}/redrive`,
