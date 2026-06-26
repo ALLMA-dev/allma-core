@@ -1,10 +1,10 @@
 import { AttributeValue, DynamoDBClient, QueryCommandOutput } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, QueryCommand, QueryCommandInput } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, QueryCommand, QueryCommandInput, GetCommand } from '@aws-sdk/lib-dynamodb';
 import {
     ENV_VAR_NAMES, FlowExecutionDetails, PaginatedResponse, FlowExecutionSummary, AllmaFlowExecutionRecord,
     AllmaStepExecutionRecord, ITEM_TYPE_ALLMA_FLOW_EXECUTION_RECORD, ITEM_TYPE_ALLMA_STEP_EXECUTION_RECORD,
     StepType, BranchStepsResponse, BranchExecutionGroup,
-    FlowDefinition, ExecutionProgressNode, ExecutionProgressResponse
+    FlowDefinition, ExecutionProgressNode, ExecutionProgressResponse, METADATA_SK_VALUE
 } from '@allma/core-types';
 import { log_error, log_warn, resolveS3Pointer } from '@allma/core-sdk';
 import { loadFlowDefinition } from '../../allma-core/config-loader.js';
@@ -117,8 +117,93 @@ export function _computeExecutionProgress(
     };
 }
 
+/**
+ * True when the orchestrator has stamped live progress onto the metadata record (Pillar A). When
+ * present, the metadata item is authoritative and lag-free, so the read API serves it directly
+ * instead of deriving progress from (async, possibly-lagging) step records.
+ */
+function _isStamped(metadata: Partial<AllmaFlowExecutionRecord>): boolean {
+    return metadata.progressUpdatedAt !== undefined;
+}
+
+/**
+ * Builds a progress node directly from a stamped metadata record (or a GSI_ByRoot-projected item).
+ * No step records or flow definition required.
+ */
+function _nodeFromStampedMetadata(m: Partial<AllmaFlowExecutionRecord> & { flowExecutionId: string; flowDefinitionId: string; status: AllmaFlowExecutionRecord['status']; startTime: string; }): ExecutionProgressNode {
+    const status = m.status;
+    const isTerminal = (TERMINAL_FLOW_STATUSES as readonly string[]).includes(status);
+    const stepType = m.currentStepType;
+    const isWaiting = !isTerminal && (stepType === StepType.WAIT_FOR_EXTERNAL_EVENT || stepType === StepType.POLL_EXTERNAL_API);
+
+    let progressPercent = typeof m.progressPercent === 'number' ? m.progressPercent : 0;
+    if (status === 'COMPLETED') progressPercent = 100;
+    progressPercent = Math.max(0, Math.min(100, progressPercent));
+
+    const currentStep = !isTerminal && m.currentStepInstanceId
+        ? { stepInstanceId: m.currentStepInstanceId, displayName: m.currentStepDisplayName, stepType: m.currentStepType }
+        : undefined;
+
+    return {
+        flowExecutionId: m.flowExecutionId,
+        flowDefinitionId: m.flowDefinitionId,
+        flowDefinitionVersion: m.flowDefinitionVersion,
+        executionKind: m.executionKind ?? 'ROOT',
+        parentStepInstanceId: m.parentStepInstanceId,
+        depth: m.depth ?? 0,
+        status,
+        isWaiting,
+        currentStep,
+        currentCheckpoint: m.currentCheckpoint,
+        completedStepCount: m.completedStepCount ?? 0,
+        totalStepCount: m.totalStepCount,
+        totalCheckpoints: m.totalCheckpoints,
+        progressPercent,
+        startTime: m.startTime,
+        endTime: m.endTime,
+        children: [],
+    };
+}
+
+/** A one-line headline summarising a single node's current work, for compact status widgets. */
+function _headlineFromNode(node: ExecutionProgressNode): ExecutionProgressResponse['headline'] {
+    const label =
+        node.currentCheckpoint?.label ??
+        node.currentStep?.displayName ??
+        node.currentStep?.stepInstanceId ??
+        (node.status === 'COMPLETED' ? 'Completed' : node.status);
+    return { executionId: node.flowExecutionId, label, percent: node.progressPercent, status: node.status, isWaiting: node.isWaiting };
+}
+
 const EXECUTION_LOG_TABLE_NAME = process.env[ENV_VAR_NAMES.ALLMA_FLOW_EXECUTION_LOG_TABLE_NAME]!;
 const ddbDocClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+
+/** Fetches a single execution's METADATA item directly (cheap, for the progress endpoint). */
+async function _getMetadataItem(flowExecutionId: string): Promise<AllmaFlowExecutionRecord | null> {
+    const { Item } = await ddbDocClient.send(new GetCommand({
+        TableName: EXECUTION_LOG_TABLE_NAME,
+        Key: { flowExecutionId, eventTimestamp_stepInstanceId_attempt: METADATA_SK_VALUE },
+    }));
+    return (Item as AllmaFlowExecutionRecord) ?? null;
+}
+
+/** Queries every execution node in a tree (root + descendants) via GSI_ByRoot in one pass. */
+async function _queryTreeNodes(rootFlowExecutionId: string): Promise<any[]> {
+    let items: any[] = [];
+    let lastEvaluatedKey: Record<string, AttributeValue> | undefined;
+    do {
+        const result: QueryCommandOutput = await ddbDocClient.send(new QueryCommand({
+            TableName: EXECUTION_LOG_TABLE_NAME,
+            IndexName: 'GSI_ByRoot',
+            KeyConditionExpression: 'rootFlowExecutionId = :r',
+            ExpressionAttributeValues: { ':r': rootFlowExecutionId },
+            ExclusiveStartKey: lastEvaluatedKey,
+        }));
+        if (result.Items) items = items.concat(result.Items);
+        lastEvaluatedKey = result.LastEvaluatedKey;
+    } while (lastEvaluatedKey);
+    return items;
+}
 
 /**
  * Fetches all raw DynamoDB records for a single flow execution.
@@ -308,20 +393,42 @@ export const ExecutionMonitoringService = {
     },
 
     /**
-     * Returns live progress for a single execution: current step, stage (checkpoint),
-     * completed/total steps and a percentage. Computed from the minimal step records (no S3
-     * fetch) plus the flow definition. Progress derived from step records requires execution
-     * logging to be enabled for the flow; without it, only metadata-level status is reflected.
+     * Returns live progress for an execution: current step, stage (checkpoint), completed/total
+     * steps and a percentage.
+     *
+     * `mode='single'` (default) returns just the requested execution's node. It prefers the
+     * orchestrator-stamped metadata (Pillar A) — a single, lag-free GetItem — and falls back to
+     * deriving progress from step records for executions predating the stamping (or before the
+     * first stamp lands).
+     *
+     * `mode='tree'` assembles the whole execution tree (root + sub-flows) from a single
+     * GSI_ByRoot query (Pillar B): each node carries its own progress, nested under the parent
+     * that launched it, with a headline pointing at the deepest active leaf.
      */
-    async getExecutionProgress(flowExecutionId: string, correlationId: string): Promise<ExecutionProgressResponse | null> {
-        const allItems = await _getExecutionRecords(flowExecutionId);
-        if (allItems.length === 0) return null;
-
-        const metadata = allItems.find(item => item.itemType === ITEM_TYPE_ALLMA_FLOW_EXECUTION_RECORD) as AllmaFlowExecutionRecord;
+    async getExecutionProgress(flowExecutionId: string, correlationId: string, mode: 'single' | 'tree' = 'single'): Promise<ExecutionProgressResponse | null> {
+        const metadata = await _getMetadataItem(flowExecutionId);
         if (!metadata) return null;
 
-        // Minimal step records are sufficient for progress (status + stepInstanceId + timing);
-        // we deliberately avoid resolving the full S3 records here to keep this endpoint cheap to poll.
+        if (mode === 'tree') {
+            return this._buildExecutionTree(metadata, correlationId);
+        }
+
+        const root = await this._buildProgressNode(metadata, correlationId);
+        return { root, headline: _headlineFromNode(root) };
+    },
+
+    /**
+     * Builds one progress node, preferring stamped metadata and falling back to read-time
+     * derivation from step records (+ flow definition) for un-stamped/legacy executions.
+     */
+    async _buildProgressNode(metadata: AllmaFlowExecutionRecord, correlationId: string): Promise<ExecutionProgressNode> {
+        if (_isStamped(metadata)) {
+            return _nodeFromStampedMetadata(metadata);
+        }
+
+        // Fallback: derive from the (minimal) step records + flow definition. No S3 fetch, so the
+        // endpoint stays cheap to poll. Requires execution logging to have been enabled.
+        const allItems = await _getExecutionRecords(metadata.flowExecutionId);
         const mainLevelStepEvents = allItems.filter(
             item => item.itemType === ITEM_TYPE_ALLMA_STEP_EXECUTION_RECORD && !item.branchId,
         ) as AllmaStepExecutionRecord[];
@@ -330,29 +437,66 @@ export const ExecutionMonitoringService = {
         try {
             flowDef = await loadFlowDefinition(metadata.flowDefinitionId, metadata.flowDefinitionVersion, correlationId);
         } catch (e: any) {
-            // A missing/unparseable definition (e.g. deleted version) degrades gracefully to
-            // status-only progress rather than failing the request.
-            log_warn('Could not load flow definition for progress computation; returning partial progress.', { flowExecutionId, error: e.message }, correlationId);
+            log_warn('Could not load flow definition for progress computation; returning partial progress.', { flowExecutionId: metadata.flowExecutionId, error: e.message }, correlationId);
         }
 
-        const root = _computeExecutionProgress(metadata, mainLevelStepEvents, flowDef);
+        return _computeExecutionProgress(metadata, mainLevelStepEvents, flowDef);
+    },
 
-        const headlineLabel =
-            root.currentCheckpoint?.label ??
-            root.currentStep?.displayName ??
-            root.currentStep?.stepInstanceId ??
-            (root.status === 'COMPLETED' ? 'Completed' : root.status);
+    /**
+     * Assembles the nested execution tree rooted at the requested execution's root. Falls back to
+     * a single-node tree when the execution predates tree linkage (no GSI rows).
+     */
+    async _buildExecutionTree(requested: AllmaFlowExecutionRecord, correlationId: string): Promise<ExecutionProgressResponse> {
+        const rootId = requested.rootFlowExecutionId ?? requested.flowExecutionId;
+        const items = await _queryTreeNodes(rootId);
 
-        return {
-            root,
-            headline: {
-                executionId: root.flowExecutionId,
-                label: headlineLabel,
-                percent: root.progressPercent,
-                status: root.status,
-                isWaiting: root.isWaiting,
-            },
-        };
+        // No linkage rows (pre-existing execution) → degrade to a single-node tree.
+        if (items.length === 0) {
+            const node = await this._buildProgressNode(requested, correlationId);
+            return { root: node, headline: _headlineFromNode(node) };
+        }
+
+        const byId = new Map<string, ExecutionProgressNode>();
+        for (const item of items) {
+            byId.set(item.flowExecutionId, _nodeFromStampedMetadata(item));
+        }
+
+        // The root may not appear in the index if it predates linkage but a child points at it;
+        // build it from its own metadata so the tree always has a root.
+        let rootNode = byId.get(rootId);
+        if (!rootNode) {
+            const rootMeta = rootId === requested.flowExecutionId ? requested : await _getMetadataItem(rootId);
+            rootNode = rootMeta ? await this._buildProgressNode(rootMeta, correlationId) : undefined;
+            if (rootNode) byId.set(rootId, rootNode);
+        }
+        if (!rootNode) {
+            // Should not happen, but never fail the request: fall back to the requested node.
+            const node = await this._buildProgressNode(requested, correlationId);
+            return { root: node, headline: _headlineFromNode(node) };
+        }
+
+        // Nest each non-root node under the parent that launched it (or the root if the parent is
+        // missing from the tree, e.g. a deeper grandchild whose parent predates linkage).
+        for (const item of items) {
+            if (item.flowExecutionId === rootId) continue;
+            const node = byId.get(item.flowExecutionId)!;
+            const parent = (item.parentFlowExecutionId && byId.get(item.parentFlowExecutionId)) || rootNode;
+            parent.children.push(node);
+        }
+
+        // Stable order: by start time within each parent.
+        for (const node of byId.values()) {
+            node.children.sort((a, b) => a.startTime.localeCompare(b.startTime));
+        }
+
+        // Headline = deepest active (non-terminal) leaf, else the root.
+        const active = Array.from(byId.values()).filter(n => !(TERMINAL_FLOW_STATUSES as readonly string[]).includes(n.status));
+        const headlineNode = active.length
+            ? active.reduce((a, b) => ((b.depth ?? 0) > (a.depth ?? 0) ? b : a))
+            : rootNode;
+
+        return { root: rootNode, headline: _headlineFromNode(headlineNode) };
     },
 
     async getStepRecordDetails(flowExecutionId: string, stepInstanceId: string, attemptNumber?: number, branchExecutionId?: string, correlationId?: string): Promise<AllmaStepExecutionRecord | null> {

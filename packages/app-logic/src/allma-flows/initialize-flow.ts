@@ -64,6 +64,12 @@ export const handler: Handler<StartFlowExecutionInput, ProcessorOutput> = async 
                 initialInputPayload: event, // Log the original StartFlowExecutionInput for traceability
                 triggerSource: event.triggerSource,
                 enableExecutionLogs: startState.enableExecutionLogs,
+                // Carry forward any execution-tree linkage present on the restored state.
+                parentFlowExecutionId: startState.parentFlowExecutionId,
+                parentStepInstanceId: startState.parentStepInstanceId,
+                rootFlowExecutionId: startState.rootFlowExecutionId ?? startState.flowExecutionId,
+                depth: startState.depth ?? 0,
+                executionKind: startState.executionKind ?? 'ROOT',
             });
         }
         
@@ -128,6 +134,12 @@ export const handler: Handler<StartFlowExecutionInput, ProcessorOutput> = async 
         ...(startInput.executionOverrides && { executionOverrides: startInput.executionOverrides })
     };
 
+    // Execution-tree linkage (Pillar B). A top-level trigger has no parent: it is its own root at
+    // depth 0. A sub-flow start passes parent/root/depth/kind through the start input.
+    const rootFlowExecutionId = startInput.rootFlowExecutionId ?? effectiveFlowExecutionId;
+    const depth = startInput.depth ?? 0;
+    const executionKind = startInput.executionKind ?? 'ROOT';
+
     const initialState: FlowRuntimeState = {
       flowDefinitionId: flowDefinition.id,
       flowDefinitionVersion: flowDefinition.version,
@@ -136,6 +148,12 @@ export const handler: Handler<StartFlowExecutionInput, ProcessorOutput> = async 
       currentStepInstanceId: startInput.executionOverrides?.startStepInstanceId || flowDefinition.startStepInstanceId,
       status: 'RUNNING',
       startTime: startTime,
+      completedStepCount: 0,
+      rootFlowExecutionId,
+      parentFlowExecutionId: startInput.parentFlowExecutionId,
+      parentStepInstanceId: startInput.parentStepInstanceId,
+      depth,
+      executionKind,
       currentContextData: initialContextWithSystemValues,
       stepRetryAttempts: {},
       _internal: {
@@ -157,6 +175,11 @@ export const handler: Handler<StartFlowExecutionInput, ProcessorOutput> = async 
             initialInputPayload: startInput,
             triggerSource: startInput.triggerSource,
             enableExecutionLogs: initialState.enableExecutionLogs,
+            parentFlowExecutionId: startInput.parentFlowExecutionId,
+            parentStepInstanceId: startInput.parentStepInstanceId,
+            rootFlowExecutionId,
+            depth,
+            executionKind,
         });
         initialState._internal!.loggingBootstrapped = true; // Mark that the metadata record was created
         log_info('Main flow execution record queued for logging.', { flowExecutionId: effectiveFlowExecutionId }, correlationId);

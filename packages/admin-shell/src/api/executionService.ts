@@ -80,14 +80,18 @@ export const useGetExecutionDetail = (executionId: string | undefined): UseQuery
 // Polls while the execution is still running and automatically stops once it reaches a
 // terminal status, so completed executions incur no further requests.
 
-export const useGetExecutionProgress = (executionId: string | undefined): UseQueryResult<ExecutionProgressResponse, Error> => {
+export const useGetExecutionProgress = (
+  executionId: string | undefined,
+  mode: 'single' | 'tree' = 'tree',
+): UseQueryResult<ExecutionProgressResponse, Error> => {
   return useQuery({
-    queryKey: [EXECUTION_PROGRESS_QUERY_KEY, executionId],
+    queryKey: [EXECUTION_PROGRESS_QUERY_KEY, executionId, mode],
     queryFn: async () => {
       if (!executionId) throw new Error('Execution ID is undefined.');
 
       const response = await axiosInstance.get<AdminApiResponse<ExecutionProgressResponse>>(
-        `/${ALLMA_ADMIN_API_VERSION}${ALLMA_ADMIN_API_ROUTES.FLOW_EXECUTION_PROGRESS(executionId)}`
+        `/${ALLMA_ADMIN_API_VERSION}${ALLMA_ADMIN_API_ROUTES.FLOW_EXECUTION_PROGRESS(executionId)}`,
+        { params: { mode } }
       );
 
       if (response.data.success) {

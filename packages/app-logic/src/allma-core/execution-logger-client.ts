@@ -55,6 +55,7 @@ class ExecutionLoggerClient {
 
     public async createMetadataRecord(
         record: Pick<AllmaFlowExecutionRecord, 'flowExecutionId' | 'flowDefinitionId' | 'flowDefinitionVersion' | 'startTime' | 'initialInputPayload' | 'triggerSource' | 'enableExecutionLogs'>
+            & Partial<Pick<AllmaFlowExecutionRecord, 'parentFlowExecutionId' | 'parentStepInstanceId' | 'rootFlowExecutionId' | 'depth' | 'executionKind'>>
     ): Promise<void> {
         const payload: ExecutionLoggerPayload = {
             action: 'CREATE_METADATA',
@@ -68,6 +69,21 @@ class ExecutionLoggerClient {
     ): Promise<void> {
         const payload: ExecutionLoggerPayload = {
             action: 'UPDATE_FINAL_STATUS',
+            ...updateData,
+        };
+        await this.invokeLogger(payload, updateData.flowExecutionId);
+    }
+
+    /**
+     * Stamps live progress onto the execution's metadata record (and optionally bubbles a roll-up
+     * up to the root). Fire-and-forget like the other logger actions — progress is best-effort and
+     * must never slow down or fail the orchestration loop.
+     */
+    public async updateProgress(
+        updateData: Omit<ExecutionLoggerPayload & { action: 'UPDATE_PROGRESS' }, 'action'>
+    ): Promise<void> {
+        const payload: ExecutionLoggerPayload = {
+            action: 'UPDATE_PROGRESS',
             ...updateData,
         };
         await this.invokeLogger(payload, updateData.flowExecutionId);

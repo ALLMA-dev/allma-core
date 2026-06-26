@@ -46,7 +46,15 @@ export const handler: Handler<ExecutionLoggerPayload, void> = async (event) => {
             case 'CREATE_METADATA': {
                 const { record } = payload;
                 const status = 'RUNNING';
-                
+
+                // Default execution-tree linkage to a ROOT node when the trigger supplied none
+                // (top-level execution: root === self, depth 0). The GSI_ByRoot sort key orders
+                // nodes by depth then parent step, so the tree assembles deterministically.
+                const rootFlowExecutionId = record.rootFlowExecutionId ?? record.flowExecutionId;
+                const depth = record.depth ?? 0;
+                const executionKind = record.executionKind ?? 'ROOT';
+                const treeSortKey = `${String(depth).padStart(4, '0')}#${record.parentStepInstanceId ?? ''}#${record.flowExecutionId}`;
+
                 const itemToPut = {
                     ...record,
                     eventTimestamp_stepInstanceId_attempt: METADATA_SK_VALUE,
@@ -55,9 +63,13 @@ export const handler: Handler<ExecutionLoggerPayload, void> = async (event) => {
                     overallStatus: status,
                     overallStartTime: record.startTime,
                     flow_sort_key: `v#${record.flowDefinitionVersion}#s#${status}#t#${record.startTime}`,
+                    rootFlowExecutionId,
+                    depth,
+                    executionKind,
+                    tree_sort_key: treeSortKey,
                     ttl: ttl,
                 };
-                
+
                 const validatedItem = AllmaFlowExecutionRecordSchema.parse(itemToPut);
                 await ddbDocClient.send(new PutCommand({ TableName: FLOW_EXECUTION_LOG_TABLE_NAME, Item: validatedItem }));
                 log_info('Successfully created initial flow execution record.', {}, correlationId);
@@ -115,6 +127,72 @@ export const handler: Handler<ExecutionLoggerPayload, void> = async (event) => {
                     ExpressionAttributeValues: expressionAttributeValues,
                 }));
                 log_info('Successfully updated flow execution record with final status.', { status }, correlationId);
+                break;
+            }
+
+            // Stamps live progress onto the execution's own metadata record and, optionally,
+            // bubbles a one-line roll-up up to the ROOT record. Both are guarded so they only
+            // touch an existing metadata item and never move progress backward; a guard miss
+            // (out-of-order delivery or a not-yet-created record) is a benign no-op.
+            case 'UPDATE_PROGRESS': {
+                const { flowExecutionId, progress, rootBubbleUp } = payload;
+
+                const setClauses: string[] = [];
+                const names: Record<string, string> = { '#sk': 'eventTimestamp_stepInstanceId_attempt' };
+                const values: Record<string, any> = { ':progressUpdatedAt': progress.progressUpdatedAt };
+
+                // Build SET clauses only for the fields actually provided, so an absent checkpoint
+                // (flow has not declared/reached one) never overwrites a previously stamped value.
+                for (const [key, value] of Object.entries(progress)) {
+                    if (value === undefined) continue;
+                    names[`#${key}`] = key;
+                    values[`:${key}`] = value;
+                    setClauses.push(`#${key} = :${key}`);
+                }
+
+                try {
+                    await ddbDocClient.send(new UpdateCommand({
+                        TableName: FLOW_EXECUTION_LOG_TABLE_NAME,
+                        Key: { flowExecutionId, eventTimestamp_stepInstanceId_attempt: METADATA_SK_VALUE },
+                        UpdateExpression: `SET ${setClauses.join(', ')}`,
+                        // Only stamp an existing metadata record, and only if this update is at least
+                        // as recent as the last one (monotonic, tolerant of out-of-order delivery).
+                        ConditionExpression:
+                            'attribute_exists(#sk) AND (attribute_not_exists(#progressUpdatedAt) OR #progressUpdatedAt <= :progressUpdatedAt)',
+                        ExpressionAttributeNames: names,
+                        ExpressionAttributeValues: values,
+                    }));
+                } catch (e: any) {
+                    if (e.name === 'ConditionalCheckFailedException') {
+                        log_info('Skipped progress stamp (record missing or newer progress already present).', { flowExecutionId }, correlationId);
+                    } else {
+                        throw e;
+                    }
+                }
+
+                if (rootBubbleUp) {
+                    try {
+                        await ddbDocClient.send(new UpdateCommand({
+                            TableName: FLOW_EXECUTION_LOG_TABLE_NAME,
+                            Key: { flowExecutionId: rootBubbleUp.rootFlowExecutionId, eventTimestamp_stepInstanceId_attempt: METADATA_SK_VALUE },
+                            UpdateExpression: 'SET #liveStatus = :liveStatus',
+                            // Newest writer wins, so a parent resuming after a sub-flow cleanly
+                            // overwrites the child's roll-up (its updatedAt is later).
+                            ConditionExpression:
+                                'attribute_exists(#sk) AND (attribute_not_exists(#liveStatus) OR #liveStatus.#updatedAt <= :liveUpdatedAt)',
+                            ExpressionAttributeNames: { '#sk': 'eventTimestamp_stepInstanceId_attempt', '#liveStatus': 'liveStatus', '#updatedAt': 'updatedAt' },
+                            ExpressionAttributeValues: { ':liveStatus': rootBubbleUp.liveStatus, ':liveUpdatedAt': rootBubbleUp.liveStatus.updatedAt },
+                        }));
+                    } catch (e: any) {
+                        if (e.name === 'ConditionalCheckFailedException') {
+                            log_info('Skipped liveStatus bubble-up (root missing or newer roll-up already present).', { rootFlowExecutionId: rootBubbleUp.rootFlowExecutionId }, correlationId);
+                        } else {
+                            throw e;
+                        }
+                    }
+                }
+
+                log_info('Progress stamp processed.', { flowExecutionId, bubbledUp: !!rootBubbleUp }, correlationId);
                 break;
             }
 

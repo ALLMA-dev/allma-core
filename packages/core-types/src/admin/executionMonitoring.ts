@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { AllmaFlowExecutionRecordSchema, AllmaStepExecutionRecordSchema } from '../logging/records.js';
+import { ExecutionKindSchema } from '../common/enums.js';
 
 /**
  * A summary of a flow execution for display in a list view.
@@ -44,39 +45,80 @@ export type ListFlowExecutionsResponse = z.infer<typeof ListFlowExecutionsRespon
  *    those milestones — `progressPercent` and `currentCheckpoint` reflect the milestone reached.
  *  - L1 (step count): otherwise, progress is `completedStepCount / totalStepCount`.
  *
- * `children` is reserved for the Phase 2 sub-flow/branch tree and is empty in the single-execution view.
+ * `children` holds nested sub-flow / branch execution nodes (Pillar B); it is empty in the
+ * single-execution view and populated in `mode=tree`.
  */
-export const ExecutionProgressNodeSchema = z.object({
-  flowExecutionId: z.string().uuid(),
-  flowDefinitionId: z.string(),
-  flowDefinitionVersion: z.number().int().optional(),
-  status: z.enum(['INITIALIZING', 'RUNNING', 'COMPLETED', 'FAILED', 'TIMED_OUT', 'CANCELLED']),
+export interface ExecutionProgressNode {
+  flowExecutionId: string;
+  flowDefinitionId: string;
+  flowDefinitionVersion?: number;
+  /** Position of this node in the execution tree. Defaults to a ROOT node for old executions. */
+  executionKind?: z.infer<typeof ExecutionKindSchema>;
+  /** The step in the PARENT flow that launched this node (sub-flows / branches only). */
+  parentStepInstanceId?: string;
+  /** 0 = root. */
+  depth?: number;
+  status: 'INITIALIZING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'TIMED_OUT' | 'CANCELLED';
   /** True when the current step can pause for a long time (WAIT_FOR_EXTERNAL_EVENT / POLL_EXTERNAL_API). */
-  isWaiting: z.boolean(),
+  isWaiting: boolean;
   /** The step currently executing (omitted once the execution reaches a terminal status). */
-  currentStep: z.object({
-    stepInstanceId: z.string(),
-    displayName: z.string().optional(),
-    stepType: z.string().optional(),
-  }).optional(),
+  currentStep?: {
+    stepInstanceId: string;
+    displayName?: string;
+    stepType?: string;
+  };
   /** The most advanced checkpoint reached so far (only when the flow declares checkpoints). */
-  currentCheckpoint: z.object({
-    id: z.string(),
-    label: z.string(),
-    order: z.number().int().optional(),
+  currentCheckpoint?: {
+    id: string;
+    label: string;
+    order?: number;
     /** 1-based position of this checkpoint among all declared checkpoints. */
-    ordinal: z.number().int().optional(),
-  }).optional(),
-  completedStepCount: z.number().int(),
-  totalStepCount: z.number().int().optional(),
-  totalCheckpoints: z.number().int().optional(),
-  progressPercent: z.number().int().min(0).max(100),
-  startTime: z.string(),
-  endTime: z.string().optional(),
-  /** Reserved for the Phase 2 nested sub-flow / parallel-branch tree. Empty today. */
-  children: z.array(z.any()).default([]),
-});
-export type ExecutionProgressNode = z.infer<typeof ExecutionProgressNodeSchema>;
+    ordinal?: number;
+  };
+  completedStepCount: number;
+  totalStepCount?: number;
+  totalCheckpoints?: number;
+  progressPercent: number;
+  startTime: string;
+  endTime?: string;
+  /** Nested sub-flow / parallel-branch nodes. Empty in single mode. */
+  children: ExecutionProgressNode[];
+}
+
+export const ExecutionProgressNodeSchema: z.ZodType<ExecutionProgressNode> = z.lazy(() =>
+  z.object({
+    flowExecutionId: z.string().uuid(),
+    flowDefinitionId: z.string(),
+    flowDefinitionVersion: z.number().int().optional(),
+    executionKind: ExecutionKindSchema.optional(),
+    parentStepInstanceId: z.string().optional(),
+    depth: z.number().int().optional(),
+    status: z.enum(['INITIALIZING', 'RUNNING', 'COMPLETED', 'FAILED', 'TIMED_OUT', 'CANCELLED']),
+    isWaiting: z.boolean(),
+    currentStep: z
+      .object({
+        stepInstanceId: z.string(),
+        displayName: z.string().optional(),
+        stepType: z.string().optional(),
+      })
+      .optional(),
+    currentCheckpoint: z
+      .object({
+        id: z.string(),
+        label: z.string(),
+        order: z.number().int().optional(),
+        ordinal: z.number().int().optional(),
+      })
+      .optional(),
+    completedStepCount: z.number().int(),
+    totalStepCount: z.number().int().optional(),
+    totalCheckpoints: z.number().int().optional(),
+    progressPercent: z.number().int().min(0).max(100),
+    startTime: z.string(),
+    endTime: z.string().optional(),
+    children: z.array(ExecutionProgressNodeSchema),
+  }),
+);
 
 /**
  * API response for the execution-progress endpoint. `headline` is a one-line summary of the

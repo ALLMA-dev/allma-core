@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { S3PointerSchema, AllmaErrorSchema } from '../common/core.js';
-import { SfnActionTypeSchema } from '../common/enums.js';
+import { SfnActionTypeSchema, ExecutionKindSchema } from '../common/enums.js';
 import { StepInstanceSchema } from '../steps/definitions.js';
 import { AggregationConfigSchema, BranchResultSchema, BranchExecutionPayloadSchema, BranchDefinitionSchema } from '../flow/branching.js';
 
@@ -24,6 +24,20 @@ export const FlowRuntimeStateSchema: z.ZodType<any> = z.object({
   status: z.enum(['INITIALIZING', 'RUNNING', 'COMPLETED', 'FAILED', 'TIMED_OUT', 'CANCELLED']),
   startTime: z.string().datetime(),
   endTime: z.string().datetime().optional(),
+  // --- Progress tracking (Pillar A) carried through the orchestration loop so the metadata
+  // record can be stamped at each step boundary. Both monotonic / best-effort.
+  completedStepCount: z.number().int().min(0).optional(),
+  reachedCheckpoint: z.object({
+    id: z.string(),
+    label: z.string(),
+    order: z.number().int().optional(),
+  }).optional(),
+  // --- Execution-tree linkage (Pillar B) so a sub-flow knows its root and can bubble up.
+  rootFlowExecutionId: z.string().uuid().optional(),
+  parentFlowExecutionId: z.string().uuid().optional(),
+  parentStepInstanceId: z.string().optional(),
+  depth: z.number().int().min(0).optional(),
+  executionKind: ExecutionKindSchema.optional(),
   currentContextData: z.record(z.any()),
   currentContextDataS3Pointer: S3PointerSchema.optional(),
   errorInfo: AllmaErrorSchema.optional(),
@@ -57,6 +71,14 @@ export const StartFlowExecutionInputSchema = z.object({
   flowExecutionId: z.string().uuid().optional(),
   triggerSource: z.string().optional(),
   enableExecutionLogs: z.boolean().optional(),
+  // --- Execution-tree linkage (Pillar B, §6.1) — set when a step launches a sub-flow so the
+  // child's metadata record can be stamped with its position in the tree. Omitted for top-level
+  // triggers, where initialize-flow defaults to a ROOT node (root === self, depth 0).
+  parentFlowExecutionId: z.string().uuid().optional(),
+  parentStepInstanceId: z.string().optional(),
+  rootFlowExecutionId: z.string().uuid().optional(),
+  depth: z.number().int().min(0).optional(),
+  executionKind: ExecutionKindSchema.optional(),
   executionOverrides: z.object({
     stepOverrides: FlowStepOverridesSchema.optional(),
     startFromState: z.lazy((): typeof FlowRuntimeStateSchema => FlowRuntimeStateSchema).optional(),

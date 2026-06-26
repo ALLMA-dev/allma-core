@@ -92,6 +92,14 @@ export const executeStartFlowExecution: StepHandler = async (
     flowExecutionId: newFlowExecutionId,
     // Enhance trigger source for better traceability
     triggerSource: `ParentFlow:${runtimeState.flowExecutionId}:${runtimeState.currentStepInstanceId} -> ${payload.triggerSource || 'Unknown'}`,
+    // Execution-tree linkage (Pillar B). This is a fire-and-forget async sub-flow: it appears as
+    // a linked node in the tree but is NOT bubbled into the root's headline (the parent does not
+    // wait for it and may already be terminal by the time it advances).
+    parentFlowExecutionId: runtimeState.flowExecutionId,
+    parentStepInstanceId: runtimeState.currentStepInstanceId,
+    rootFlowExecutionId: runtimeState.rootFlowExecutionId ?? runtimeState.flowExecutionId,
+    depth: (runtimeState.depth ?? 0) + 1,
+    executionKind: 'ASYNC_SUBFLOW',
   };
 
   log_info(`Sending request to start new flow execution`, {

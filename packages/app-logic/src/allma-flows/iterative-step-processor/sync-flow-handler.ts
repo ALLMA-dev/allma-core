@@ -93,6 +93,13 @@ export async function handleSyncFlowStart(
         flowExecutionId: uuidv4(), // The sub-flow gets its own unique ID
         triggerSource: `SyncSubFlow from ${runtimeState.flowExecutionId}:${runtimeState.currentStepInstanceId}`,
         enableExecutionLogs: runtimeState.enableExecutionLogs,
+        // Execution-tree linkage (Pillar B): the child records its position so the root can
+        // reconstruct the tree and the child can bubble progress up to the shared root.
+        parentFlowExecutionId: runtimeState.flowExecutionId,
+        parentStepInstanceId: runtimeState.currentStepInstanceId,
+        rootFlowExecutionId: runtimeState.rootFlowExecutionId ?? runtimeState.flowExecutionId,
+        depth: (runtimeState.depth ?? 0) + 1,
+        executionKind: 'SYNC_SUBFLOW',
     };
 
     return {

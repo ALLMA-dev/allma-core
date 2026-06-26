@@ -133,6 +133,38 @@ export class AllmaDataStores extends Construct {
       ],
     });
 
+    // GSI to assemble a whole execution tree (root + sub-flows) in a single query (Pillar B, §6.2).
+    // Only metadata records created after this change carry `rootFlowExecutionId`/`tree_sort_key`,
+    // so only they appear in this index; pre-existing executions degrade to a single-node tree.
+    this.allmaFlowExecutionLogTable.addGlobalSecondaryIndex({
+      indexName: 'GSI_ByRoot',
+      partitionKey: { name: 'rootFlowExecutionId', type: dynamodb.AttributeType.STRING },
+      // `<zero-padded depth>#<parentStepInstanceId>#<flowExecutionId>` for stable ordering.
+      sortKey: { name: 'tree_sort_key', type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.INCLUDE,
+      nonKeyAttributes: [
+        'flowDefinitionId',
+        'flowDefinitionVersion',
+        'status',
+        'startTime',
+        'endTime',
+        'executionKind',
+        'parentFlowExecutionId',
+        'parentStepInstanceId',
+        'depth',
+        'currentStepInstanceId',
+        'currentStepDisplayName',
+        'currentStepType',
+        'completedStepCount',
+        'totalStepCount',
+        'currentCheckpoint',
+        'totalCheckpoints',
+        'progressPercent',
+        'progressUpdatedAt',
+        'liveStatus',
+      ],
+    });
+
     // GSI for the Admin UI Step Statistics view to aggregate step-execution records by time.
     // Dedicated to step records (itemType = ALLMA_STEP_EXECUTION_RECORD) and projects only the
     // attributes the aggregation needs, so the stats query never falls back to the base table.

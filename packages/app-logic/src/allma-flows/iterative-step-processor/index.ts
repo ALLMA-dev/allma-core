@@ -28,9 +28,68 @@ import { prepareStepInput } from '../../allma-core/data-mapper.js';
 import { executionLoggerClient } from '../../allma-core/execution-logger-client.js';
 import { handleSyncFlowStart, handleSyncFlowResult } from './sync-flow-handler.js';
 import { enforceTransitionLimits } from './transition-limits.js';
+import { computeProgressStamp } from './progress-stamper.js';
 
 const EXECUTION_TRACES_BUCKET_NAME = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME];
 const SFN_SAFE_PAYLOAD_LIMIT = 100 * 1024; // 100KB safe threshold to ensure total output stays well under 256KB
+
+/**
+ * Stamps live progress (Pillar A) onto the execution's metadata record at a step boundary, and —
+ * on a checkpoint advance — bubbles a one-line roll-up up to the ROOT record (Pillar B, §6.4).
+ *
+ * Runs for the top-level / sub-flow execution only (never for in-memory parallel branches, which
+ * share the parent's flowExecutionId and would otherwise clobber its progress). Best-effort and
+ * fire-and-forget: any failure here must never disrupt the orchestration loop. Mutates the
+ * runtime-state progress counters (`completedStepCount`, `reachedCheckpoint`) carried through the loop.
+ */
+async function stampProgress(
+    runtimeState: FlowRuntimeState,
+    flowDef: FlowDefinition,
+    correlationId: string,
+): Promise<void> {
+    try {
+        // The step about to run; the prior steps are "completed" for the L1 denominator.
+        const completedSoFar = runtimeState.completedStepCount ?? 0;
+        const now = new Date().toISOString();
+
+        const { stamp, reachedCheckpoint, checkpointChanged } = computeProgressStamp({
+            flowDef,
+            currentStepInstanceId: runtimeState.currentStepInstanceId,
+            completedStepCount: completedSoFar,
+            status: runtimeState.status,
+            reachedCheckpoint: runtimeState.reachedCheckpoint,
+            now,
+        });
+
+        runtimeState.reachedCheckpoint = reachedCheckpoint;
+        runtimeState.completedStepCount = completedSoFar + 1;
+
+        const rootFlowExecutionId = runtimeState.rootFlowExecutionId ?? runtimeState.flowExecutionId;
+        // Async sub-flows are not bubbled into the root headline (the root may already be terminal).
+        const shouldBubble = checkpointChanged && runtimeState.executionKind !== 'ASYNC_SUBFLOW';
+
+        await executionLoggerClient.updateProgress({
+            flowExecutionId: runtimeState.flowExecutionId,
+            progress: stamp,
+            ...(shouldBubble && {
+                rootBubbleUp: {
+                    rootFlowExecutionId,
+                    liveStatus: {
+                        activeExecutionId: runtimeState.flowExecutionId,
+                        depth: runtimeState.depth ?? 0,
+                        stepDisplayName: stamp.currentStepDisplayName,
+                        checkpointId: stamp.currentCheckpoint?.id,
+                        checkpointLabel: stamp.currentCheckpoint?.label,
+                        percent: stamp.progressPercent,
+                        updatedAt: now,
+                    },
+                },
+            }),
+        });
+    } catch (e: any) {
+        log_warn('Progress stamping failed (non-fatal).', { error: e.message }, correlationId);
+    }
+}
 
 /**
  * AWS Lambda handler for the "IterativeStepProcessor" state.
@@ -161,6 +220,12 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
             if (overrides) {
                 log_info(`Applying step overrides for '${currentStepInstanceId}'`, { overrides }, correlationId);
                 stepInstance = deepMerge(stepInstance, overrides) as StepInstance;
+            }
+
+            // Stamp live progress at the step boundary (covers every step type). Skipped for
+            // in-memory parallel branches, which share the parent's flowExecutionId.
+            if (!isBranchExecution) {
+                await stampProgress(runtimeState, flowDef, correlationId);
             }
 
             const { stepType } = stepInstance;
