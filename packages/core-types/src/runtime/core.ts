@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { S3PointerSchema, AllmaErrorSchema } from '../common/core.js';
 import { SfnActionTypeSchema, ExecutionKindSchema } from '../common/enums.js';
+import { NotificationConfigSchema } from '../notifications/execution-events.js';
 import { StepInstanceSchema } from '../steps/definitions.js';
 import { AggregationConfigSchema, BranchResultSchema, BranchExecutionPayloadSchema, BranchDefinitionSchema } from '../flow/branching.js';
 
@@ -38,6 +39,9 @@ export const FlowRuntimeStateSchema: z.ZodType<any> = z.object({
   parentStepInstanceId: z.string().optional(),
   depth: z.number().int().min(0).optional(),
   executionKind: ExecutionKindSchema.optional(),
+  // Per-trigger notification callback (Pillar C), carried so the orchestrator can emit
+  // STARTED/CHECKPOINT events to the caller's sinks without a DynamoDB read on the hot path.
+  notificationConfig: NotificationConfigSchema.optional(),
   currentContextData: z.record(z.any()),
   currentContextDataS3Pointer: S3PointerSchema.optional(),
   errorInfo: AllmaErrorSchema.optional(),
@@ -79,6 +83,8 @@ export const StartFlowExecutionInputSchema = z.object({
   rootFlowExecutionId: z.string().uuid().optional(),
   depth: z.number().int().min(0).optional(),
   executionKind: ExecutionKindSchema.optional(),
+  // Where to notify the caller about this execution's progress/terminal status (Pillar C, §7.2a).
+  notificationConfig: NotificationConfigSchema.optional(),
   executionOverrides: z.object({
     stepOverrides: FlowStepOverridesSchema.optional(),
     startFromState: z.lazy((): typeof FlowRuntimeStateSchema => FlowRuntimeStateSchema).optional(),

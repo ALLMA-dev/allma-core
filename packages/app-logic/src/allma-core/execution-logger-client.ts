@@ -55,7 +55,7 @@ class ExecutionLoggerClient {
 
     public async createMetadataRecord(
         record: Pick<AllmaFlowExecutionRecord, 'flowExecutionId' | 'flowDefinitionId' | 'flowDefinitionVersion' | 'startTime' | 'initialInputPayload' | 'triggerSource' | 'enableExecutionLogs'>
-            & Partial<Pick<AllmaFlowExecutionRecord, 'parentFlowExecutionId' | 'parentStepInstanceId' | 'rootFlowExecutionId' | 'depth' | 'executionKind'>>
+            & Partial<Pick<AllmaFlowExecutionRecord, 'parentFlowExecutionId' | 'parentStepInstanceId' | 'rootFlowExecutionId' | 'depth' | 'executionKind' | 'notificationConfig'>>
     ): Promise<void> {
         const payload: ExecutionLoggerPayload = {
             action: 'CREATE_METADATA',

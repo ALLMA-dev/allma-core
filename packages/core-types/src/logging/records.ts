@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { AllmaErrorSchema, S3PointerSchema } from '../common/core.js';
 import { ExecutionKindSchema } from '../common/enums.js';
+import { NotificationConfigSchema } from '../notifications/execution-events.js';
 import { StartFlowExecutionInputSchema } from '../runtime/core.js';
 import { StepInstanceSchema } from '../steps/definitions.js';
 import { MappingEventSchema, TransitionEvaluationEventSchema } from './events.js';
@@ -87,6 +88,10 @@ export const AllmaFlowExecutionRecordSchema = z.object({
 
   // --- Bubble-up roll-up (Pillar B, §6.4) — written onto the ROOT record only.
   liveStatus: ExecutionLiveStatusSchema.optional(),
+
+  // --- Per-trigger notification config (Pillar C, §7.2a) — persisted on the ROOT record so the
+  // crash-safe dispatcher can deliver a TERMINAL event to the caller without Admin credentials.
+  notificationConfig: NotificationConfigSchema.optional(),
 });
 export type AllmaFlowExecutionRecord = z.infer<typeof AllmaFlowExecutionRecordSchema>;
 

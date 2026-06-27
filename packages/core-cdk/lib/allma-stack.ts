@@ -14,6 +14,7 @@ import { ApiConstruct } from './constructs/api.construct.js';
 import { PollingOrchestrator } from './constructs/polling-orchestrator.js';
 import { EmailIntegration } from './constructs/email-integration.js';
 import { AllmaMonitoring } from './constructs/monitoring.js';
+import { AllmaNotifications } from './constructs/notifications.js';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import * as iam from 'aws-cdk-lib/aws-iam';
@@ -173,11 +174,18 @@ export class AllmaStack extends cdk.Stack {
       }));
     }
 
+    // --- Client Notifications (Pillar C): status topic + crash-safe lifecycle dispatcher ---
+    const notifications = new AllmaNotifications(this, 'AllmaNotifications', {
+      stageConfig,
+      flowExecutionLogTable: dataStores.allmaFlowExecutionLogTable,
+    });
+
     // --- Monitoring & Alerts Construct ---
     new AllmaMonitoring(this, 'AllmaMonitoring', {
       stageConfig,
       flowOrchestratorStateMachineArn: orchestration.flowOrchestratorStateMachine.stateMachineArn,
       pollingStateMachineArn: pollingOrchestrator.pollingStateMachine.stateMachineArn,
+      lifecycleDispatcherLambda: notifications.lifecycleDispatcherLambda,
     });
 
     const api = new ApiConstruct(this, 'AllmaApiFeature', {

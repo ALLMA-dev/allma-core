@@ -29,8 +29,10 @@ import { executionLoggerClient } from '../../allma-core/execution-logger-client.
 import { handleSyncFlowStart, handleSyncFlowResult } from './sync-flow-handler.js';
 import { enforceTransitionLimits } from './transition-limits.js';
 import { computeProgressStamp } from './progress-stamper.js';
+import { buildExecutionEvent, emitLifecycleEvent } from '../../allma-core/notifications/execution-notifier.js';
 
 const EXECUTION_TRACES_BUCKET_NAME = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME];
+const EXECUTION_STATUS_TOPIC_ARN = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_STATUS_TOPIC_ARN];
 const SFN_SAFE_PAYLOAD_LIMIT = 100 * 1024; // 100KB safe threshold to ensure total output stays well under 256KB
 
 /**
@@ -86,8 +88,36 @@ async function stampProgress(
                 },
             }),
         });
+
+        // Emit lifecycle events (Pillar C) on the checkpoint cadence to bound volume: STARTED once
+        // at the first boundary, CHECKPOINT whenever a checkpoint is advanced. TERMINAL is emitted
+        // only by the crash-safe dispatcher. Best-effort; never disrupts the loop.
+        const eventType = completedSoFar === 0 ? 'STARTED' : checkpointChanged ? 'CHECKPOINT' : undefined;
+        if (eventType && (EXECUTION_STATUS_TOPIC_ARN || runtimeState.notificationConfig)) {
+            const headlineLabel =
+                stamp.currentCheckpoint?.label ?? stamp.currentStepDisplayName ?? runtimeState.currentStepInstanceId ?? 'Running';
+            await emitLifecycleEvent({
+                event: buildExecutionEvent({
+                    eventType,
+                    rootFlowExecutionId,
+                    flowExecutionId: runtimeState.flowExecutionId,
+                    flowDefinitionId: runtimeState.flowDefinitionId,
+                    flowDefinitionVersion: runtimeState.flowDefinitionVersion,
+                    status: 'RUNNING',
+                    depth: runtimeState.depth ?? 0,
+                    checkpoint: stamp.currentCheckpoint,
+                    progressPercent: stamp.progressPercent,
+                    headlineLabel,
+                    correlationKey: runtimeState.notificationConfig?.correlationKey,
+                    occurredAt: now,
+                }),
+                notificationConfig: runtimeState.notificationConfig,
+                topicArn: EXECUTION_STATUS_TOPIC_ARN,
+                correlationId,
+            });
+        }
     } catch (e: any) {
-        log_warn('Progress stamping failed (non-fatal).', { error: e.message }, correlationId);
+        log_warn('Progress stamping / event emission failed (non-fatal).', { error: e.message }, correlationId);
     }
 }
 

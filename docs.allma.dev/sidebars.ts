@@ -52,6 +52,7 @@ const sidebars: SidebarsConfig = {
       collapsed: true,
       items: [
         'reference/flow-definition-reference',
+        'reference/execution-status-notifications',
         {
           type: 'category',
           label: 'Admin API Reference',
