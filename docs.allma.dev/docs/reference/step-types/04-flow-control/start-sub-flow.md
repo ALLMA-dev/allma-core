@@ -28,6 +28,27 @@ This step type identifies the target flow via its own `subFlowDefinitionId` fiel
 
 ---
 
+### Execution tree & progress roll-up
+
+A sub-flow runs as its **own execution** with a new `flowExecutionId`, but the platform records
+structured linkage so the whole hierarchy is observable from the top-level execution the caller
+triggered:
+
+-   Each child carries `rootFlowExecutionId` (the top-level execution), `parentFlowExecutionId`, the
+    `parentStepInstanceId` (this `START_SUB_FLOW` step), a `depth` (`0` = root, `>0` = nested), and an
+    `executionKind` of `SYNC_SUBFLOW` or `ASYNC_SUBFLOW`.
+-   The [`/progress?mode=tree`](../../admin-api/execution-monitoring-api.md#get-execution-progress)
+    endpoint returns the root with nested child nodes, each with its own progress bar.
+-   Because a **`SYNC`** sub-flow *suspends* its parent, the child also bubbles a one-line summary up
+    to the root so a single read reflects the deepest active work. **`ASYNC`** children appear as
+    independent nodes in the tree but are not folded into the root's headline (the root may already
+    be terminal).
+-   Lifecycle [status events](../../execution-status-notifications.md) emitted by a sub-flow carry its
+    own `flowExecutionId` and `depth`, with the same `rootFlowExecutionId` — so subscribers can
+    attribute them to the triggering execution.
+
+---
+
 ### Input & Output
 
 #### Input Mappings
