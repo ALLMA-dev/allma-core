@@ -23,6 +23,17 @@ The configuration for this step is built by combining `inputMappings` and `liter
 -   `flowVersion` (string): The version to trigger (e.g., `1`, `LATEST_PUBLISHED`).
 -   `initialContextData` (object): The JSON object to use as the new flow's starting context.
 
+It also accepts an optional `notificationConfig` to be told about the triggered flow's progress and
+terminal status (including crashes) — see [Execution Status Notifications](../../execution-status-notifications.md).
+This is most commonly supplied when triggering a flow **externally** (via the trigger API or SQS),
+but the same field is honored here.
+
+:::tip Tracking the triggered execution
+The step output `startedFlowExecutionId` is the **root** `flowExecutionId` of the new flow. Persist
+it to correlate later status events (its `rootFlowExecutionId`) and to query its
+[`/progress`](../../admin-api/execution-monitoring-api.md#get-execution-progress) endpoint.
+:::
+
 ---
 
 ### Input & Output

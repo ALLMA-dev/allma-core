@@ -151,6 +151,30 @@ Cross-account subscriptions are granted via the topic's resource policy.
 
 ---
 
+## Execution tree (sub-flows & branches)
+
+A flow can launch [sub-flows](./step-types/04-flow-control/start-sub-flow.md) and parallel branches,
+each of which is its **own** execution with its own `flowExecutionId`. Every event is self-locating
+within that tree:
+
+- `rootFlowExecutionId` — the top-level execution **you triggered**. Group events by this to follow
+  one logical job end-to-end.
+- `flowExecutionId` — the specific node that produced the event (equals the root for top-level work).
+- `depth` — `0` for the root, `>0` for nested sub-flows / branches.
+
+Subscribe and correlate on `rootFlowExecutionId`; you never need to know a sub-flow exists in advance.
+`STARTED` / `CHECKPOINT` events from a `SYNC` sub-flow surface the deepest active work, while the
+`TERMINAL` event always describes the execution named in `flowExecutionId`.
+
+## Monitoring progress from the Admin API
+
+Operators with Admin (Cognito) credentials can **poll** live progress instead of (or in addition to)
+consuming events, via
+[`GET /allma/flow-executions/{id}/progress`](./admin-api/execution-monitoring-api.md#get-execution-progress).
+Use `mode=tree` to retrieve the full nested sub-flow tree, or `mode=single` for a compact snapshot.
+This is the authenticated surface for the Admin UI; the notification mechanisms on this page are the
+**unauthenticated** path for the application that triggered the flow.
+
 ## Choosing a mechanism
 
 - Use the **per-trigger callback** when each caller wants results delivered to a specific endpoint

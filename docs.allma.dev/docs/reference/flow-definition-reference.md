@@ -32,6 +32,7 @@ The `FlowDefinition` is the core JSON object that declaratively defines an entir
       "stepInstanceId": "string",
       "stepType": "LLM_INVOCATION | API_CALL | ...",
       "displayName": "string (optional)",
+      "checkpoint": { "id": "string", "label": "string", "order": "number (optional)" },
       "stepDefinitionId": "string (optional)",
       "inputMappings": { "target.path": "$.source.json.path" },
       "outputMappings": { "$.target.json.path": "$.source.path" },
@@ -86,6 +87,7 @@ These properties are available on almost every step type.
 | `stepInstanceId`            | `string`               |   Yes    | The unique identifier for this step within the flow. Must match its key in the `steps` object.                                                     |
 | `stepType`                  | `string`               |   Yes    | The type of work this step performs (e.g., `LLM_INVOCATION`, `API_CALL`, `PARALLEL_FORK_MANAGER`). This determines which other properties are valid. |
 | `displayName`               | `string`               |    No    | A human-readable name for this step instance, shown in the UI.                                                                                     |
+| `checkpoint`                | `object`               |    No    | Marks this step as a **progress milestone**. When a flow declares any checkpoints, live execution-progress views measure progress against them instead of raw step counts. See [The `checkpoint` Object](#the-checkpoint-object).                  |
 | `stepDefinitionId`          | `string`               |    No    | The ID of a reusable `StepDefinition`. If provided, this step inherits its properties, which can be overridden by properties in this instance.        |
 | `inputMappings`             | `Record<string, string>` |    No    | Defines how data from the Flow Context is mapped to this step's input. Keys are target paths, values are source JSONPaths.                        |
 | `outputMappings`            | `Record<string, string>` |    No    | Defines how data from this step's output is merged back into the Flow Context. Keys are target JSONPaths, values are source JSONPaths.            |
@@ -102,6 +104,37 @@ These properties are available on almost every step type.
 | `retryOnContentError`    | `object`  | Configures fast, internal retries for content errors (e.g., malformed JSON from an LLM). Contains `count`.                                          |
 | `fallbackStepInstanceId` | `string`  | The `stepInstanceId` to jump to if the step fails permanently after all retries. The flow continues instead of failing.                              |
 | `continueOnFailure`      | `boolean` | If `true`, ignores the error and proceeds to the `defaultNextStepInstanceId`. The step's output will be empty. **Use with caution.**                  |
+
+### The `checkpoint` Object
+
+A `checkpoint` tags a step as a **meaningful milestone** so that live progress reflects business stages (e.g. "Extracting documents") instead of every micro-step. The checkpoint travels *with* the step, so the set of checkpoints — and therefore the progress denominator — is derived from the flow definition automatically; there is no separate list to keep in sync when you add, remove, reorder, or clone steps.
+
+| Property | Type     | Required | Description                                                                                                                            |
+| -------- | -------- | :------: | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`     | `string` |   Yes    | Stable identifier for this milestone. Clients map it to their own status text, so keep it stable across edits.                          |
+| `label`  | `string` |   Yes    | Human-readable milestone shown in progress views.                                                                                       |
+| `order`  | `number` |    No    | Non-negative integer used for **monotonic** progress and a stable "stage N of M" label. Re-entering an earlier step never moves the bar backward. |
+
+**How progress is derived:**
+
+- If a flow declares **no** checkpoints, progress is the **step count** (`completedStepCount / totalStepCount`) — honest but noisy (a 5 ms step advances it as much as a 5 min step).
+- If a flow declares **one or more** checkpoints, progress is measured against those milestones, and `progressPercent` / `currentCheckpoint` reflect the milestone reached. This is the readable experience — tag a handful of steps on the common path.
+- Progress is **monotonic** (tracks the highest `order` reached, so loops don't rewind the bar) and is **clamped to 100%** on terminal `COMPLETED`, even if the run never hit the highest-ordered checkpoint.
+- Place checkpoints on the **common path**: conditional branches that skip a checkpoint simply jump the bar forward, which is author-controlled and acceptable.
+
+**Example — tagging a step as a checkpoint:**
+
+```json
+"extract_documents": {
+  "stepInstanceId": "extract_documents",
+  "stepType": "LLM_INVOCATION",
+  "displayName": "Extract Documents",
+  "checkpoint": { "id": "extract", "label": "Extracting documents", "order": 2 },
+  "defaultNextStepInstanceId": "next_step"
+}
+```
+
+Checkpoints feed the [Execution Monitoring `/progress` endpoint](./admin-api/execution-monitoring-api.md#get-execution-progress) and the [`CHECKPOINT` lifecycle events](./execution-status-notifications.md) delivered to the application that triggered the flow.
 
 ### The `onCompletionActions` Array
 
