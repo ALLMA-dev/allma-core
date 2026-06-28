@@ -13,3 +13,4 @@ export * from './misc.js';
 export * from './start-points.js';
 export * from './mcp-call.js';
 export * from './file-download.js';
+export * from './module-config-registry.js';
