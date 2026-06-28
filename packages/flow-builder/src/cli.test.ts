@@ -46,9 +46,27 @@ describe('cli commands', () => {
   });
 
   it('harvestCatalogIds collects ids from an export-shaped JSON object', () => {
-    const catalog: Catalog = { flowIds: new Set(), promptTemplateIds: new Set(), stepDefinitionIds: new Set() };
-    harvestCatalogIds({ flows: [{ id: 'f1' }], promptTemplates: [{ id: 'p1' }], stepDefinitions: [{ id: 's1' }] }, catalog);
-    expect([...catalog.flowIds, ...catalog.promptTemplateIds, ...catalog.stepDefinitionIds]).toEqual(['f1', 'p1', 's1']);
+    const catalog: Catalog = {
+      flowIds: new Set(),
+      promptTemplateIds: new Set(),
+      stepDefinitionIds: new Set(),
+      mcpConnectionIds: new Set(),
+    };
+    harvestCatalogIds(
+      {
+        flows: [{ id: 'f1' }],
+        promptTemplates: [{ id: 'p1' }],
+        stepDefinitions: [{ id: 's1' }],
+        mcpConnections: [{ id: 'm1' }],
+      },
+      catalog,
+    );
+    expect([
+      ...catalog.flowIds,
+      ...catalog.promptTemplateIds,
+      ...catalog.stepDefinitionIds,
+      ...catalog.mcpConnectionIds,
+    ]).toEqual(['f1', 'p1', 's1', 'm1']);
   });
 
   it('round-trips through a discardable empty-start guard', () => {

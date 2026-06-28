@@ -16,6 +16,34 @@ export class FlowBuildError extends Error {
   }
 }
 
+/**
+ * Thrown by a non-flow artifact's `build()` (prompt / step definition / MCP
+ * connection) when it fails its authoring gate, aggregating all issues. The
+ * flow-specific {@link FlowBuildError} stays separate for backward compatibility.
+ */
+export class ArtifactBuildError extends Error {
+  readonly kind: string;
+  readonly id: string;
+  readonly issues: string[];
+  constructor(kind: string, id: string, issues: string[]) {
+    super(
+      `${kind} '${id}' failed validation with ${issues.length} issue(s):\n` +
+        issues.map((i) => `  - ${i}`).join('\n'),
+    );
+    this.name = 'ArtifactBuildError';
+    this.kind = kind;
+    this.id = id;
+    this.issues = issues;
+  }
+}
+
+/** Parses `value` against `schema`, returning prefixed issue strings (empty on success). */
+export function collectSchemaIssues(schema: z.ZodTypeAny, value: unknown, prefix: string): string[] {
+  const result = schema.safeParse(value);
+  if (result.success) return [];
+  return formatZodIssues(result.error, prefix);
+}
+
 /** Renders Zod issues with a leading context prefix and a dotted field path. */
 function formatZodIssues(error: z.ZodError, prefix: string): string[] {
   return error.issues.map((issue) => {

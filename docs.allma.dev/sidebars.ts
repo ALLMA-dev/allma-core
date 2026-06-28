@@ -44,6 +44,7 @@ const sidebars: SidebarsConfig = {
         'how-to-guides/orchestrating-parallel-workloads',
         'how-to-guides/managing-long-running-processes',
         'how-to-guides/advanced-error-handling',
+        'how-to-guides/authoring-flows-in-code',
       ],
     },
     {
@@ -52,6 +53,7 @@ const sidebars: SidebarsConfig = {
       collapsed: true,
       items: [
         'reference/flow-definition-reference',
+        'reference/flow-builder-reference',
         'reference/execution-status-notifications',
         {
           type: 'category',

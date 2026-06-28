@@ -10,7 +10,7 @@ import { isExternal } from './external.js';
  * artifact or is explicitly wrapped in `external(...)`.
  */
 
-export type ReferenceKind = 'flow' | 'prompt' | 'stepDefinition';
+export type ReferenceKind = 'flow' | 'prompt' | 'stepDefinition' | 'mcpConnection';
 
 /** A single cross-artifact reference found in a flow. */
 export interface ArtifactReference {
@@ -25,6 +25,7 @@ export interface Catalog {
   flowIds: Set<string>;
   promptTemplateIds: Set<string>;
   stepDefinitionIds: Set<string>;
+  mcpConnectionIds: Set<string>;
 }
 
 /** A reference that resolved to neither a known artifact nor an `external(...)` marker. */
@@ -49,12 +50,18 @@ export function collectFlowReferences(flow: FlowAuthoringFormat): ArtifactRefere
     push('flow', 'flowDefinitionId');
     push('prompt', 'promptTemplateId');
     push('stepDefinition', 'stepDefinitionId');
+    push('mcpConnection', 'mcpConnectionId');
   }
   return refs;
 }
 
 function emptyCatalog(): Catalog {
-  return { flowIds: new Set(), promptTemplateIds: new Set(), stepDefinitionIds: new Set() };
+  return {
+    flowIds: new Set(),
+    promptTemplateIds: new Set(),
+    stepDefinitionIds: new Set(),
+    mcpConnectionIds: new Set(),
+  };
 }
 
 /**
@@ -71,12 +78,14 @@ export function resolveReferences(
   for (const id of known.flowIds ?? []) catalog.flowIds.add(id);
   for (const id of known.promptTemplateIds ?? []) catalog.promptTemplateIds.add(id);
   for (const id of known.stepDefinitionIds ?? []) catalog.stepDefinitionIds.add(id);
+  for (const id of known.mcpConnectionIds ?? []) catalog.mcpConnectionIds.add(id);
   for (const flow of flows) catalog.flowIds.add(flow.id);
 
   const setFor: Record<ReferenceKind, Set<string>> = {
     flow: catalog.flowIds,
     prompt: catalog.promptTemplateIds,
     stepDefinition: catalog.stepDefinitionIds,
+    mcpConnection: catalog.mcpConnectionIds,
   };
 
   const issues: ResolutionIssue[] = [];
