@@ -72,6 +72,32 @@ describe('FlowDefinitionSchema backward compatibility', () => {
   });
 });
 
+describe('authoringSource marker', () => {
+  it('defaults to "visual" so existing flows are unchanged', () => {
+    const parsed = FlowAuthoringSchema.parse(authoringFlow()) as { authoringSource: string };
+    expect(parsed.authoringSource).toBe('visual');
+  });
+
+  it('accepts an explicit "code" marker (what the builder stamps)', () => {
+    const parsed = FlowAuthoringSchema.parse({ ...authoringFlow(), authoringSource: 'code' }) as {
+      authoringSource: string;
+    };
+    expect(parsed.authoringSource).toBe('code');
+  });
+
+  it('rejects an unknown authoringSource value', () => {
+    const result = FlowAuthoringSchema.safeParse({ ...authoringFlow(), authoringSource: 'gui' });
+    expect(result.success).toBe(false);
+  });
+
+  it('round-trips on the full FlowDefinitionSchema too', () => {
+    const parsed = FlowDefinitionSchema.parse({ ...fullFlow(), authoringSource: 'code' }) as {
+      authoringSource: string;
+    };
+    expect(parsed.authoringSource).toBe('code');
+  });
+});
+
 describe('applyFlowImportDefaults', () => {
   const now = '2026-06-28T12:00:00.000Z';
 
