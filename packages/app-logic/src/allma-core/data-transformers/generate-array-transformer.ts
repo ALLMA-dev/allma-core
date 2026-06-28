@@ -1,9 +1,9 @@
-import { StepHandler, StepHandlerOutput, StepDefinition } from '@allma/core-types';
-import { z } from 'zod';
-
-const GenerateArrayInputSchema = z.object({
-  count: z.number().int().min(0),
-});
+import {
+  StepHandler,
+  StepHandlerOutput,
+  StepDefinition,
+  GenerateArrayCustomConfigSchema as GenerateArrayInputSchema,
+} from '@allma/core-types';
 
 export const executeGenerateArrayTransformer: StepHandler = async (
   stepDefinition: StepDefinition,

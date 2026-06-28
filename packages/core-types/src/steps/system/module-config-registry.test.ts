@@ -87,8 +87,10 @@ describe('getSystemModuleConfigSchema', () => {
     expect(getSystemModuleConfigSchema(SystemModuleIdentifiers.S3_DATA_LOADER)).toBeInstanceOf(z.ZodType);
   });
 
-  it('returns undefined for an acknowledged-gap module', () => {
-    expect(getSystemModuleConfigSchema(SystemModuleIdentifiers.ARRAY_AGGREGATOR)).toBeUndefined();
+  it('returns a schema for every now-centralized module (no acknowledged gaps remain)', () => {
+    expect(SYSTEM_MODULES_WITHOUT_CONFIG_SCHEMA).toHaveLength(0);
+    // ARRAY_AGGREGATOR was an acknowledged gap in Phase 0; it is now centralized.
+    expect(getSystemModuleConfigSchema(SystemModuleIdentifiers.ARRAY_AGGREGATOR)).toBeInstanceOf(z.ZodType);
   });
 
   it('returns undefined for an unknown/consumer module and for empty input', () => {
@@ -132,14 +134,9 @@ describe('collectCustomConfigWarnings (warn-mode validator)', () => {
     expect(warnings[0].issues[0]).toHaveProperty('message');
   });
 
-  it('never warns for opaque modules (acknowledged gap, consumer-defined, or no moduleIdentifier)', () => {
+  it('never warns for opaque modules (consumer-defined or no moduleIdentifier)', () => {
     const warnings = collectCustomConfigWarnings({
       steps: {
-        aggregate: {
-          stepInstanceId: 'aggregate',
-          moduleIdentifier: SystemModuleIdentifiers.ARRAY_AGGREGATOR,
-          customConfig: { anything: 'goes', because: 'no centralized schema' },
-        },
         consumer: {
           stepInstanceId: 'consumer',
           moduleIdentifier: 'consumer/proprietary',

@@ -4,6 +4,19 @@ import { SystemModuleIdentifiers, type SystemModuleIdentifier } from '../system-
 import { S3DataLoaderCustomConfigSchema } from './s3-loader.js';
 import { S3DataSaverCustomConfigSchema } from './s3-saver.js';
 import { DynamoDBLoaderCustomConfigSchema } from './dynamodb-loader.js';
+import { DdbQueryToS3ManifestCustomConfigSchema } from './ddb-query-to-s3-manifest.js';
+import { S3ListFilesCustomConfigSchema } from './s3-list-files.js';
+import { SqsGetQueueAttributesCustomConfigSchema, SqsReceiveMessagesCustomConfigSchema } from './sqs-modules.js';
+import { DynamoDBQueryAndUpdateCustomConfigSchema, DynamoDBUpdateItemCustomConfigSchema } from './dynamodb-savers.js';
+import {
+  ArrayAggregatorCustomConfigSchema,
+  ComposeObjectFromInputCustomConfigSchema,
+  DateTimeCalculatorCustomConfigSchema,
+  FlattenArrayCustomConfigSchema,
+  GenerateArrayCustomConfigSchema,
+  JoinDataCustomConfigSchema,
+  GenerateUuidCustomConfigSchema,
+} from './data-transformers.js';
 
 /**
  * The step types whose configuration is carried in a free-form `customConfig`
@@ -36,32 +49,33 @@ export const SYSTEM_MODULE_CONFIG_SCHEMAS = {
   [SystemModuleIdentifiers.S3_DATA_LOADER]: S3DataLoaderCustomConfigSchema,
   [SystemModuleIdentifiers.DYNAMODB_DATA_LOADER]: DynamoDBLoaderCustomConfigSchema,
   [SystemModuleIdentifiers.S3_DATA_SAVER]: S3DataSaverCustomConfigSchema,
+  [SystemModuleIdentifiers.DDB_QUERY_TO_S3_MANIFEST]: DdbQueryToS3ManifestCustomConfigSchema,
+  [SystemModuleIdentifiers.S3_LIST_FILES]: S3ListFilesCustomConfigSchema,
+  [SystemModuleIdentifiers.SQS_GET_QUEUE_ATTRIBUTES]: SqsGetQueueAttributesCustomConfigSchema,
+  [SystemModuleIdentifiers.SQS_RECEIVE_MESSAGES]: SqsReceiveMessagesCustomConfigSchema,
+  [SystemModuleIdentifiers.DYNAMODB_QUERY_AND_UPDATE]: DynamoDBQueryAndUpdateCustomConfigSchema,
+  [SystemModuleIdentifiers.DYNAMODB_UPDATE_ITEM]: DynamoDBUpdateItemCustomConfigSchema,
+  [SystemModuleIdentifiers.ARRAY_AGGREGATOR]: ArrayAggregatorCustomConfigSchema,
+  [SystemModuleIdentifiers.COMPOSE_OBJECT_FROM_INPUT]: ComposeObjectFromInputCustomConfigSchema,
+  [SystemModuleIdentifiers.DATE_TIME_CALCULATOR]: DateTimeCalculatorCustomConfigSchema,
+  [SystemModuleIdentifiers.FLATTEN_ARRAY]: FlattenArrayCustomConfigSchema,
+  [SystemModuleIdentifiers.GENERATE_ARRAY]: GenerateArrayCustomConfigSchema,
+  [SystemModuleIdentifiers.JOIN_DATA]: JoinDataCustomConfigSchema,
+  [SystemModuleIdentifiers.GENERATE_UUID]: GenerateUuidCustomConfigSchema,
 } satisfies Partial<Record<SystemModuleIdentifier, z.ZodTypeAny>>;
 
 /**
  * System modules used by a module-config step type whose `customConfig` schema
- * is **not yet centralized** in `@allma/core-types` (it currently lives inside
- * `allma-app-logic`). Listing them explicitly keeps them opaque to the registry
- * validator while making the completeness test meaningful: a newly added system
- * module (or step type) that is neither registered in
- * {@link SYSTEM_MODULE_CONFIG_SCHEMAS} nor acknowledged here fails CI, forcing a
- * deliberate decision rather than silently skipping validation.
+ * is **not yet centralized** in `@allma/core-types`. This list is now empty:
+ * every system module's config schema has been centralized into
+ * {@link SYSTEM_MODULE_CONFIG_SCHEMAS}. The export is retained so the
+ * completeness test keeps enforcing the invariant — a newly added system module
+ * (or step type) that is neither registered nor acknowledged here fails CI,
+ * forcing a deliberate decision rather than silently skipping validation. Add a
+ * module here only as a temporary, deliberate exception when its schema genuinely
+ * cannot live in `@allma/core-types` (e.g. an unavoidable third-party dependency).
  */
-export const SYSTEM_MODULES_WITHOUT_CONFIG_SCHEMA: readonly SystemModuleIdentifier[] = [
-  SystemModuleIdentifiers.DDB_QUERY_TO_S3_MANIFEST,
-  SystemModuleIdentifiers.S3_LIST_FILES,
-  SystemModuleIdentifiers.SQS_GET_QUEUE_ATTRIBUTES,
-  SystemModuleIdentifiers.SQS_RECEIVE_MESSAGES,
-  SystemModuleIdentifiers.DYNAMODB_QUERY_AND_UPDATE,
-  SystemModuleIdentifiers.DYNAMODB_UPDATE_ITEM,
-  SystemModuleIdentifiers.ARRAY_AGGREGATOR,
-  SystemModuleIdentifiers.COMPOSE_OBJECT_FROM_INPUT,
-  SystemModuleIdentifiers.DATE_TIME_CALCULATOR,
-  SystemModuleIdentifiers.FLATTEN_ARRAY,
-  SystemModuleIdentifiers.GENERATE_ARRAY,
-  SystemModuleIdentifiers.JOIN_DATA,
-  SystemModuleIdentifiers.GENERATE_UUID,
-];
+export const SYSTEM_MODULES_WITHOUT_CONFIG_SCHEMA: readonly SystemModuleIdentifier[] = [];
 
 /**
  * Returns the registered `customConfig` schema for a system `moduleIdentifier`,

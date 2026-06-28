@@ -1,23 +1,16 @@
 // packages/allma-app-logic/src/allma-core/data-loaders/sqs-receive-messages.ts
 import { SQSClient, ReceiveMessageCommand, DeleteMessageBatchCommand } from '@aws-sdk/client-sqs';
-import { z } from 'zod';
 import {
     FlowRuntimeState,
     StepHandler,
     StepHandlerOutput,
     TransientStepError,
-    StepDefinition
+    StepDefinition,
+    SqsReceiveMessagesCustomConfigSchema as SqsReceiveConfigSchema,
 } from '@allma/core-types';
 import { log_error, log_info } from '@allma/core-sdk';
 
 const sqsClient = new SQSClient({});
-
-const SqsReceiveConfigSchema = z.object({
-    queueUrl: z.string().url(),
-    maxNumberOfMessages: z.coerce.number().int().min(1).max(10).optional().default(10),
-    waitTimeSeconds: z.coerce.number().int().min(0).max(20).optional().default(0),
-    deleteMessages: z.boolean().optional().default(true),
-});
 
 /**
  * A standard StepHandler for receiving messages from an SQS queue.

@@ -1,5 +1,4 @@
 import { S3Client, ListObjectsV2Command, _Object } from '@aws-sdk/client-s3';
-import { z } from 'zod';
 import {
     FlowRuntimeState,
     StepHandler,
@@ -7,17 +6,11 @@ import {
     TransientStepError,
     StepDefinition,
     S3OutputPointerWrapper,
+    S3ListFilesCustomConfigSchema as S3ListFilesInputSchema,
 } from '@allma/core-types';
 import { log_error, log_info, log_debug } from '@allma/core-sdk';
 
 const s3Client = new S3Client({});
-
-// Local Zod schema for validating the combined input for this specific module.
-const S3ListFilesInputSchema = z.object({
-    bucket: z.string().min(1, 'S3 bucket name is required.'),
-    prefix: z.string().optional(),
-    maxKeys: z.number().int().positive().optional(),
-});
 
 /**
  * A standard StepHandler for listing files from an S3 bucket and prefix.

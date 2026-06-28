@@ -1,62 +1,16 @@
-import { z } from 'zod';
 import {
   FlowRuntimeState,
   PermanentStepError,
   StepDefinition,
   StepHandler,
   StepHandlerOutput,
+  JoinDataCustomConfigSchema as JoinDataInputSchema,
 } from '@allma/core-types';
 import { log_error, log_info, log_debug } from '@allma/core-sdk';
 
-// NEW: Schema for defining a mapping between a left and right key.
-const JoinKeyMappingSchema = z.object({
-  left: z.string().min(1, 'Left key name cannot be empty.'),
-  right: z.string().min(1, 'Right key name cannot be empty.'),
-});
-
-// MODIFIED: The main input schema is updated to support both old and new key definitions.
-const JoinDataInputSchema = z
-  .object({
-    left_source: z.any().describe('The first dataset to join. Provided via Input Mappings. Can be a JSON array or a raw CSV string.'),
-    left_format: z.enum(['csv', 'json']).describe('The format of the left data source.'),
-    right_source: z.any().describe('The second dataset to join. Provided via Input Mappings.'),
-    right_format: z.enum(['csv', 'json']).describe('The format of the right data source.'),
-    join_keys: z.array(z.string()).min(1).optional().describe('For simple joins. An array of column names to join on that are IDENTICAL in both datasets (e.g., ["user_id"]).'),
-    key_mappings: z.array(JoinKeyMappingSchema).min(1).optional().describe('For advanced joins. An array of objects for mapping keys with DIFFERENT names (e.g., [{ "left": "manager_id", "right": "id" }]).'),
-    join_type: z.enum(['inner', 'left', 'right', 'outer']).describe('The type of join to perform.'),
-    right_select_columns: z.array(z.string()).optional().nullable().describe('Optional array of column names from the right dataset to include in the output. If empty, all non-key columns are included.'),
-    output_format: z.enum(['csv', 'json']).describe('The desired format for the joined data.'),
-  })
-  // NEW: Refinement to ensure either `join_keys` or `key_mappings` is provided, but not both.
-  .refine(
-    (data) => !!data.join_keys !== !!data.key_mappings, // XOR logic
-    {
-      message: 'Exactly one of `join_keys` (for same-name keys) or `key_mappings` (for different-name keys) must be provided.',
-      path: ['join_keys'], // Report error on one of the fields for clarity.
-    },
-  )
-  .refine(
-    (data) => {
-      if (data.left_format === 'csv') return typeof data.left_source === 'string';
-      if (data.left_format === 'json') return Array.isArray(data.left_source);
-      return false;
-    },
-    {
-      message: 'left_source data type does not match left_format. Expected string for csv, array for json.',
-      path: ['left_source'],
-    },
-  )
-  .refine(
-    (data) => {
-      if (data.right_format === 'csv') return typeof data.right_source === 'string';
-      if (data.right_format === 'json') return Array.isArray(data.right_source);
-      return false;
-    },
-    {
-      message: 'right_source data type does not match right_format. Expected string for csv, array for json.',
-      path: ['right_source'],
-    },
-  );
+// Config schema (including JoinKeyMappingSchema and the join_keys/key_mappings
+// XOR + format refinements) is centralized in `@allma/core-types`
+// (JoinDataCustomConfigSchema), imported above as JoinDataInputSchema.
 
 /**
  * Parses a single line of a CSV file, handling quoted fields.

@@ -1,7 +1,7 @@
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, QueryCommand, QueryCommandInput, QueryCommandOutput } from '@aws-sdk/lib-dynamodb';
-import { z } from 'zod';
+import { DdbQueryToS3ManifestCustomConfigSchema as DdbQueryToS3ManifestConfigSchema } from '@allma/core-types';
 import { v4 as uuidv4 } from 'uuid';
 import {
     StepHandler,
@@ -18,24 +18,8 @@ const ddbDocClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const s3Client = new S3Client({});
 const EXECUTION_TRACES_BUCKET_NAME = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME];
 
-// This Zod schema validates the structure of the `stepInput` object
-// that is expected for this specific module.
-const DdbQueryToS3ManifestConfigSchema = z.object({
-    query: z.object({
-        tableName: z.string().min(1, "tableName is required."),
-        indexName: z.string().min(1, "indexName is required.").optional(),
-        keyConditionExpression: z.string().min(1, "keyConditionExpression is required."),
-        expressionAttributeValues: z.record(z.union([z.string(), z.number(), z.boolean()])),
-        expressionAttributeNames: z.record(z.string()).optional(),
-        filterExpression: z.string().min(1).optional(),
-        projectionExpression: z.string().min(1).optional(),
-    }),
-    destination: z.object({
-        bucketName: z.string().min(1, "destination bucketName is required."),
-        key: z.string().min(1, "destination key is required."),
-    }),
-    enableItemOffloading: z.boolean().optional().default(false),
-});
+// Config schema is centralized in `@allma/core-types`
+// (DdbQueryToS3ManifestCustomConfigSchema), imported above.
 
 export const handleDdbQueryToS3Manifest: StepHandler = async (stepDef: any, stepInput: Record<string, any>, runtimeState: FlowRuntimeState) => {
     const stepInstance = stepDef as StepInstance;

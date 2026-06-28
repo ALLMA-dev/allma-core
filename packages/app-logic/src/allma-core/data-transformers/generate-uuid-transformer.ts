@@ -1,11 +1,10 @@
-import { z } from 'zod';
 import { randomUUID } from 'crypto';
-import { StepHandler, StepHandlerOutput, StepDefinition } from '@allma/core-types';
-
-const GenerateUuidInputSchema = z.object({
-  prefix: z.string().optional().default(''),
-  suffix: z.string().optional().default(''),
-});
+import {
+  StepHandler,
+  StepHandlerOutput,
+  StepDefinition,
+  GenerateUuidCustomConfigSchema as GenerateUuidInputSchema,
+} from '@allma/core-types';
 
 /**
  * A data transformation module that generates a unique UUID (v4).
