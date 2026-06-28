@@ -7,6 +7,11 @@
 export { defineFlow, STABLE_EXPORTED_AT } from './define-flow.js';
 export type { FlowBuilder, DefineFlowOptions } from './define-flow.js';
 
+export { Flow } from './flow-class.js';
+
+export { jp } from './jp.js';
+export type { JsonPath, Comparable, Jp } from './jp.js';
+
 export type { StepDraft, StepRef, OnErrorInput, Checkpoint, Position } from './step.js';
 
 export * from './factories.js';
