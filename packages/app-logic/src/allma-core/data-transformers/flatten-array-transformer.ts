@@ -1,10 +1,9 @@
-import { z } from 'zod';
-import { StepHandler, StepHandlerOutput, StepDefinition } from '@allma/core-types';
-
-const FlattenArrayInputSchema = z.object({
-  array: z.array(z.any()).describe("The array to process."),
-  path: z.string().min(1).optional().describe("If provided, the property name to extract from each object in the input array. If the extracted value is an array, its elements will be flattened into the result. If it's a single value, it will be added directly."),
-});
+import {
+  StepHandler,
+  StepHandlerOutput,
+  StepDefinition,
+  FlattenArrayCustomConfigSchema as FlattenArrayInputSchema,
+} from '@allma/core-types';
 
 export const executeFlattenArrayTransformer: StepHandler = async (
   stepDefinition: StepDefinition,

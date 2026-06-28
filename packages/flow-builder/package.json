@@ -1,18 +1,22 @@
 {
-  "name": "@allma/core-types",
-  "version": "1.5.0",
-  "description": "Shared TypeScript types, interfaces, and Zod schemas for the Allma serverless AI orchestration platform.",
+  "name": "@allma/flow-builder",
+  "version": "0.1.0",
+  "description": "TypeScript builder and CLI for authoring Allma flow definitions as code, with compile-time type safety and a deterministic JSON artifact.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
   "files": [
     "dist"
   ],
+  "bin": {
+    "allma-flows": "dist/cli/allma-flows.js"
+  },
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "type-cost": "node scripts/type-cost-guard.mjs"
   },
   "author": "@webjema",
   "license": "Apache-2.0",
@@ -20,15 +24,16 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/ALLMA-dev/allma-core.git",
-    "directory": "packages/core-types"
+    "directory": "packages/flow-builder"
   },
   "keywords": [
     "allma",
-    "types",
+    "flow",
+    "builder",
+    "dsl",
+    "flows-as-code",
     "typescript",
-    "interfaces",
     "zod",
-    "schemas",
     "serverless",
     "ai",
     "orchestration"
@@ -36,9 +41,14 @@
   "publishConfig": {
     "access": "public"
   },
+  "dependencies": {
+    "@allma/core-sdk": "^1.0.11",
+    "@allma/core-types": "^1.5.0"
+  },
   "devDependencies": {
-    "typescript": "^5.9.3",
+    "@types/node": "^20.0.0",
     "eslint": "^9.8.0",
+    "typescript": "^5.9.3",
     "typescript-eslint": "^8.0.0",
     "vitest": "^1.2.0",
     "zod": "^3.22.4"

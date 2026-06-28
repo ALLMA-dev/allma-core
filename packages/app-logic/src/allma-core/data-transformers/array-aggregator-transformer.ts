@@ -1,12 +1,10 @@
-import { z } from 'zod';
-import { StepHandler, StepHandlerOutput, StepDefinition } from '@allma/core-types';
+import {
+  StepHandler,
+  StepHandlerOutput,
+  StepDefinition,
+  ArrayAggregatorCustomConfigSchema as ArrayAggregatorInputSchema,
+} from '@allma/core-types';
 import { log_warn } from '@allma/core-sdk';
-
-const ArrayAggregatorInputSchema = z.object({
-  array: z.array(z.any()),
-  path: z.string().optional().describe("A simple property name to extract numeric/boolean values from objects in the array."),
-  operation: z.enum(['min', 'max', 'sum', 'avg']),
-});
 
 export const executeArrayAggregatorTransformer: StepHandler = async (
   stepDefinition: StepDefinition,

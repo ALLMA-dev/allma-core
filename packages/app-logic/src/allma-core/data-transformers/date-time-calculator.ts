@@ -1,15 +1,10 @@
-import { z } from 'zod';
-import { StepHandler, StepHandlerOutput, StepDefinition } from '@allma/core-types';
+import {
+  StepHandler,
+  StepHandlerOutput,
+  StepDefinition,
+  DateTimeCalculatorCustomConfigSchema as DateTimeCalculatorInputSchema,
+} from '@allma/core-types';
 import { log_error } from '@allma/core-sdk';
-
-/**
- * Zod schema for validating the input to the date-time-calculator module.
- */
-const DateTimeCalculatorInputSchema = z.object({
-  baseTime: z.string().datetime({ message: "baseTime must be a valid ISO 8601 string." }),
-  offsetSeconds: z.number({ required_error: "offsetSeconds (number) is required." }),
-  operation: z.enum(['add', 'subtract'], { required_error: "operation must be 'add' or 'subtract'." }),
-});
 
 /**
  * A data transformation module that adds or subtracts a specified number of seconds

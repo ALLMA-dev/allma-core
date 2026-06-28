@@ -1,10 +1,10 @@
-import { AllmaExportFormat, ImportApiResponse, StepDefinitionSchema, FlowDefinitionSchema, PromptTemplateSchema, McpConnectionSchema, StepDefinition, FlowDefinition, AgentSchema, Agent } from '@allma/core-types';
+import { AllmaExportFormat, ImportApiResponse, StepDefinitionSchema, FlowDefinitionSchema, PromptTemplateSchema, McpConnectionSchema, StepDefinition, FlowDefinition, AgentSchema, Agent, applyFlowImportDefaults, collectCustomConfigWarnings } from '@allma/core-types';
 import { FlowDefinitionService } from '../allma-admin/services/flow-definition.service.js';
 import { StepDefinitionService } from '../allma-admin/services/step-definition.service.js';
 import { PromptTemplateService } from '../allma-admin/services/prompt-template.service.js';
 import { McpConnectionService } from '../allma-admin/services/mcp-connection.service.js';
 import { AgentService } from '../allma-admin/services/agent.service.js';
-import { validateAllmaConfig, ValidationResult } from '@allma/core-sdk';
+import { validateAllmaConfig, ValidationResult, log_warn } from '@allma/core-sdk';
 
 export class AllmaImporterService {
   /**
@@ -103,7 +103,23 @@ export class AllmaImporterService {
             // Re-parse the flow object.
             // It ensures that optional fields with defaults (like `flowVariables`) are
             // correctly initialized on the object before it's passed to any service.
-            const parsedFlow = FlowDefinitionSchema.parse(flow) as FlowDefinition;
+            // Authoring-format flows omit the server-owned `createdAt`/`updatedAt`
+            // fields; stamp them (and default `version`) at import time so they pass
+            // the full schema. Full flows already carrying these are unchanged.
+            const stampedFlow = applyFlowImportDefaults(flow as Record<string, unknown>, new Date().toISOString());
+            const parsedFlow = FlowDefinitionSchema.parse(stampedFlow) as FlowDefinition;
+
+            // Non-fatal warn-mode lint (Flows-as-Code Phase 0): validate each step's
+            // `customConfig` against the module-config registry and log any mismatches.
+            // This never throws and never blocks import; enforcement is a later phase.
+            const customConfigWarnings = collectCustomConfigWarnings(parsedFlow);
+            if (customConfigWarnings.length > 0) {
+              log_warn(
+                'Flow import: one or more steps have a customConfig that does not match its module schema. Non-fatal; the flow was still imported.',
+                { flowId: parsedFlow.id, flowVersion: parsedFlow.version, warnings: customConfigWarnings },
+                parsedFlow.id,
+              );
+            }
 
             const existingMaster = await FlowDefinitionService.getMaster(parsedFlow.id);
             if (existingMaster) {

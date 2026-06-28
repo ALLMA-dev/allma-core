@@ -1,34 +1,16 @@
 import { DynamoDBClient, DescribeTableCommand } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
-import { z } from 'zod';
-import { FlowRuntimeState, StepHandler, StepHandlerOutput, TransientStepError, StepDefinition } from '@allma/core-types';
+import {
+  FlowRuntimeState,
+  StepHandler,
+  StepHandlerOutput,
+  TransientStepError,
+  StepDefinition,
+  DynamoDBQueryAndUpdateCustomConfigSchema as DynamoDBQueryAndUpdateConfigSchema,
+} from '@allma/core-types';
 import { log_error, log_info, log_debug, log_warn } from '@allma/core-sdk';
 
 const ddbDocClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
-
-// Defines the schema for the customConfig of this specific step.
-const DynamoDBQueryAndUpdateConfigSchema = z.object({
-  query: z.object({
-    tableName: z.string().min(1),
-    // NEW: Optional array of primary key attribute names for performance.
-    keyAttributes: z.array(z.string()).min(1).optional(),
-    indexName: z.string().min(1).optional(),
-    keyConditionExpression: z.string().min(1),
-    expressionAttributeValues: z.record(z.any()),
-    expressionAttributeNames: z.record(z.string()).optional(),
-    filterExpression: z.string().min(1).optional(),
-    // Limit the number of items to query (and attempt to update).
-    // This also protects against overly large transactions.
-    limit: z.number().int().min(1).max(1000000).default(100),
-  }),
-  update: z.object({
-    updateExpression: z.string().min(1),
-    expressionAttributeNames: z.record(z.string()).optional(),
-    expressionAttributeValues: z.record(z.any()).optional(),
-    // Optional, user-provided condition to add to the per-item update check.
-    conditionExpression: z.string().optional(),
-  }),
-});
 
 /**
  * A system module that atomically finds items via a query and applies an update to them.
