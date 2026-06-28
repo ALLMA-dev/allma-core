@@ -48,6 +48,7 @@ vi.mock('../../../../src/api/flowService.js', () => ({
   useGetFlowConfig: () => getFlowConfig(),
   useUpdateFlowVersion: () => ({ mutate: vi.fn(), isPending: false }),
   useUnpublishFlowVersion: () => ({ mutate: vi.fn(), isPending: false }),
+  useUnlockFlowForVisualEditing: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 // Editor store: a controlled, deterministic state seeded per test.
@@ -92,6 +93,8 @@ describe('FlowEditorPage read-only enforcement', () => {
     // Viewing + Sandbox stay available: the canvas still mounts.
     expect(screen.getByTestId('flow-canvas')).toBeInTheDocument();
     expect(screen.getByTestId('step-editor-panel')).toBeInTheDocument();
+    // The one-way ownership-transfer affordance is offered.
+    expect(screen.getByRole('button', { name: /Unlock for visual editing/i })).toBeInTheDocument();
   });
 
   it('keeps a draft, editor-owned flow fully editable (Save shown, no banner)', () => {
