@@ -108,6 +108,8 @@ class FlowBuilderImpl implements FlowBuilder {
       version: this.options.version ?? 1,
       startStepInstanceId: this.startStep ? this.startStep.id : '',
       steps,
+      // Self-mark as code-owned (RFC §6): the Visual Editor opens these read-only.
+      authoringSource: 'code',
     };
     if (this.options.name !== undefined) flow.name = this.options.name;
     if (this.options.description !== undefined) flow.description = this.options.description;
