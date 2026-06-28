@@ -22,3 +22,6 @@ export { stableStringify, sortKeysDeep } from './serialize.js';
 
 export { collectFlowReferences, resolveReferences } from './catalog.js';
 export type { Catalog, ArtifactReference, ReferenceKind, ResolutionIssue } from './catalog.js';
+
+export { ejectFlow, flowToBuilderSpec, renderBuilderSource } from './eject.js';
+export type { EjectOptions, BuilderSpec } from './eject.js';
