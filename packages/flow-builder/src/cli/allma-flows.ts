@@ -19,13 +19,18 @@
 import { readdir, readFile, writeFile, mkdir, stat } from 'node:fs/promises';
 import { join, resolve, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type { FlowBuilder } from '../define-flow.js';
-import { buildArtifacts, checkArtifacts, harvestCatalogIds } from './commands.js';
+import { buildArtifacts, checkArtifacts, harvestCatalogIds, type ArtifactExporter } from './commands.js';
 import type { Catalog } from '../catalog.js';
 import { ejectFlow } from '../eject.js';
 import { detectDrift, type DeployedFlow, type LocalCodeFlow } from '../drift.js';
+import {
+  planDeploy,
+  executeDeploy,
+  type DeployAdapter,
+  type ImportResultSummary,
+} from '../deploy.js';
 import { ALLMA_ADMIN_API_VERSION, ALLMA_ADMIN_API_ROUTES } from '@allma/core-types';
-import type { FlowAuthoringFormat } from '@allma/core-types';
+import type { AllmaExportFormat, FlowAuthoringFormat } from '@allma/core-types';
 
 /**
  * Builds a `fetchDeployed` adapter that reads a flow version from the admin API.
@@ -47,6 +52,41 @@ function makeRemoteFetcher(baseUrl: string, token: string | undefined) {
       return (body as { data: DeployedFlow }).data;
     }
     return body as DeployedFlow;
+  };
+}
+
+/**
+ * Builds the {@link DeployAdapter} that promotes artifacts via the admin API.
+ * Bulk import goes to `/v1/allma/import`; publishing uses the flow version-publish
+ * route. Auth is a bearer token from `ALLMA_ADMIN_TOKEN` (no service-account auth
+ * exists yet — a human admin token is used for CI), mirroring `makeRemoteFetcher`.
+ */
+function makeDeployAdapter(baseUrl: string, token: string | undefined): DeployAdapter {
+  const root = baseUrl.replace(/\/$/, '');
+  const authHeaders: Record<string, string> = {
+    'content-type': 'application/json',
+    ...(token ? { authorization: `Bearer ${token}` } : {}),
+  };
+  return {
+    importConfig: async (payload, options): Promise<ImportResultSummary> => {
+      const url = `${root}/${ALLMA_ADMIN_API_VERSION}${ALLMA_ADMIN_API_ROUTES.IMPORT}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ ...payload, options }),
+      });
+      if (!res.ok) throw new Error(`admin API ${res.status} importing to ${url}`);
+      const body = (await res.json()) as { data?: ImportResultSummary } | ImportResultSummary;
+      if (body && typeof body === 'object' && 'data' in body && (body as { data?: ImportResultSummary }).data) {
+        return (body as { data: ImportResultSummary }).data;
+      }
+      return body as ImportResultSummary;
+    },
+    publishFlow: async (flowId, version): Promise<void> => {
+      const url = `${root}/${ALLMA_ADMIN_API_VERSION}${ALLMA_ADMIN_API_ROUTES.FLOW_VERSION_PUBLISH(flowId, version)}`;
+      const res = await fetch(url, { method: 'POST', headers: authHeaders });
+      if (!res.ok) throw new Error(`admin API ${res.status} publishing ${flowId} v${version} at ${url}`);
+    },
   };
 }
 
@@ -104,20 +144,27 @@ async function findFiles(pattern: string): Promise<string[]> {
   return out.sort();
 }
 
-async function loadBuilders(files: string[]): Promise<FlowBuilder[]> {
-  const builders: FlowBuilder[] = [];
+async function loadExporters(files: string[]): Promise<ArtifactExporter[]> {
+  const exporters: ArtifactExporter[] = [];
   for (const file of files) {
-    const mod = (await import(pathToFileURL(file).href)) as { default?: FlowBuilder };
+    const mod = (await import(pathToFileURL(file).href)) as { default?: ArtifactExporter };
     if (!mod.default || typeof mod.default.toExport !== 'function') {
-      throw new Error(`${file} does not 'export default' a flow builder (defineFlow(...)).`);
+      throw new Error(
+        `${file} does not 'export default' a flow builder or artifact (defineFlow/definePrompt/defineStep/defineMcpConnection(...)).`,
+      );
     }
-    builders.push(mod.default);
+    exporters.push(mod.default);
   }
-  return builders;
+  return exporters;
 }
 
 async function loadKnownCatalog(pattern: string | undefined): Promise<Partial<Catalog>> {
-  const catalog: Catalog = { flowIds: new Set(), promptTemplateIds: new Set(), stepDefinitionIds: new Set() };
+  const catalog: Catalog = {
+    flowIds: new Set(),
+    promptTemplateIds: new Set(),
+    stepDefinitionIds: new Set(),
+    mcpConnectionIds: new Set(),
+  };
   if (!pattern) return catalog;
   for (const file of await findFiles(pattern)) {
     if (!file.endsWith('.json')) continue;
@@ -140,8 +187,8 @@ async function runBuild(args: ParsedArgs): Promise<number> {
     console.error(`No flow files matched '${args.pattern}'.`);
     return 1;
   }
-  const builders = await loadBuilders(files);
-  const artifacts = buildArtifacts(builders, args.flags['exported-at']);
+  const exporters = await loadExporters(files);
+  const artifacts = buildArtifacts(exporters, args.flags['exported-at']);
   const outDir = resolve(args.flags.out);
   await mkdir(outDir, { recursive: true });
   for (const artifact of artifacts) {
@@ -162,9 +209,9 @@ async function runCheck(args: ParsedArgs): Promise<number> {
     console.error(`No flow files matched '${args.pattern}'.`);
     return 1;
   }
-  const builders = await loadBuilders(files);
+  const exporters = await loadExporters(files);
   const known = await loadKnownCatalog(args.flags.known);
-  const { validationIssues, resolutionIssues } = checkArtifacts(builders, known);
+  const { validationIssues, resolutionIssues } = checkArtifacts(exporters, known);
 
   let failed = false;
   for (const issue of validationIssues) {
@@ -178,10 +225,9 @@ async function runCheck(args: ParsedArgs): Promise<number> {
 
   // Out-of-band drift guard: compare each code-owned flow against the deployed copy.
   if (args.flags.remote) {
-    const local: LocalCodeFlow[] = builders.map((builder) => {
-      const flow = (builder.toExport().flows ?? [])[0] as FlowAuthoringFormat;
-      return { flowId: flow.id, version: flow.version, flow };
-    });
+    const local: LocalCodeFlow[] = exporters
+      .flatMap((exporter) => (exporter.toExport().flows ?? []) as FlowAuthoringFormat[])
+      .map((flow) => ({ flowId: flow.id, version: flow.version, flow }));
     const fetchDeployed = makeRemoteFetcher(args.flags.remote, process.env.ALLMA_ADMIN_TOKEN);
     try {
       for (const issue of await detectDrift(local, fetchDeployed)) {
@@ -197,7 +243,7 @@ async function runCheck(args: ParsedArgs): Promise<number> {
   // Drift check: when --out is given, regenerated JSON must equal committed JSON.
   if (args.flags.out) {
     const outDir = resolve(args.flags.out);
-    for (const artifact of buildArtifacts(builders, args.flags['exported-at'])) {
+    for (const artifact of buildArtifacts(exporters, args.flags['exported-at'])) {
       const target = join(outDir, artifact.fileName);
       let committed: string | undefined;
       try {
@@ -216,7 +262,7 @@ async function runCheck(args: ParsedArgs): Promise<number> {
   }
 
   if (failed) return 1;
-  console.log(`✓ ${builders.length} flow(s) valid.`);
+  console.log(`✓ ${exporters.length} artifact(s) valid.`);
   return 0;
 }
 
@@ -269,6 +315,48 @@ async function runEject(args: ParsedArgs): Promise<number> {
   return 0;
 }
 
+async function runDeploy(args: ParsedArgs): Promise<number> {
+  if (!args.pattern || !args.flags.remote) {
+    console.error(
+      'Usage: allma-flows deploy "<glob>" --remote <baseUrl> [--publish] [--overwrite false]',
+    );
+    return 2;
+  }
+  const files = await findFiles(args.pattern);
+  if (files.length === 0) {
+    console.error(`No artifact files matched '${args.pattern}'.`);
+    return 1;
+  }
+  const exporters = await loadExporters(files);
+  const envelopes: AllmaExportFormat[] = exporters.map((exporter) => exporter.toExport());
+  const plan = planDeploy(envelopes, {
+    overwrite: args.flags.overwrite ? args.flags.overwrite !== 'false' : true,
+    publish: args.flags.publish === 'true',
+  });
+
+  const adapter = makeDeployAdapter(args.flags.remote, process.env.ALLMA_ADMIN_TOKEN);
+  const result = await executeDeploy(plan, adapter);
+
+  const errors = result.import.errors ?? [];
+  for (const err of errors) {
+    console.error(`✗ import (${err.type} '${err.id}'): ${err.message}`);
+  }
+  const tally = (label: string, rec: Record<string, number> | undefined): void => {
+    const entries = Object.entries(rec ?? {}).filter(([, n]) => n > 0);
+    if (entries.length > 0) console.log(`  ${label}: ${entries.map(([k, n]) => `${k}=${n}`).join(', ')}`);
+  };
+  tally('created', result.import.created);
+  tally('updated', result.import.updated);
+  tally('skipped', result.import.skipped);
+  for (const target of result.published) {
+    console.log(`✓ published ${target.flowId} v${target.version}`);
+  }
+
+  if (errors.length > 0) return 1;
+  console.log(`✓ deployed ${envelopes.length} artifact(s).`);
+  return 0;
+}
+
 async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
   switch (args.command) {
@@ -278,8 +366,10 @@ async function main(): Promise<number> {
       return runCheck(args);
     case 'eject':
       return runEject(args);
+    case 'deploy':
+      return runDeploy(args);
     default:
-      console.error('Usage: allma-flows <build|check|eject> "<glob>" [options]');
+      console.error('Usage: allma-flows <build|check|eject|deploy> "<glob>" [options]');
       return 2;
   }
 }

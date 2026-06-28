@@ -8,6 +8,6 @@
     "incremental": false,
     "noEmit": true
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.typetest.ts"]
+  "include": ["src/**/*.typetest.ts", "src/typed-context.ts", "src/jp.ts"],
+  "exclude": ["node_modules", "dist"]
 }

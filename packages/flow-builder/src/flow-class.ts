@@ -24,12 +24,19 @@ import {
  * ```
  */
 export class Flow {
+  /** Discriminates this as a flow handle (a typed `FlowRef`). */
+  readonly kind = 'flow' as const;
   private readonly options: DefineFlowOptions;
   private readonly stepMap = new Map<string, Step>();
   private startStep: Step | undefined;
 
   constructor(options: DefineFlowOptions) {
     this.options = options;
+  }
+
+  /** The flow's stable id — makes the instance usable as a typed `FlowRef`. */
+  get id(): string {
+    return this.options.id;
   }
 
   /**
