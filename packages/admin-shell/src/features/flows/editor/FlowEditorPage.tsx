@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Button, Group, Alert, ActionIcon, Tooltip, Paper, Stack, Title, Badge, Text, Modal } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconAlertCircle, IconDeviceFloppy, IconLock, IconLayoutSidebarLeftCollapse, IconPlus, IconDownloadOff } from '@tabler/icons-react';
+import { IconAlertCircle, IconDeviceFloppy, IconLock, IconLayoutSidebarLeftCollapse, IconPlus, IconDownloadOff, IconCode } from '@tabler/icons-react';
 import { ReactFlowProvider, useReactFlow } from 'reactflow';
 
 import { PageContainer, CopyableText } from '@allma/ui-components';
@@ -15,6 +15,7 @@ import { StepPalette } from './components/editor-panel/StepPalette';
 import { StepEditorPanel } from './components/editor-panel/StepEditorPanel';
 import { EdgeEditorPanel } from './components/editor-panel/EdgeEditorPanel';
 import { useGetFlowConfig } from '../../../api/flowService';
+import { resolveEditorReadOnly } from './read-only';
 
 function FlowEditorPageContent() {
   const { flowId, version } = useParams<{ flowId: string, version: string }>();
@@ -152,7 +153,7 @@ function FlowEditorPageContent() {
   
   // --- END: Coordinated Panel Handlers ---
   
-  const isReadOnly = flowFromStore?.isPublished;
+  const { readOnly: isReadOnly, reason: readOnlyReason, isCodeOwned } = resolveEditorReadOnly(flowFromStore);
 
   const titleComponent = (
     <Stack gap={0} align="flex-start">
@@ -160,9 +161,14 @@ function FlowEditorPageContent() {
         <Title order={2}>
             {isReadOnly ? `Viewing Flow: ${flowFromStore?.name || '...'}` : `Editing Flow: ${flowFromStore?.name || '...'}`}
         </Title>
-        {isReadOnly && (
+        {readOnlyReason === 'published' && (
             <Tooltip label="This version is published and cannot be edited directly. Unpublish or create a new version to make changes." withArrow>
                 <Badge color="orange" variant="light" leftSection={<IconLock size={12} />} style={{ cursor: 'help' }}>Read-Only</Badge>
+            </Tooltip>
+        )}
+        {isCodeOwned && (
+            <Tooltip label="This flow is managed in code. Edit the source and redeploy, or unlock it for visual editing." withArrow>
+                <Badge color="blue" variant="light" leftSection={<IconCode size={12} />} style={{ cursor: 'help' }}>Managed in code</Badge>
             </Tooltip>
         )}
       </Group>
@@ -177,11 +183,11 @@ function FlowEditorPageContent() {
       breadcrumb={<FlowsBreadcrumbs flowId={flowId} flowName={flowFromStore?.name} isEditing />}
       rightSection={
         <Group>
-          {isReadOnly ? (
+          {readOnlyReason === 'published' ? (
             <>
-                <Button 
-                    variant="subtle" 
-                    color="orange" 
+                <Button
+                    variant="subtle"
+                    color="orange"
                     leftSection={<IconDownloadOff size="1rem" />}
                     onClick={openUnpublishModal}
                     loading={unpublishMutation.isPending}
@@ -192,6 +198,10 @@ function FlowEditorPageContent() {
                     Back to Versions
                 </Button>
             </>
+          ) : readOnlyReason === 'code' ? (
+            <Button variant="default" onClick={handleClose}>
+                Back to Versions
+            </Button>
           ) : (
             <>
                 <Button
@@ -219,7 +229,14 @@ function FlowEditorPageContent() {
       loading={isLoading || !flowFromStore}
     >
       {error && <Alert color="red" title="Failed to load flow" icon={<IconAlertCircle />}>{error.message}</Alert>}
-      
+
+      {isCodeOwned && (
+        <Alert color="blue" title="Managed in code" icon={<IconCode size={16} />} mb="sm">
+          This flow is managed in code. Edit the source and redeploy. You can still view it and run
+          steps in the Sandbox here. To take over editing in the canvas, unlock it for visual editing.
+        </Alert>
+      )}
+
       {flowFromStore && (
         <Box style={{ 
           height: `calc(100vh - ${isReadOnly ? 24 : 24}vh)`, // Adjusted height since Alert is gone

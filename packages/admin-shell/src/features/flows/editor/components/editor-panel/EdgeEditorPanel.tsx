@@ -5,6 +5,7 @@ import { IconDeviceFloppy, IconTrash, IconX } from '@tabler/icons-react';
 import { useMemo } from 'react';
 import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
+import { resolveEditorReadOnly } from '../../read-only';
 
 interface EdgeEditorPanelProps {
     selectedEdgeId: string | null;
@@ -38,7 +39,7 @@ export function EdgeEditorPanel({ selectedEdgeId, onClose }: EdgeEditorPanelProp
     }
 
     const { data: edgeData, source, target } = selectedEdge;
-    const isReadOnly = flowDefinition?.isPublished ?? false;
+    const isReadOnly = resolveEditorReadOnly(flowDefinition).readOnly;
     const isConditional = edgeData?.edgeType === 'conditional';
     
     const sourceNode = nodes.find(n => n.id === source);
