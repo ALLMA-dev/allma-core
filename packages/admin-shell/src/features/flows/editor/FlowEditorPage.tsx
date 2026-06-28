@@ -6,7 +6,7 @@ import { IconAlertCircle, IconDeviceFloppy, IconLock, IconLayoutSidebarLeftColla
 import { ReactFlowProvider, useReactFlow } from 'reactflow';
 
 import { PageContainer, CopyableText } from '@allma/ui-components';
-import { useGetFlowByVersion, useUpdateFlowVersion, useUnpublishFlowVersion } from '../../../api/flowService';
+import { useGetFlowByVersion, useUpdateFlowVersion, useUnpublishFlowVersion, useUnlockFlowForVisualEditing } from '../../../api/flowService';
 import useFlowEditorStore from './hooks/useFlowEditorStore';
 import { flowDefinitionToElements } from './flow-utils';
 import { FlowCanvas } from './components/FlowCanvas';
@@ -30,9 +30,11 @@ function FlowEditorPageContent() {
   
   const updateFlowMutation = useUpdateFlowVersion();
   const unpublishMutation = useUnpublishFlowVersion();
+  const unlockMutation = useUnlockFlowForVisualEditing();
 
   const [paletteVisible, { close: closePalette, toggle: togglePalette }] = useDisclosure(false);
   const [unpublishModalOpened, { open: openUnpublishModal, close: closeUnpublishModal }] = useDisclosure(false);
+  const [unlockModalOpened, { open: openUnlockModal, close: closeUnlockModal }] = useDisclosure(false);
   
   // State for the right panel
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -102,6 +104,15 @@ function FlowEditorPageContent() {
                     // causing this component to re-render with the updated isPublished status.
                 }
             }
+        );
+    }
+  };
+
+  const handleUnlock = () => {
+    if (flowFromStore) {
+        unlockMutation.mutate(
+            { flowDef: flowFromStore },
+            { onSuccess: () => closeUnlockModal() },
         );
     }
   };
@@ -199,9 +210,20 @@ function FlowEditorPageContent() {
                 </Button>
             </>
           ) : readOnlyReason === 'code' ? (
-            <Button variant="default" onClick={handleClose}>
-                Back to Versions
-            </Button>
+            <>
+                <Button
+                    variant="subtle"
+                    color="blue"
+                    leftSection={<IconCode size="1rem" />}
+                    onClick={openUnlockModal}
+                    loading={unlockMutation.isPending}
+                >
+                    Unlock for visual editing
+                </Button>
+                <Button variant="default" onClick={handleClose}>
+                    Back to Versions
+                </Button>
+            </>
           ) : (
             <>
                 <Button
@@ -312,6 +334,16 @@ function FlowEditorPageContent() {
         <Group justify="flex-end" mt="xl">
             <Button variant="default" onClick={closeUnpublishModal}>Cancel</Button>
             <Button color="orange" onClick={handleUnpublish} loading={unpublishMutation.isPending}>Unpublish</Button>
+        </Group>
+      </Modal>
+
+      {/* Unlock-for-visual-editing Confirmation Modal */}
+      <Modal opened={unlockModalOpened} onClose={closeUnlockModal} title="Unlock for visual editing" centered>
+        <Text>This flow is currently managed in code. Unlocking hands ownership to the Visual Editor so you can edit <Text span fw={700}>version {flowFromStore?.version}</Text> in the canvas.</Text>
+        <Text c="dimmed" size="sm" mt="sm">This is a one-way transfer: the next deploy of the code source will report drift until you re-eject the flow or remove it from code. Continue?</Text>
+        <Group justify="flex-end" mt="xl">
+            <Button variant="default" onClick={closeUnlockModal}>Cancel</Button>
+            <Button color="blue" onClick={handleUnlock} loading={unlockMutation.isPending}>Unlock</Button>
         </Group>
       </Modal>
     </PageContainer>

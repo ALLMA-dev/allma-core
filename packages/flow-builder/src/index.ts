@@ -25,3 +25,6 @@ export type { Catalog, ArtifactReference, ReferenceKind, ResolutionIssue } from 
 
 export { ejectFlow, flowToBuilderSpec, renderBuilderSource } from './eject.js';
 export type { EjectOptions, BuilderSpec } from './eject.js';
+
+export { detectDrift } from './drift.js';
+export type { DriftIssue, LocalCodeFlow, DeployedFlow, FetchDeployed } from './drift.js';
