@@ -121,6 +121,10 @@ export interface DefineFlowOptions {
 
 /** The fluent builder returned by {@link defineFlow}. */
 export interface FlowBuilder {
+  /** The flow's stable id — makes a builder usable as a typed {@link FlowRef}. */
+  readonly id: string;
+  /** Discriminates this as a flow handle (so it can't be passed where a prompt ref is expected). */
+  readonly kind: 'flow';
   /** Phase 1: declare steps; returns a typed record of refs keyed by the same keys. */
   steps<M extends Record<string, StepDraft>>(map: M): { [K in keyof M]: StepRef };
   /** Set the flow's start step. */
@@ -132,6 +136,7 @@ export interface FlowBuilder {
 }
 
 class FlowBuilderImpl implements FlowBuilder {
+  readonly kind = 'flow' as const;
   private readonly options: DefineFlowOptions;
   private readonly stepMap = new Map<string, Step>();
   private startStep: Step | undefined;
@@ -139,6 +144,10 @@ class FlowBuilderImpl implements FlowBuilder {
 
   constructor(options: DefineFlowOptions) {
     this.options = options;
+  }
+
+  get id(): string {
+    return this.options.id;
   }
 
   steps<M extends Record<string, StepDraft>>(map: M): { [K in keyof M]: StepRef } {
