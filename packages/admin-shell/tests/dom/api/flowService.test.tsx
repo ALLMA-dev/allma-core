@@ -12,11 +12,13 @@ vi.mock('@mantine/notifications', () => ({ notifications: { show: vi.fn() } }));
 
 import axiosInstance from '../../../src/api/axiosInstance.js';
 import { notifications } from '@mantine/notifications';
-import { useGetFlows, useGetFlowConfig, useCreateFlow } from '../../../src/api/flowService.js';
+import { useGetFlows, useGetFlowConfig, useCreateFlow, useUnlockFlowForVisualEditing } from '../../../src/api/flowService.js';
+import type { FlowDefinition } from '@allma/core-types';
 import { createHookWrapper, apiOk, apiFail } from '../../_helpers/query.js';
 
 const mockGet = vi.mocked(axiosInstance.get);
 const mockPost = vi.mocked(axiosInstance.post);
+const mockPut = vi.mocked(axiosInstance.put);
 const mockNotify = vi.mocked(notifications.show);
 
 const V = ALLMA_ADMIN_API_VERSION;
@@ -92,6 +94,44 @@ describe('useCreateFlow', () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(mockNotify).toHaveBeenCalledWith(
       expect.objectContaining({ title: 'Creation Failed', color: 'red' }),
+    );
+  });
+});
+
+describe('useUnlockFlowForVisualEditing', () => {
+  const codeFlow = {
+    id: 'flow-1',
+    version: 2,
+    authoringSource: 'code',
+    startStepInstanceId: 'a',
+    steps: {},
+  } as unknown as FlowDefinition;
+
+  it('PUTs the version with authoringSource flipped to visual and unwraps the result', async () => {
+    mockPut.mockResolvedValue(apiOk({ ...codeFlow, authoringSource: 'visual' }));
+
+    const { result } = renderHook(() => useUnlockFlowForVisualEditing(), { wrapper: createHookWrapper() });
+    result.current.mutate({ flowDef: codeFlow });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(mockPut).toHaveBeenCalledWith(
+      `/${V}${R.FLOW_VERSION_DETAIL('flow-1', 2)}`,
+      expect.objectContaining({ id: 'flow-1', version: 2, authoringSource: 'visual' }),
+    );
+    expect(mockNotify).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Unlocked for visual editing', color: 'blue' }),
+    );
+  });
+
+  it('surfaces an error notification when the unlock fails', async () => {
+    mockPut.mockResolvedValue(apiFail('nope'));
+
+    const { result } = renderHook(() => useUnlockFlowForVisualEditing(), { wrapper: createHookWrapper() });
+    result.current.mutate({ flowDef: codeFlow });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(mockNotify).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Unlock Failed', color: 'red' }),
     );
   });
 });

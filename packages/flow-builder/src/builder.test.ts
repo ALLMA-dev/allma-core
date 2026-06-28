@@ -60,6 +60,13 @@ describe('build() round-trip', () => {
     expect(FlowDefinitionSchema.safeParse(imported).success).toBe(true);
   });
 
+  it('stamps authoringSource="code" so the editor opens it read-only (RFC §6)', () => {
+    const flow = buildExampleFlow().build();
+    expect(flow.authoringSource).toBe('code');
+    const exported = buildExampleFlow().toExport();
+    expect((exported.flows![0] as Record<string, unknown>).authoringSource).toBe('code');
+  });
+
   it('resolves ref-based wiring to ids and sets the start step', () => {
     const flow = buildExampleFlow().build();
     expect(flow.startStepInstanceId).toBe('load');

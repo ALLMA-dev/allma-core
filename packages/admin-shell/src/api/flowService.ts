@@ -252,6 +252,37 @@ export const useUpdateFlowVersion = () => {
     });
 };
 
+/**
+ * Flips a code-owned flow's `authoringSource` back to `'visual'`, handing
+ * ownership from code to the Visual Editor (Flows-as-Code RFC §6). This is the
+ * explicit, one-way "unlock for visual editing" action: it PUTs the version with
+ * the marker changed, and the flip is itself the persisted, diffable record of
+ * the transfer. After it succeeds the editor re-renders editable.
+ */
+export const useUnlockFlowForVisualEditing = () => {
+    const queryClient = useQueryClient();
+    return useMutation<FlowDefinition, Error, { flowDef: FlowDefinition }>({
+        mutationFn: async ({ flowDef }) => {
+            const flowDataToSave: FlowDefinition = { ...flowDef, authoringSource: 'visual' };
+            const response = await axiosInstance.put<AdminApiResponse<FlowDefinition>>(
+                `/${ALLMA_ADMIN_API_VERSION}${ALLMA_ADMIN_API_ROUTES.FLOW_VERSION_DETAIL(flowDataToSave.id, flowDataToSave.version)}`,
+                flowDataToSave
+            );
+            if (response.data.success) return response.data.data;
+            throw new Error(response.data.error?.message || 'Failed to unlock flow for visual editing');
+        },
+        onSuccess: (data) => {
+            queryClient.invalidateQueries({ queryKey: ['flowVersions', data.id] });
+            queryClient.invalidateQueries({ queryKey: ['flowConfig', data.id] });
+            queryClient.setQueryData(['flowDetail', data.id, String(data.version)], data);
+            notifications.show({ title: 'Unlocked for visual editing', message: `Version ${data.version} is now editable in the canvas. It is no longer managed in code.`, color: 'blue', icon: checkIcon });
+        },
+        onError: (error: unknown) => {
+            showErrorNotification('Unlock Failed', error);
+        }
+    });
+};
+
 export const usePublishFlowVersion = () => {
   const queryClient = useQueryClient();
   return useMutation({

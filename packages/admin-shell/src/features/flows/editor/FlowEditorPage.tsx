@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Button, Group, Alert, ActionIcon, Tooltip, Paper, Stack, Title, Badge, Text, Modal } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconAlertCircle, IconDeviceFloppy, IconLock, IconLayoutSidebarLeftCollapse, IconPlus, IconDownloadOff } from '@tabler/icons-react';
+import { IconAlertCircle, IconDeviceFloppy, IconLock, IconLayoutSidebarLeftCollapse, IconPlus, IconDownloadOff, IconCode } from '@tabler/icons-react';
 import { ReactFlowProvider, useReactFlow } from 'reactflow';
 
 import { PageContainer, CopyableText } from '@allma/ui-components';
-import { useGetFlowByVersion, useUpdateFlowVersion, useUnpublishFlowVersion } from '../../../api/flowService';
+import { useGetFlowByVersion, useUpdateFlowVersion, useUnpublishFlowVersion, useUnlockFlowForVisualEditing } from '../../../api/flowService';
 import useFlowEditorStore from './hooks/useFlowEditorStore';
 import { flowDefinitionToElements } from './flow-utils';
 import { FlowCanvas } from './components/FlowCanvas';
@@ -15,6 +15,7 @@ import { StepPalette } from './components/editor-panel/StepPalette';
 import { StepEditorPanel } from './components/editor-panel/StepEditorPanel';
 import { EdgeEditorPanel } from './components/editor-panel/EdgeEditorPanel';
 import { useGetFlowConfig } from '../../../api/flowService';
+import { resolveEditorReadOnly } from './read-only';
 
 function FlowEditorPageContent() {
   const { flowId, version } = useParams<{ flowId: string, version: string }>();
@@ -29,9 +30,11 @@ function FlowEditorPageContent() {
   
   const updateFlowMutation = useUpdateFlowVersion();
   const unpublishMutation = useUnpublishFlowVersion();
+  const unlockMutation = useUnlockFlowForVisualEditing();
 
   const [paletteVisible, { close: closePalette, toggle: togglePalette }] = useDisclosure(false);
   const [unpublishModalOpened, { open: openUnpublishModal, close: closeUnpublishModal }] = useDisclosure(false);
+  const [unlockModalOpened, { open: openUnlockModal, close: closeUnlockModal }] = useDisclosure(false);
   
   // State for the right panel
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -105,6 +108,15 @@ function FlowEditorPageContent() {
     }
   };
 
+  const handleUnlock = () => {
+    if (flowFromStore) {
+        unlockMutation.mutate(
+            { flowDef: flowFromStore },
+            { onSuccess: () => closeUnlockModal() },
+        );
+    }
+  };
+
   // --- Coordinated Panel Handlers ---
 
   const handleNodeSelect = (nodeId: string | null) => {
@@ -152,7 +164,7 @@ function FlowEditorPageContent() {
   
   // --- END: Coordinated Panel Handlers ---
   
-  const isReadOnly = flowFromStore?.isPublished;
+  const { readOnly: isReadOnly, reason: readOnlyReason, isCodeOwned } = resolveEditorReadOnly(flowFromStore);
 
   const titleComponent = (
     <Stack gap={0} align="flex-start">
@@ -160,9 +172,14 @@ function FlowEditorPageContent() {
         <Title order={2}>
             {isReadOnly ? `Viewing Flow: ${flowFromStore?.name || '...'}` : `Editing Flow: ${flowFromStore?.name || '...'}`}
         </Title>
-        {isReadOnly && (
+        {readOnlyReason === 'published' && (
             <Tooltip label="This version is published and cannot be edited directly. Unpublish or create a new version to make changes." withArrow>
                 <Badge color="orange" variant="light" leftSection={<IconLock size={12} />} style={{ cursor: 'help' }}>Read-Only</Badge>
+            </Tooltip>
+        )}
+        {isCodeOwned && (
+            <Tooltip label="This flow is managed in code. Edit the source and redeploy, or unlock it for visual editing." withArrow>
+                <Badge color="blue" variant="light" leftSection={<IconCode size={12} />} style={{ cursor: 'help' }}>Managed in code</Badge>
             </Tooltip>
         )}
       </Group>
@@ -177,16 +194,31 @@ function FlowEditorPageContent() {
       breadcrumb={<FlowsBreadcrumbs flowId={flowId} flowName={flowFromStore?.name} isEditing />}
       rightSection={
         <Group>
-          {isReadOnly ? (
+          {readOnlyReason === 'published' ? (
             <>
-                <Button 
-                    variant="subtle" 
-                    color="orange" 
+                <Button
+                    variant="subtle"
+                    color="orange"
                     leftSection={<IconDownloadOff size="1rem" />}
                     onClick={openUnpublishModal}
                     loading={unpublishMutation.isPending}
                 >
                     Unpublish
+                </Button>
+                <Button variant="default" onClick={handleClose}>
+                    Back to Versions
+                </Button>
+            </>
+          ) : readOnlyReason === 'code' ? (
+            <>
+                <Button
+                    variant="subtle"
+                    color="blue"
+                    leftSection={<IconCode size="1rem" />}
+                    onClick={openUnlockModal}
+                    loading={unlockMutation.isPending}
+                >
+                    Unlock for visual editing
                 </Button>
                 <Button variant="default" onClick={handleClose}>
                     Back to Versions
@@ -219,7 +251,14 @@ function FlowEditorPageContent() {
       loading={isLoading || !flowFromStore}
     >
       {error && <Alert color="red" title="Failed to load flow" icon={<IconAlertCircle />}>{error.message}</Alert>}
-      
+
+      {isCodeOwned && (
+        <Alert color="blue" title="Managed in code" icon={<IconCode size={16} />} mb="sm">
+          This flow is managed in code. Edit the source and redeploy. You can still view it and run
+          steps in the Sandbox here. To take over editing in the canvas, unlock it for visual editing.
+        </Alert>
+      )}
+
       {flowFromStore && (
         <Box style={{ 
           height: `calc(100vh - ${isReadOnly ? 24 : 24}vh)`, // Adjusted height since Alert is gone
@@ -295,6 +334,16 @@ function FlowEditorPageContent() {
         <Group justify="flex-end" mt="xl">
             <Button variant="default" onClick={closeUnpublishModal}>Cancel</Button>
             <Button color="orange" onClick={handleUnpublish} loading={unpublishMutation.isPending}>Unpublish</Button>
+        </Group>
+      </Modal>
+
+      {/* Unlock-for-visual-editing Confirmation Modal */}
+      <Modal opened={unlockModalOpened} onClose={closeUnlockModal} title="Unlock for visual editing" centered>
+        <Text>This flow is currently managed in code. Unlocking hands ownership to the Visual Editor so you can edit <Text span fw={700}>version {flowFromStore?.version}</Text> in the canvas.</Text>
+        <Text c="dimmed" size="sm" mt="sm">This is a one-way transfer: the next deploy of the code source will report drift until you re-eject the flow or remove it from code. Continue?</Text>
+        <Group justify="flex-end" mt="xl">
+            <Button variant="default" onClick={closeUnlockModal}>Cancel</Button>
+            <Button color="blue" onClick={handleUnlock} loading={unlockMutation.isPending}>Unlock</Button>
         </Group>
       </Modal>
     </PageContainer>

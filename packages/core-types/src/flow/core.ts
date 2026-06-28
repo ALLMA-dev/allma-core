@@ -56,6 +56,12 @@ export type FlowDefinition = {
         defaultErrorHandler?: StepErrorHandler;
     } | null;
     onCompletionActions?: OnCompletionAction[];
+    /**
+     * Which authoring surface owns this flow. `'code'` flows are managed by the
+     * `@allma/flow-builder` toolchain and the Visual Editor opens them read-only;
+     * `'visual'` (the default for existing flows) are editor-owned. See RFC §6.
+     */
+    authoringSource?: 'code' | 'visual';
     createdAt: string;
     updatedAt: string;
     publishedAt?: string | null;
@@ -85,6 +91,8 @@ export type FlowAuthoringFormat = {
         defaultErrorHandler?: StepErrorHandler;
     } | null;
     onCompletionActions?: OnCompletionAction[];
+    /** See {@link FlowDefinition.authoringSource}. The builder stamps `'code'`. */
+    authoringSource?: 'code' | 'visual';
     // Accommodate passthrough fields
     [key: string]: any;
 };
@@ -170,6 +178,7 @@ const FlowDefinitionObjectSchema = z.object({
     defaultErrorHandler: StepErrorHandlerSchema.optional(),
   }).optional().nullable(),
   onCompletionActions: z.array(OnCompletionActionSchema).optional(),
+  authoringSource: z.enum(['code', 'visual']).optional().default('visual'),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
   publishedAt: z.string().datetime().nullable().optional(),

@@ -21,6 +21,7 @@ import { UnifiedStepDefinition } from '../../../../api/stepDefinitionService';
 import { IconPlayerPlay, IconTrash } from '@tabler/icons-react';
 import { calculateSmartEdgeConnection } from './custom-nodes/hooks/useSmartEdge';
 import { StepInstance } from '@allma/core-types';
+import { resolveEditorReadOnly } from '../read-only';
 
 const nodeTypes = { stepNode: BaseStepNode };
 const edgeTypes = { conditionalEdge: ConditionalEdge };
@@ -50,7 +51,7 @@ export function FlowCanvas({ onNodeClick, onEdgeClick, onPaneClick, onNodeDouble
   
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
 
-  const isReadOnly = flowDefinition?.isPublished ?? false;
+  const isReadOnly = resolveEditorReadOnly(flowDefinition).readOnly;
 
   const memoizedNodeTypes = useMemo(() => nodeTypes, []);
   const memoizedEdgeTypes = useMemo(() => edgeTypes, []);
