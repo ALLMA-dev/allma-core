@@ -39,6 +39,34 @@ const SFN_INLINE_PAYLOAD_LIMIT_BYTES = 100 * 1024;
 const GLOBAL_MAX_CONCURRENCY_STR = process.env[ENV_VAR_NAMES.MAX_CONCURRENT_STEP_EXECUTIONS];
 const GLOBAL_MAX_CONCURRENCY = GLOBAL_MAX_CONCURRENCY_STR ? parseInt(GLOBAL_MAX_CONCURRENCY_STR, 10) : 20;
 
+// Bounded concurrency for resolving branch outputs during aggregation. An unbounded Promise.all over
+// a Distributed Map's branches would hydrate every branch's full context into memory simultaneously,
+// exhausting the aggregator lambda; we cap how many are resolved at once instead.
+const DEFAULT_AGGREGATION_RESOLVE_CONCURRENCY = 10;
+const MAX_AGGREGATION_RESOLVE_CONCURRENCY = 20;
+
+/**
+ * Maps over `items`, running at most `limit` async tasks concurrently and preserving input order in
+ * the result. Used to bound how many branch contexts are materialized in memory at once during
+ * parallel aggregation.
+ */
+async function mapWithConcurrency<T, R>(
+    items: T[],
+    fn: (item: T, index: number) => Promise<R>,
+    limit: number,
+): Promise<R[]> {
+    const results: R[] = new Array(items.length);
+    const workerCount = Math.min(Math.max(1, limit), items.length || 1);
+    let nextIndex = 0;
+    const worker = async (): Promise<void> => {
+        for (let current = nextIndex++; current < items.length; current = nextIndex++) {
+            results[current] = await fn(items[current], current);
+        }
+    };
+    await Promise.all(Array.from({ length: workerCount }, () => worker()));
+    return results;
+}
+
 function aggregateBranchOutputs(
     branchOutputs: BranchResult[],
     aggregationConfig: AggregationConfig,
@@ -186,7 +214,19 @@ export const handleParallelAggregation = async (
         }
     }
 
-    const resolutionPromises = branchOutputs.map(async (branchResult) => {
+    // Extract the configured dataPath DURING resolution (below), not after. Applying it here — while
+    // each branch's full context is briefly in scope — means only the small extracted value is
+    // retained; the full context is released before the next branch is processed. Combined with the
+    // bounded concurrency below, this keeps the aggregator's memory O(concurrency) instead of
+    // O(branchCount), which is what previously exhausted it. Mirrors aggregateBranchOutputs' own
+    // normalization of `dataPath` (empty / '$.output' => collect the whole branch output).
+    let effectiveDataPath = aggregationConfig.dataPath;
+    if (!effectiveDataPath || effectiveDataPath === '$.output') {
+        effectiveDataPath = '';
+    }
+    const extractsDataPath = effectiveDataPath !== '' && effectiveDataPath !== '$.';
+
+    const resolveBranch = async (branchResult: BranchResult): Promise<BranchResult> => {
         let finalizeOutput = branchResult.output;
 
         // Parse stringified JSON output from SFN RUN_JOB execution if necessary
@@ -255,29 +295,46 @@ export const handleParallelAggregation = async (
                     normalizedOutput = resolvedData.output;
                 }
 
-                let finalOutput = normalizedOutput;
                 if (Object.keys(otherKeys).length > 0) {
                     if (typeof normalizedOutput === 'object' && normalizedOutput !== null && !Array.isArray(normalizedOutput)) {
-                        finalOutput = { ...normalizedOutput, ...otherKeys };
+                        finalizeOutput = { ...normalizedOutput, ...otherKeys };
                     } else {
-                        finalOutput = { content: normalizedOutput, ...otherKeys };
+                        finalizeOutput = { content: normalizedOutput, ...otherKeys };
                     }
+                } else {
+                    finalizeOutput = normalizedOutput;
                 }
-
-                return { ...branchResult, output: finalOutput };
             } catch (e: any) {
                 return { branchId: branchResult.branchId, error: { errorName: 'S3OutputPointerResolutionError', errorMessage: e.message, isRetryable: false } };
             }
         }
 
+        // Extract the dataPath now, while the (potentially large) full context is in scope, so only
+        // the small result survives once this branch returns. A bad path is treated as a branch error,
+        // matching the previous behaviour when extraction lived in aggregateBranchOutputs.
+        if (extractsDataPath) {
+            try {
+                finalizeOutput = JSONPath({ path: effectiveDataPath, json: finalizeOutput, wrap: false });
+            } catch (e: any) {
+                log_warn(`Failed to apply dataPath '${effectiveDataPath}' to a branch output.`, { branchId: branchResult.branchId, error: e.message }, correlationId);
+                return { branchId: branchResult.branchId, error: { errorName: 'DataPathError', errorMessage: `Failed to extract data using path: ${e.message}`, isRetryable: false } };
+            }
+        }
+
         return { ...branchResult, output: finalizeOutput };
-    });
+    };
 
-    const resolvedBranchOutputs = await Promise.all(resolutionPromises);
+    const resolveConcurrency = Math.min(
+        Math.max(1, aggregationConfig.maxConcurrency || DEFAULT_AGGREGATION_RESOLVE_CONCURRENCY),
+        MAX_AGGREGATION_RESOLVE_CONCURRENCY,
+    );
+    const resolvedBranchOutputs = await mapWithConcurrency(branchOutputs, resolveBranch, resolveConcurrency);
 
+    // dataPath extraction has already been applied per branch above, so clear it here to avoid a
+    // second (redundant) extraction pass in aggregateBranchOutputs.
     const aggregationResult = aggregateBranchOutputs(
         resolvedBranchOutputs,
-        aggregationConfig,
+        { ...aggregationConfig, dataPath: undefined },
         runtimeState,
         correlationId
     );
