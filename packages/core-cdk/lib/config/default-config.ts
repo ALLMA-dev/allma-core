@@ -40,6 +40,12 @@ export const defaultConfig: StageConfig = {
   lambdaMemorySizes: {
     default: 256,
     iterativeStepProcessor: 2048,
+    // Initialize/Finalize hold the whole flow context in memory (hydrated from S3 when offloaded)
+    // and re-serialize it, so they need headroom well beyond the 256 MB default. Finalize matches
+    // the step processor since it handles the same fully-accumulated context; Initialize is a touch
+    // lower as initial inputs are typically smaller (but still far above 256 MB for safety).
+    initializeFlow: 1024,
+    finalizeFlow: 2048,
     adminApiHandler: 256,
     flowStartRequestListener: 256,
     crawlerWorker: 3008,

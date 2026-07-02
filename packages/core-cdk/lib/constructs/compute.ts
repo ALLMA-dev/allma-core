@@ -181,7 +181,9 @@ export class AllmaCompute extends Construct {
     }));
 
     // --- InitializeFlowExecutionLambda ---
-    this.initializeFlowLambda = this.createNodejsLambda('InitializeFlowLambda', `AllmaInitializeFlow-${stageConfig.stage}`, 'allma-flows/initialize-flow.js', this.orchestrationLambdaRole, defaultLambdaTimeout, defaultLambdaMemory, commonEnvVars);
+    // Initialize resolves the (possibly S3-offloaded) initial context into memory, so it needs more
+    // than the 256 MB default for large inputs — see lambdaMemorySizes.initializeFlow.
+    this.initializeFlowLambda = this.createNodejsLambda('InitializeFlowLambda', `AllmaInitializeFlow-${stageConfig.stage}`, 'allma-flows/initialize-flow.js', this.orchestrationLambdaRole, defaultLambdaTimeout, stageConfig.lambdaMemorySizes.initializeFlow, commonEnvVars);
 
     // --- IterativeStepProcessorLambda ---
     const iterativeStepProcessorMemory = stageConfig.lambdaMemorySizes.iterativeStepProcessor;
@@ -211,7 +213,10 @@ export class AllmaCompute extends Construct {
     );
 
     // --- FinalizeFlowExecutionLambda ---
-    this.finalizeFlowLambda = this.createNodejsLambda('FinalizeFlowLambda', `AllmaFinalizeFlow-${stageConfig.stage}`, 'allma-flows/finalize-flow.js', this.orchestrationLambdaRole, defaultLambdaTimeout, defaultLambdaMemory, commonEnvVars);
+    // Finalize hydrates the entire (possibly S3-offloaded) flow context and re-serializes it, doing
+    // the same context-materialization the step processor does — so it is provisioned to match,
+    // not left at the 256 MB default (which caused Runtime.OutOfMemory). See lambdaMemorySizes.finalizeFlow.
+    this.finalizeFlowLambda = this.createNodejsLambda('FinalizeFlowLambda', `AllmaFinalizeFlow-${stageConfig.stage}`, 'allma-flows/finalize-flow.js', this.orchestrationLambdaRole, defaultLambdaTimeout, stageConfig.lambdaMemorySizes.finalizeFlow, commonEnvVars);
 
     // --- ResumeFlowLambda ---
     const resumeFlowLambdaRole = new iam.Role(this, 'AllmaResumeFlowLambdaRole', {
