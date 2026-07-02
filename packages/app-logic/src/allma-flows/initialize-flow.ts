@@ -10,19 +10,17 @@ import {
   ProcessorOutput,
   SfnActionType,
   ENV_VAR_NAMES,
-  isS3OutputPointerWrapper,
 } from '@allma/core-types';
 import {
   log_debug,
   log_error,
   log_info,
   resolveS3Pointer,
-  offloadIfLarge,
-  log_warn,
 } from '@allma/core-sdk';
 import { loadFlowDefinition, loadFlowMetadata } from '../allma-core/config-loader.js';
 import { executionLoggerClient } from '../allma-core/execution-logger-client.js';
-import { AgentService } from '../allma-admin/services/agent.service.js'; 
+import { offloadFlowContextIfLarge } from '../allma-core/utils/context-offload.js';
+import { AgentService } from '../allma-admin/services/agent.service.js';
 
 const EXECUTION_TRACES_BUCKET_NAME = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME];
 const SFN_SAFE_PAYLOAD_LIMIT = 100 * 1024; // 100KB safe threshold
@@ -190,20 +188,13 @@ export const handler: Handler<StartFlowExecutionInput, ProcessorOutput> = async 
 
     // Offload context if large before parsing it to avoid step functions payload limit issues
     if (EXECUTION_TRACES_BUCKET_NAME) {
-        const offloadedContext = await offloadIfLarge(
+        initialState.currentContextData = await offloadFlowContextIfLarge(
             initialState.currentContextData,
             EXECUTION_TRACES_BUCKET_NAME,
             `flow_state/${effectiveFlowExecutionId}/_init`,
             correlationId,
             SFN_SAFE_PAYLOAD_LIMIT
         );
-
-        if (offloadedContext && isS3OutputPointerWrapper(offloadedContext)) {
-            log_warn(`InitializeFlowLambda context size exceeded threshold. Auto-offloaded currentContextData to S3.`, {}, correlationId);
-            initialState.currentContextData = { 
-                _s3_context_pointer: offloadedContext._s3_output_pointer 
-            };
-        }
     }
 
     // 6. Validate the initial state for SFN

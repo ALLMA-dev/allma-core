@@ -1,13 +1,14 @@
 import { Handler } from 'aws-lambda';
 import {
-  FlowRuntimeState, 
-    AllmaError, 
-    ENV_VAR_NAMES, 
-    S3Pointer, 
+  FlowRuntimeState,
+    AllmaError,
+    ENV_VAR_NAMES,
+    S3Pointer,
     JsonPathString,
     ProcessorInput,
     ApiCallDefinition,
     TemplateContextMappingItem,
+    FlowDefinition,
     isS3Pointer,
     isS3OutputPointerWrapper
  } from '@allma/core-types';
@@ -80,30 +81,44 @@ export const handler: Handler<ProcessorInput, FinalizeOutput> = async (event) =>
     const runtimeState = event.runtimeState;
     const correlationId = runtimeState.flowExecutionId;
 
-    // --- HYDRATE STATE IF IT WAS OFFLOADED BY PREVIOUS STEP ---
-    const s3ContextPointer = (runtimeState.currentContextData as any)._s3_context_pointer;
-    if (s3ContextPointer && isS3Pointer(s3ContextPointer)) {
-        log_info('Hydrating offloaded context in FinalizeFlow.', {}, correlationId);
-        try {
-            const fullContext = await resolveS3Pointer(s3ContextPointer, correlationId);
-            runtimeState.currentContextData = { ...fullContext, ...runtimeState.currentContextData };
-            delete (runtimeState.currentContextData as any)._s3_context_pointer;
-        } catch (e: any) {
-            log_error('Failed to hydrate context in FinalizeFlow', { error: e.message }, correlationId);
-        }
-    }
-    // --- END HYDRATION ---
+    // Inspect the incoming context WITHOUT hydrating it. When a previous step offloaded the context
+    // it arrives as a small pointer wrapper that also carries "sticky" markers (see
+    // offloadFlowContextIfLarge) — notably `_flow_resume_key` — so we can decide below whether the
+    // full context actually has to be materialized in memory. Deferring hydration keeps this lambda's
+    // memory flat for the common terminal case (previously it OOM'd on large sub-flow returns).
+    const incomingContext = (runtimeState.currentContextData || {}) as Record<string, any>;
+    const incomingContextPointer = incomingContext._s3_context_pointer as S3Pointer | undefined;
+    const isContextOffloaded = !!incomingContextPointer && isS3Pointer(incomingContextPointer);
+    const resumeKey = incomingContext._flow_resume_key;
+    const resumePossible = typeof resumeKey === 'string' && resumeKey.length > 0;
 
     let finalStatusFromInput: FlowRuntimeState['status'] = runtimeState.status;
-  
+
     if (finalStatusFromInput === 'RUNNING' || finalStatusFromInput === 'INITIALIZING') {
         finalStatusFromInput = runtimeState.errorInfo ? 'FAILED' : 'COMPLETED';
     }
-  
+
     const endTime = new Date().toISOString();
     log_info(`Finalizing flow execution with status: ${finalStatusFromInput}`, { flowExecutionId: correlationId }, correlationId);
-  
-    let finalOutput: FinalizeOutput; 
+
+    // Load the flow definition once, up front: it drives whether onCompletionActions need the full
+    // context (the fast-path decision below) and is reused to run them. A load failure is non-fatal —
+    // expected when a flow failed on a configuration error — and simply means no completion actions.
+    let flowDef: FlowDefinition | undefined;
+    try {
+        flowDef = await loadFlowDefinition(runtimeState.flowDefinitionId, runtimeState.flowDefinitionVersion, correlationId);
+    } catch (e: any) {
+        log_warn('Could not load flow definition during finalization. Proceeding without onCompletionActions (expected if the flow failed due to a configuration error).', { error: e.message }, correlationId);
+    }
+    const completionActions = flowDef?.onCompletionActions ?? [];
+    const hasCompletionActions = completionActions.length > 0;
+
+    // The whole context is only needed in memory for a system-level resume or to feed
+    // onCompletionActions. Otherwise an already-offloaded context is handed straight back as its S3
+    // pointer — no download, no re-serialize, no re-offload.
+    const needsFullContext = resumePossible || hasCompletionActions;
+
+    let finalOutput: FinalizeOutput;
     let finalContextDataS3Pointer: S3Pointer | undefined;
 
     const shouldLog = runtimeState.enableExecutionLogs || finalStatusFromInput === 'FAILED';
@@ -111,41 +126,66 @@ export const handler: Handler<ProcessorInput, FinalizeOutput> = async (event) =>
     try {
       runtimeState.endTime = endTime;
       runtimeState.status = finalStatusFromInput;
-  
-      const contextDataString = JSON.stringify(runtimeState.currentContextData);
-      const isBranch = !!runtimeState.branchId;
-      // Stricter threshold for branch sub-flows to prevent aggregation failures mapped to States.DataLimitExceeded
-      const offloadThreshold = isBranch ? 10 * 1024 : MAX_CONTEXT_DATA_SIZE_BYTES; 
-      
-      // Determine whether to return data inline or via S3 pointer
-      if (Buffer.byteLength(contextDataString, 'utf-8') > offloadThreshold) {
-          log_info(`Final context data is large (${Buffer.byteLength(contextDataString, 'utf-8')} bytes), storing in S3. Threshold: ${offloadThreshold}`, {}, correlationId);
-          
-          const offloadedContext = await offloadIfLarge(
-              runtimeState.currentContextData,
-              EXECUTION_TRACES_BUCKET_NAME,
-              `final_context/${correlationId}`,
-              correlationId,
-              0 // force offload
-          );
 
-          if (offloadedContext && isS3OutputPointerWrapper(offloadedContext)) {
-              finalContextDataS3Pointer = offloadedContext._s3_output_pointer;
-          }
-
+      if (isContextOffloaded && !needsFullContext) {
+          // FAST PATH: the context already lives in S3 and nothing here needs it in memory, so hand
+          // its pointer straight back. No download, no re-serialize, no re-offload — memory stays flat.
+          finalContextDataS3Pointer = incomingContextPointer;
           finalOutput = {
               status: finalStatusFromInput as FinalizeOutput['status'],
               finalContextDataS3Pointer,
               ...(runtimeState.errorInfo && { errorInfo: runtimeState.errorInfo }),
           };
+          log_info('Final context already offloaded and not required in memory; passing the S3 pointer through without hydration.', { pointer: incomingContextPointer }, correlationId);
       } else {
-          finalOutput = {
-              status: finalStatusFromInput as FinalizeOutput['status'],
-              finalContextData: runtimeState.currentContextData, // Return small context directly
-              ...(runtimeState.errorInfo && { errorInfo: runtimeState.errorInfo }),
-          };
+          // Hydrate the offloaded context now that a downstream consumer (resume/onCompletionActions)
+          // actually needs it in memory.
+          if (isContextOffloaded) {
+              log_info('Hydrating offloaded context in FinalizeFlow.', {}, correlationId);
+              try {
+                  const fullContext = await resolveS3Pointer(incomingContextPointer!, correlationId);
+                  runtimeState.currentContextData = { ...fullContext, ...runtimeState.currentContextData };
+                  delete (runtimeState.currentContextData as any)._s3_context_pointer;
+              } catch (e: any) {
+                  log_error('Failed to hydrate context in FinalizeFlow', { error: e.message }, correlationId);
+              }
+          }
+
+          const contextDataString = JSON.stringify(runtimeState.currentContextData);
+          const isBranch = !!runtimeState.branchId;
+          // Stricter threshold for branch sub-flows to prevent aggregation failures mapped to States.DataLimitExceeded
+          const offloadThreshold = isBranch ? 10 * 1024 : MAX_CONTEXT_DATA_SIZE_BYTES;
+
+          // Determine whether to return data inline or via S3 pointer
+          if (Buffer.byteLength(contextDataString, 'utf-8') > offloadThreshold) {
+              log_info(`Final context data is large (${Buffer.byteLength(contextDataString, 'utf-8')} bytes), storing in S3. Threshold: ${offloadThreshold}`, {}, correlationId);
+
+              const offloadedContext = await offloadIfLarge(
+                  runtimeState.currentContextData,
+                  EXECUTION_TRACES_BUCKET_NAME,
+                  `final_context/${correlationId}`,
+                  correlationId,
+                  0 // force offload
+              );
+
+              if (offloadedContext && isS3OutputPointerWrapper(offloadedContext)) {
+                  finalContextDataS3Pointer = offloadedContext._s3_output_pointer;
+              }
+
+              finalOutput = {
+                  status: finalStatusFromInput as FinalizeOutput['status'],
+                  finalContextDataS3Pointer,
+                  ...(runtimeState.errorInfo && { errorInfo: runtimeState.errorInfo }),
+              };
+          } else {
+              finalOutput = {
+                  status: finalStatusFromInput as FinalizeOutput['status'],
+                  finalContextData: runtimeState.currentContextData, // Return small context directly
+                  ...(runtimeState.errorInfo && { errorInfo: runtimeState.errorInfo }),
+              };
+          }
       }
-  
+
       // Asynchronously update the main flow execution record in DynamoDB via the logger
       if (shouldLog) {
         if (finalStatusFromInput === 'FAILED' && runtimeState._internal && !runtimeState._internal.loggingBootstrapped) {
@@ -178,14 +218,13 @@ export const handler: Handler<ProcessorInput, FinalizeOutput> = async (event) =>
       await handleSystemLevelResume(runtimeState);
   
       try {
-        const flowDef = await loadFlowDefinition(runtimeState.flowDefinitionId, runtimeState.flowDefinitionVersion, correlationId);
         const templateService = TemplateService.getInstance();
 
-        if (flowDef.onCompletionActions && flowDef.onCompletionActions.length > 0) {
-            log_info('Processing onCompletionActions...', { count: flowDef.onCompletionActions.length}, correlationId);
+        if (hasCompletionActions) {
+            log_info('Processing onCompletionActions...', { count: completionActions.length}, correlationId);
             const templateSourceContext = { ...runtimeState, ...runtimeState.currentContextData };
 
-            for (const action of flowDef.onCompletionActions) {
+            for (const action of completionActions) {
                 try {
                     if (action.executeOnStatus !== 'ANY' && action.executeOnStatus !== finalStatusFromInput) {
                         log_debug('Skipping onCompletionAction due to status mismatch.', { actionType: action.actionType, executeOnStatus: action.executeOnStatus, finalStatus: finalStatusFromInput }, correlationId);
@@ -285,7 +324,7 @@ export const handler: Handler<ProcessorInput, FinalizeOutput> = async (event) =>
             }
         }
       } catch (e: any) {
-        log_warn('Could not load flow definition to run onCompletionActions. This is expected if the flow failed due to a configuration error.', { error: e.message }, correlationId);
+        log_warn('Failed while processing onCompletionActions.', { error: e.message }, correlationId);
       }
     } catch (error: any) {
       log_error('Critical error during flow finalization', { error: error.message, stack: error.stack }, correlationId);
