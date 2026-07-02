@@ -1,5 +1,12 @@
 # @allma/admin-shell
 
+## 7.0.0
+
+### Patch Changes
+
+- Updated dependencies [0606e82]
+  - @allma/core-sdk@1.1.0
+
 ## 6.0.0
 
 ### Patch Changes

@@ -1,5 +1,64 @@
 # @allma/core-cdk
 
+## 1.4.0
+
+### Minor Changes
+
+- 6fcf025: Give the InitializeFlow and FinalizeFlow lambdas dedicated, larger memory allocations to prevent
+  `Runtime.OutOfMemory`.
+
+  Both lambdas materialize the entire flow context in memory — Finalize hydrates the (often
+  S3-offloaded) context, `JSON.stringify`s it, and re-offloads it; Initialize resolves the initial
+  context pointer — yet they ran at the 256 MB `default`, while the `IterativeStepProcessor` that
+  builds the very same context runs at 2048 MB. For flows with large contexts (e.g. sub-flows that
+  accumulate sizeable `steps_output`), Finalize would OOM at 256 MB when returning.
+
+  Adds `lambdaMemorySizes.initializeFlow` (default 1024 MB) and `lambdaMemorySizes.finalizeFlow`
+  (default 2048 MB, matching the step processor) to the stage config, and wires them into the two
+  lambdas. Both are overridable per stage. Existing stage configs are unaffected — the new keys are
+  deep-merged from the defaults.
+
+### Patch Changes
+
+- 45caad0: Stop FinalizeFlow from materializing the whole flow context in memory when it isn't needed —
+  removing the root cause of `Runtime.OutOfMemory` on large (e.g. sub-flow) returns rather than only
+  raising the lambda's memory ceiling.
+
+  Previously FinalizeFlow always hydrated the (often S3-offloaded) context, `JSON.stringify`d it, and
+  re-offloaded it — even when it only needed to hand back a pointer. It now inspects the incoming
+  context without hydrating and takes a fast path: when the context is already offloaded and neither a
+  system-level resume nor `onCompletionActions` require it in memory, the existing S3 pointer is passed
+  straight through — no download, no re-serialize, no re-offload — so peak memory is independent of
+  context size. When resume or completion actions do need the data, it hydrates exactly as before.
+
+  To make that decision cheaply (the resume key lives inside the offloaded blob), context offloading is
+  centralized in a new `offloadFlowContextIfLarge` helper that preserves a small set of "sticky"
+  top-level markers (currently `_flow_resume_key`) alongside the pointer. This also de-duplicates the
+  offload-and-wrap pattern that was copy-pasted across the initializer, step processor, and parallel
+  handler. No public API or wire-contract changes.
+
+- 0606e82: Fix `Runtime.OutOfMemory` when returning from a sub-flow whose output mixes inline fields with
+  S3-offloaded (`_s3_output_pointer`) values.
+
+  The template renderer used to hydrate the **entire** context on every `render()` call
+  (`hydrateInputFromS3Pointers`), so rendering even a one-token template (an ARN, a URL, a flow id)
+  pulled every offloaded blob in the context back into Lambda memory at once — undoing the offloading
+  the sub-flow performed to stay small. `renderNestedTemplates` amplified this by rendering each field
+  of a step's config in parallel, each re-hydrating the whole context concurrently, which is what
+  exhausted memory even when the returned `steps_output` looked small.
+
+  `TemplateService.render()` now statically inspects the Handlebars template and hydrates only the S3
+  pointers the template actually references, leaving unreferenced offloaded branches as pointers. It
+  falls back to full hydration only for constructs whose data dependencies can't be resolved
+  statically (block helpers, `../`, `@root`, bare `this`) — so behavior is unchanged for those.
+
+  `@allma/core-sdk` adds an optional `S3HydrationCache` (and `resolveS3PointerCached`) that
+  `hydrateInputFromS3Pointers` accepts; a single cache is now shared across all fields of a config so a
+  pointer referenced by many fields is downloaded once instead of once per field.
+
+- Updated dependencies [0606e82]
+  - @allma/core-sdk@1.1.0
+
 ## 1.3.1
 
 ### Patch Changes
