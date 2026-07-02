@@ -30,10 +30,17 @@ Executes one or more branches of logic concurrently for each item in a collectio
 
 | Property            | Type     | Description                                                                                                                                            |
 | ------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `strategy`          | `string` | How to combine results: `COLLECT_ARRAY` (default), `MERGE_OBJECTS`, or `SUM`.                                                                          |
-| `dataPath`          | `string` | A JSONPath to extract a specific piece of data from each branch's output before aggregating. Recommended to prevent state bloat.                       |
-| `failOnBranchError` | `boolean`| If `true` (default), the entire parallel step fails if any single branch fails.                                                                        |
-| `maxConcurrency`    | `number` | (In-Memory mode only) Limits how many branches run at the same time. `0` means no limit.                                                               |
+| `strategy`          | `string` | How to combine results: `COLLECT_ARRAY` (default), `MERGE_OBJECTS`, `SUM`, or `NONE`.                                                                  |
+| `dataPath`          | `string` | A JSONPath to extract a specific piece of data from each branch's output before aggregating. **Strongly recommended** — without it, `COLLECT_ARRAY`/`MERGE_OBJECTS` pull every branch's entire context into memory, which can exhaust the aggregator on large fan-outs. |
+| `failOnBranchError` | `boolean`| If `true` (default), the entire parallel step fails if any single branch fails. With `NONE`, this is honored from the branch statuses alone (no context is hydrated). |
+| `maxConcurrency`    | `number` | Limits how many branches run at the same time (and, for large fan-outs, how many branch results are resolved concurrently during aggregation). `0` means no limit. |
+
+##### The `NONE` strategy (barrier)
+
+Use `strategy: "NONE"` when branches are **side-effecting** (they write to a store, emit events, etc.) and their combined output is **not needed** downstream. The aggregator then acts as a pure barrier: it **does not resolve or collect** any branch context — avoiding the memory cost that collection strategies incur on large fan-outs — and writes a small summary (`{ "aggregationSkipped": true, "aggregatedData": null, ... }`) to the step output instead of a large array.
+
+- With `failOnBranchError: true`, a failed branch still fails the flow — this is determined from each branch's small status only, so nothing is hydrated.
+- With `failOnBranchError: false`, it is pure fire-and-forget: branch results are never fetched and branch failures are ignored.
 
 ---
 

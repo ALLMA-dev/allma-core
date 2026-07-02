@@ -6,6 +6,7 @@ import {
     StepInstance,
     AggregationConfig,
     AggregationStrategy,
+    AllmaError,
     BranchResult,
     ProcessorOutput,
     ProcessorInput,
@@ -183,6 +184,32 @@ function aggregateBranchOutputs(
     return { aggregatedData: aggregatedResult };
 }
 
+/**
+ * Determines whether a branch's (unresolved) output represents a failure by reading ONLY the small,
+ * inline finalize output (`status` / `error`) — it never resolves the branch's S3 context. This lets
+ * the NONE aggregation strategy honor `failOnBranchError` without paying the memory cost of hydration.
+ */
+function isBranchFailed(branchResult: BranchResult): { failed: boolean; error?: AllmaError } {
+    if (branchResult.error) {
+        return { failed: true, error: branchResult.error };
+    }
+    let output = branchResult.output;
+    if (typeof output === 'string') {
+        try {
+            output = JSON.parse(output);
+        } catch {
+            /* not JSON — treat as a non-failure opaque output */
+        }
+    }
+    if (output && typeof output === 'object' && output.status === 'FAILED') {
+        return {
+            failed: true,
+            error: output.errorInfo || { errorName: 'BranchFailed', errorMessage: 'Branch flow failed', isRetryable: false },
+        };
+    }
+    return { failed: false };
+}
+
 export const handleParallelAggregation = async (
     parallelAggregateInput: Exclude<ProcessorInput['parallelAggregateInput'], undefined>,
     runtimeState: FlowRuntimeState,
@@ -203,8 +230,14 @@ export const handleParallelAggregation = async (
 
     let branchOutputs = parallelAggregateInput.branchOutputs || [];
 
+    // The NONE strategy is a barrier that does not collect branch results. With failOnBranchError it
+    // still needs the small per-branch statuses; with failOnBranchError=false it needs nothing at all,
+    // so we can skip fetching the Distributed Map results entirely (pure fire-and-forget).
+    const isNoneStrategy = aggregationConfig.strategy === AggregationStrategy.NONE;
+    const skipBranchFetch = isNoneStrategy && !aggregationConfig.failOnBranchError;
+
     // Check if Distributed Map results exist in S3 (from PARALLEL_FORK_S3)
-    if (parallelAggregateInput.mapResultsDetails?.MapRunArn && parallelAggregateInput.mapResultsDetails?.ResultWriterDetails?.Bucket) {
+    if (!skipBranchFetch && parallelAggregateInput.mapResultsDetails?.MapRunArn && parallelAggregateInput.mapResultsDetails?.ResultWriterDetails?.Bucket) {
         log_info('Detected Distributed Map results. Fetching from S3 manifest...', { mapResultsDetails: parallelAggregateInput.mapResultsDetails }, correlationId);
         try {
             branchOutputs = await fetchDistributedMapResults(parallelAggregateInput.mapResultsDetails, correlationId);
@@ -324,20 +357,52 @@ export const handleParallelAggregation = async (
         return { ...branchResult, output: finalizeOutput };
     };
 
-    const resolveConcurrency = Math.min(
-        Math.max(1, aggregationConfig.maxConcurrency || DEFAULT_AGGREGATION_RESOLVE_CONCURRENCY),
-        MAX_AGGREGATION_RESOLVE_CONCURRENCY,
-    );
-    const resolvedBranchOutputs = await mapWithConcurrency(branchOutputs, resolveBranch, resolveConcurrency);
+    let resolvedBranchOutputs: BranchResult[];
+    let aggregationResult: Record<string, any> | null;
 
-    // dataPath extraction has already been applied per branch above, so clear it here to avoid a
-    // second (redundant) extraction pass in aggregateBranchOutputs.
-    const aggregationResult = aggregateBranchOutputs(
-        resolvedBranchOutputs,
-        { ...aggregationConfig, dataPath: undefined },
-        runtimeState,
-        correlationId
-    );
+    if (isNoneStrategy) {
+        // Barrier: skip resolving/collecting branch contexts entirely (the memory-heavy work that
+        // OOMs on large fan-outs). Only honor failOnBranchError from the small inline branch statuses.
+        resolvedBranchOutputs = [];
+        const failedBranches = aggregationConfig.failOnBranchError
+            ? branchOutputs.map(isBranchFailed).filter(result => result.failed)
+            : [];
+
+        if (failedBranches.length > 0) {
+            log_error('NONE aggregation: one or more branches failed and failOnBranchError is true.', { failedCount: failedBranches.length }, correlationId);
+            runtimeState.errorInfo = {
+                errorName: 'ParallelBranchExecutionError',
+                errorMessage: `One or more parallel branches failed. First error: ${failedBranches[0].error?.errorMessage}`,
+                errorDetails: { branchErrors: failedBranches.map(result => result.error) },
+                isRetryable: false,
+            };
+            runtimeState.status = 'FAILED';
+            aggregationResult = null;
+        } else {
+            // A small summary stands in for the (deliberately uncollected) branch results.
+            aggregationResult = {
+                aggregatedData: null,
+                aggregationSkipped: true,
+                ...(skipBranchFetch ? {} : { branchCount: branchOutputs.length, failedBranchCount: 0 }),
+            };
+            log_info('NONE aggregation strategy: branch results were not collected (barrier only).', { branchCount: skipBranchFetch ? undefined : branchOutputs.length }, correlationId);
+        }
+    } else {
+        const resolveConcurrency = Math.min(
+            Math.max(1, aggregationConfig.maxConcurrency || DEFAULT_AGGREGATION_RESOLVE_CONCURRENCY),
+            MAX_AGGREGATION_RESOLVE_CONCURRENCY,
+        );
+        resolvedBranchOutputs = await mapWithConcurrency(branchOutputs, resolveBranch, resolveConcurrency);
+
+        // dataPath extraction has already been applied per branch above, so clear it here to avoid a
+        // second (redundant) extraction pass in aggregateBranchOutputs.
+        aggregationResult = aggregateBranchOutputs(
+            resolvedBranchOutputs,
+            { ...aggregationConfig, dataPath: undefined },
+            runtimeState,
+            correlationId
+        );
+    }
 
     if (aggregationResult === null) {
         // Explicitly log the failure state of the aggregator

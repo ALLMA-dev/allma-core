@@ -43,8 +43,17 @@ export type ExecutionKind = z.infer<typeof ExecutionKindSchema>;
 export enum AggregationStrategy {
   MERGE_OBJECTS = "MERGE_OBJECTS",
   COLLECT_ARRAY = "COLLECT_ARRAY",
-  SUM = "SUM", 
+  SUM = "SUM",
   CUSTOM_MODULE = "CUSTOM_MODULE",
+  /**
+   * Do not collect branch results at all — a pure barrier. The aggregator skips resolving each
+   * branch's context from S3 (the memory-heavy step), which is the right choice when branches are
+   * side-effecting (write to a store, emit events) and their combined output is not needed. It still
+   * honors `failOnBranchError` by reading only the small per-branch statuses; with
+   * `failOnBranchError: false` it is pure fire-and-forget. Writes a small summary to the step output
+   * instead of a large array.
+   */
+  NONE = "NONE",
 }
 export const AggregationStrategySchema = z.nativeEnum(AggregationStrategy);
 
