@@ -1,7 +1,7 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import {
   StepType,
   HttpMethod,
@@ -209,5 +209,80 @@ describe('finalize-flow handler', () => {
     expect(result.status).toBe('COMPLETED');
     expect(result.finalContextData).toEqual({ result: 1 });
     expect(result.finalContextDataS3Pointer).toBeUndefined();
+  });
+
+  const s3GetJson = (payload: unknown) =>
+    s3Mock.on(GetObjectCommand).resolves({
+      ContentType: 'application/json',
+      ContentLength: 512,
+      Body: { transformToString: async () => JSON.stringify(payload) } as never,
+    });
+
+  it('fast-path: passes an already-offloaded context pointer through without hydration or re-offload', async () => {
+    // No onCompletionActions and no resume key => the full context is never needed in memory.
+    mockedLoadDef.mockResolvedValue(makeFlowDefinition());
+    const pointer = { bucket: 'traces-bucket', key: 'flow_state/exec-1/end.json' };
+
+    const result = await invoke({
+      runtimeState: makeRuntimeState({
+        status: 'COMPLETED',
+        currentContextData: { _s3_context_pointer: pointer },
+      }),
+    });
+
+    expect(result.finalContextDataS3Pointer).toEqual(pointer);
+    expect(result.finalContextData).toBeUndefined();
+    // The offloaded blob is neither downloaded nor re-uploaded — memory stays flat.
+    expect(s3Mock).toHaveReceivedCommandTimes(GetObjectCommand, 0);
+    expect(s3Mock).toHaveReceivedCommandTimes(PutObjectCommand, 0);
+  });
+
+  it('hydrates an offloaded context when a preserved _flow_resume_key requires a system-level resume', async () => {
+    process.env[ENV_VAR_NAMES.ALLMA_RESUME_API_URL] = 'http://resume.test/resume';
+    mockedLoadDef.mockResolvedValue(makeFlowDefinition());
+    s3GetJson({ final: 'x', _flow_resume_key: 'wa:777' });
+
+    // The sticky _flow_resume_key rides alongside the pointer (as offloadFlowContextIfLarge preserves it),
+    // so FinalizeFlow can tell resume is needed and then hydrate.
+    await invoke({
+      runtimeState: makeRuntimeState({
+        status: 'COMPLETED',
+        currentContextData: { _s3_context_pointer: { bucket: 'traces-bucket', key: 'flow_state/exec-2/end.json' }, _flow_resume_key: 'wa:777' },
+      }),
+    });
+
+    expect(s3Mock).toHaveReceivedCommandTimes(GetObjectCommand, 1);
+    expect(mockedPostJson).toHaveBeenCalledWith(
+      'http://resume.test/resume',
+      expect.objectContaining({ correlationValue: 'wa:777' }),
+      5000,
+    );
+    delete process.env[ENV_VAR_NAMES.ALLMA_RESUME_API_URL];
+  });
+
+  it('hydrates an offloaded context to run onCompletionActions', async () => {
+    mockedLoadDef.mockResolvedValue(
+      flowWithActions([
+        {
+          actionType: 'SNS_SEND',
+          target: 'arn:aws:sns:us-east-1:123456789012:topic',
+          payloadTemplate: { message: '$.final_message' },
+          executeOnStatus: 'ANY',
+        },
+      ]),
+    );
+    s3GetJson({ final_message: 'done' });
+
+    await invoke({
+      runtimeState: makeRuntimeState({
+        status: 'COMPLETED',
+        currentContextData: { _s3_context_pointer: { bucket: 'traces-bucket', key: 'flow_state/exec-3/end.json' } },
+      }),
+    });
+
+    expect(s3Mock).toHaveReceivedCommandTimes(GetObjectCommand, 1);
+    expect(snsMock).toHaveReceivedCommandTimes(PublishCommand, 1);
+    const snsInput = snsMock.commandCalls(PublishCommand)[0].args[0].input;
+    expect(JSON.parse(snsInput.Message as string)).toEqual({ message: 'done' });
   });
 });

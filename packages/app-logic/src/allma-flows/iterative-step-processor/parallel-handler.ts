@@ -26,6 +26,7 @@ import { processStepOutput, getSmartValueByJsonPath } from '../../allma-core/dat
 import { executionLoggerClient } from '../../allma-core/execution-logger-client.js';
 import { resolveNextStep } from './transition-resolver.js';
 import { enforceTransitionLimits } from './transition-limits.js';
+import { offloadFlowContextIfLarge } from '../../allma-core/utils/context-offload.js';
 
 // Configure client with adaptive retry strategy to smoothly handle massive traffic spikes
 const s3Client = new S3Client({ maxAttempts: 10, retryMode: 'adaptive' });
@@ -456,17 +457,13 @@ export const handleParallelFork = async (
     if (totalOutputSize > SFN_INLINE_PAYLOAD_LIMIT_BYTES) {
         log_warn(`Branch payload + state is large (${totalOutputSize} bytes). Automatically creating S3 manifest and switching to Distributed Map.`, {}, correlationId);
 
-        const offloadedSharedContext = await offloadIfLarge(
+        runtimeState.currentContextData = await offloadFlowContextIfLarge(
             runtimeState.currentContextData,
             EXECUTION_TRACES_BUCKET_NAME,
             `shared_context/${correlationId}/${stepInstanceConfig.stepInstanceId}`,
             correlationId,
             0 // Force offload for state payload limits
         );
-
-        if (offloadedSharedContext && isS3OutputPointerWrapper(offloadedSharedContext)) {
-            runtimeState.currentContextData = { _s3_context_pointer: offloadedSharedContext._s3_output_pointer };
-        }
 
         const manifestContent = JSON.stringify(branchesToExecute);
         const manifestKey = `manifests/${correlationId}/${stepInstanceConfig.stepInstanceId}-${new Date().toISOString()}.json`;
