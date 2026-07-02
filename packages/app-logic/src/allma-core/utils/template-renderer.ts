@@ -1,4 +1,4 @@
-import { log_error, log_warn, isObject } from '@allma/core-sdk';
+import { log_error, log_warn, isObject, type S3HydrationCache } from '@allma/core-sdk';
 import { JSONPath } from 'jsonpath-plus';
 import { TemplateService } from '../template-service.js';
 import { getSmartValueByJsonPath } from '../data-mapper.js';
@@ -19,14 +19,14 @@ import { getSmartValueByJsonPath } from '../data-mapper.js';
  * @param correlationId Optional correlation ID for logging.
  * @returns The final, rendered value.
  */
-async function renderValue(value: any, contextData: Record<string, any>, correlationId?: string): Promise<any> {
+async function renderValue(value: any, contextData: Record<string, any>, correlationId?: string, cache?: S3HydrationCache): Promise<any> {
     // For non-string values, recurse into arrays/objects or return primitives as is.
     if (typeof value !== 'string') {
         if (Array.isArray(value)) {
-            return Promise.all(value.map(item => renderValue(item, contextData, correlationId)));
+            return Promise.all(value.map(item => renderValue(item, contextData, correlationId, cache)));
         }
         if (isObject(value)) {
-            return await renderNestedTemplates(value as Record<string, any>, contextData, correlationId);
+            return await renderNestedTemplates(value as Record<string, any>, contextData, correlationId, cache);
         }
         return value; // Primitives like numbers, booleans, null
     }
@@ -36,9 +36,11 @@ async function renderValue(value: any, contextData: Record<string, any>, correla
     const templateService = TemplateService.getInstance();
 
     // Pass 1: Render any Handlebars templates within the string.
-    // This resolves `{{...}}` placeholders.
+    // This resolves `{{...}}` placeholders. The shared cache ensures that when many fields of the
+    // same config reference the same offloaded (S3-pointer) value, it is downloaded once rather
+    // than re-hydrated per field — the difference between bounded memory and OutOfMemory.
     if (processedValue.includes('{{')) {
-        processedValue = await templateService.render(processedValue, contextData, correlationId);
+        processedValue = await templateService.render(processedValue, contextData, correlationId, cache);
     }
     
     // Pass 2: Check if the *entire resulting string* is a JSONPath expression.
@@ -56,7 +58,7 @@ async function renderValue(value: any, contextData: Record<string, any>, correla
             // The result of the JSONPath might itself be another template string that needs rendering.
             // We recurse, but prevent infinite loops if a path resolves to itself.
             if (typeof resolved === 'string' && resolved !== processedValue) {
-                return renderValue(resolved, contextData, correlationId);
+                return renderValue(resolved, contextData, correlationId, cache);
             }
             
             return resolved;
@@ -83,17 +85,23 @@ async function renderValue(value: any, contextData: Record<string, any>, correla
  * @param correlationId Optional correlation ID for logging.
  * @returns A new object with all template strings rendered.
  */
-export async function renderNestedTemplates(obj: Record<string, any> | undefined, contextData: Record<string, any>, correlationId?: string): Promise<Record<string, any> | undefined> {
+export async function renderNestedTemplates(obj: Record<string, any> | undefined, contextData: Record<string, any>, correlationId?: string, cache?: S3HydrationCache): Promise<Record<string, any> | undefined> {
   if (!obj) return undefined;
 
   const renderedObj: Record<string, any> = {};
-  
+
+  // All fields of one config are rendered against the same context, so they share a single
+  // S3-hydration cache: a pointer resolved for one field is reused by the others instead of being
+  // fetched concurrently N times. A fresh cache is created for the top-level call and threaded
+  // through nested objects/arrays.
+  const hydrationCache: S3HydrationCache = cache ?? new Map();
+
   // Process keys in parallel
   const keys = Object.keys(obj);
   const values = Object.values(obj);
-  
+
   const renderedValues = await Promise.all(
-      values.map(v => renderValue(v, contextData, correlationId))
+      values.map(v => renderValue(v, contextData, correlationId, hydrationCache))
   );
 
   for (let i = 0; i < keys.length; i++) {

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { MappingEventStatus, MappingEventType, type TemplateContextMappingItem } from '@allma/core-types';
 import { TemplateService } from '../../../src/allma-core/template-service.js';
+import { renderNestedTemplates } from '../../../src/allma-core/utils/template-renderer.js';
 import { mockClient, resetAwsClientMocks } from '../_helpers/aws-mock.js';
 
 /**
@@ -95,6 +96,73 @@ describe('TemplateService.render — S3-aware context', () => {
     s3Json({ name: 'Ada' });
     const out = await svc.render('Hi {{user.name}}', { user: { _s3_output_pointer: { bucket: 'b', key: 'k' } } }, cid);
     expect(out).toBe('Hi Ada');
+    expect(s3Mock).toHaveReceivedCommandTimes(GetObjectCommand, 1);
+  });
+
+  it('does NOT hydrate offloaded pointers the template never references', async () => {
+    // Regression guard: a sub-flow return is a mix of inline fields and S3 pointers. Rendering a
+    // template that touches only one small field must not pull every offloaded blob into memory
+    // (the cause of Runtime.OutOfMemory on sub-flow return).
+    s3Json({ huge: 'x'.repeat(1000) });
+    const context = {
+      steps_output: {
+        extract_subflow_output: {
+          smallField: 'ok',
+          bigFieldA: { _s3_output_pointer: { bucket: 'b', key: 'a' } },
+          bigFieldB: { _s3_output_pointer: { bucket: 'b', key: 'c' } },
+        },
+      },
+    };
+    const out = await svc.render('value={{steps_output.extract_subflow_output.smallField}}', context, cid);
+    expect(out).toBe('value=ok');
+    // Neither offloaded field was referenced, so neither was downloaded.
+    expect(s3Mock).toHaveReceivedCommandTimes(GetObjectCommand, 0);
+  });
+
+  it('hydrates only the referenced offloaded field, leaving siblings as pointers', async () => {
+    s3Json({ text: 'resolved' });
+    const context = {
+      steps_output: {
+        sub: {
+          wanted: { _s3_output_pointer: { bucket: 'b', key: 'wanted' } },
+          ignored: { _s3_output_pointer: { bucket: 'b', key: 'ignored' } },
+        },
+      },
+    };
+    const out = await svc.render('{{steps_output.sub.wanted.text}}', context, cid);
+    expect(out).toBe('resolved');
+    expect(s3Mock).toHaveReceivedCommandTimes(GetObjectCommand, 1);
+  });
+
+  it('falls back to full hydration for whole-context constructs (block helpers)', async () => {
+    // `#each` rebinds scope, so referenced paths cannot be resolved statically; we conservatively
+    // hydrate the whole context — matching the original behavior for such templates.
+    s3Json({ v: 'z' });
+    const context = {
+      items: [
+        { _s3_output_pointer: { bucket: 'b', key: 'i0' } },
+        { _s3_output_pointer: { bucket: 'b', key: 'i1' } },
+      ],
+    };
+    const out = await svc.render('{{#each items}}{{this.v}}{{/each}}', context, cid);
+    expect(out).toBe('zz');
+    expect(s3Mock).toHaveReceivedCommandTimes(GetObjectCommand, 2);
+  });
+});
+
+describe('renderNestedTemplates — shared hydration cache', () => {
+  it('downloads a pointer shared by many fields only once', async () => {
+    // The amplifier fix: a config whose fields all reference the same offloaded value must fetch
+    // it once, not once per field (concurrent per-field re-hydration is what exhausts memory).
+    s3Json({ val: 'V' });
+    const context = { shared: { _s3_output_pointer: { bucket: 'b', key: 'shared' } } };
+    const config = {
+      a: 'A={{shared.val}}',
+      b: 'B={{shared.val}}',
+      c: 'C={{shared.val}}',
+    };
+    const rendered = await renderNestedTemplates(config, context, cid);
+    expect(rendered).toEqual({ a: 'A=V', b: 'B=V', c: 'C=V' });
     expect(s3Mock).toHaveReceivedCommandTimes(GetObjectCommand, 1);
   });
 });
