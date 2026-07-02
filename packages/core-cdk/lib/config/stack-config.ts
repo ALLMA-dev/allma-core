@@ -158,6 +158,15 @@ export interface StageConfig {
   lambdaMemorySizes: {
     default: number;
     iterativeStepProcessor: number;
+    /**
+     * Memory for the InitializeFlow and FinalizeFlow lambdas. Both materialize the entire flow
+     * context in memory (resolving it from S3 when it was offloaded) and re-serialize it, so — like
+     * {@link iterativeStepProcessor} — they need far more than the `default` 256 MB for flows with
+     * large contexts (e.g. sub-flows that accumulate sizeable `steps_output`). Under-provisioning
+     * here surfaces as `Runtime.OutOfMemory` in AllmaFinalizeFlow / AllmaInitializeFlow.
+     */
+    initializeFlow: number;
+    finalizeFlow: number;
     adminApiHandler: number;
     flowStartRequestListener: number;
     crawlerWorker: number;
