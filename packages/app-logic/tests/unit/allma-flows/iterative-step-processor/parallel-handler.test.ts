@@ -348,4 +348,60 @@ describe('handleParallelAggregation', () => {
       Array.from({ length: 50 }, (_, i) => i),
     );
   });
+
+  describe('NONE strategy (barrier)', () => {
+    const none = (failOnBranchError: boolean): AggregationConfig =>
+      ({ strategy: AggregationStrategy.NONE, failOnBranchError } as AggregationConfig);
+
+    it('does not resolve/collect branch contexts — writes a small summary and continues', async () => {
+      stubS3Json({ shouldNeverBeFetched: true });
+      const runtimeState = makeRuntimeState({ currentContextData: {} });
+      const input = aggInput(
+        [
+          { branchId: 'b1', output: { status: 'COMPLETED', finalContextDataS3Pointer: { bucket: 'b', key: 'k1' } } },
+          { branchId: 'b2', output: { status: 'COMPLETED', finalContextDataS3Pointer: { bucket: 'b', key: 'k2' } } },
+        ] as BranchResult[],
+        none(true),
+      );
+
+      const { updatedRuntimeState, nextStepId } = await handleParallelAggregation(input, runtimeState, flow(), 'corr');
+
+      // No branch context was hydrated from S3 — that is the whole point.
+      expect(s3Mock).not.toHaveReceivedCommand(GetObjectCommand);
+      expect(updatedRuntimeState.status).not.toBe('FAILED');
+      const out = updatedRuntimeState.currentContextData.steps_output.parallel;
+      expect(out).toMatchObject({ aggregationSkipped: true, aggregatedData: null, branchCount: 2, failedBranchCount: 0 });
+      expect(nextStepId).toBeUndefined(); // flow() has no default transition target
+    });
+
+    it('still fails the flow when a branch failed and failOnBranchError is true', async () => {
+      const runtimeState = makeRuntimeState({ currentContextData: {} });
+      const input = aggInput(
+        [
+          { branchId: 'b1', output: { status: 'COMPLETED', finalContextDataS3Pointer: { bucket: 'b', key: 'k1' } } },
+          { branchId: 'b2', output: { status: 'FAILED', errorInfo: { errorName: 'BranchBoom', errorMessage: 'kaboom', isRetryable: false } } },
+        ] as BranchResult[],
+        none(true),
+      );
+
+      const { updatedRuntimeState } = await handleParallelAggregation(input, runtimeState, flow(), 'corr');
+
+      expect(updatedRuntimeState.status).toBe('FAILED');
+      expect(updatedRuntimeState.errorInfo?.errorName).toBe('ParallelBranchExecutionError');
+      expect(s3Mock).not.toHaveReceivedCommand(GetObjectCommand);
+    });
+
+    it('ignores branch failures in fire-and-forget mode (failOnBranchError false)', async () => {
+      const runtimeState = makeRuntimeState({ currentContextData: {} });
+      const input = aggInput(
+        [{ branchId: 'b1', output: { status: 'FAILED', errorInfo: { errorName: 'X', errorMessage: 'ignored', isRetryable: false } } }] as BranchResult[],
+        none(false),
+      );
+
+      const { updatedRuntimeState } = await handleParallelAggregation(input, runtimeState, flow(), 'corr');
+
+      expect(updatedRuntimeState.status).not.toBe('FAILED');
+      expect(updatedRuntimeState.currentContextData.steps_output.parallel).toMatchObject({ aggregationSkipped: true });
+    });
+  });
 });
