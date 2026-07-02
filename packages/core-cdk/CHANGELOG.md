@@ -1,5 +1,47 @@
 # @allma/core-cdk
 
+## 1.4.1
+
+### Patch Changes
+
+- 3209d7e: Add a `NONE` parallel-aggregation strategy — a barrier that does not collect branch results.
+
+  `PARALLEL_FORK_MANAGER` always runs an aggregation step after the branches, and the existing
+  strategies (`COLLECT_ARRAY`/`MERGE_OBJECTS`/`SUM`) all resolve every branch's full context from S3
+  before combining — which exhausts the aggregator lambda on large fan-outs even when the combined
+  result isn't needed.
+
+  `strategy: "NONE"` skips resolving and collecting branch contexts entirely (the memory-heavy work),
+  writing a small summary to the step output instead of a large array. It still honors
+  `failOnBranchError` by reading only each branch's small inline status (no context is hydrated); with
+  `failOnBranchError: false` it is pure fire-and-forget and skips fetching branch results altogether.
+  Use it for side-effecting branches whose combined output you don't consume downstream.
+
+  Adds `AggregationStrategy.NONE` to `@allma/core-types` and its handling in the aggregator; documented
+  under the parallel-fork-manager reference. Existing strategies are unchanged.
+
+- 011c520: Bound the memory of Distributed-Map / parallel aggregation to prevent `Runtime.OutOfMemory` in the
+  IterativeStepProcessor during `PARALLEL_AGGREGATE`.
+
+  The aggregator resolved every branch's output with an unbounded `Promise.all`, hydrating all N
+  branches' full contexts into memory simultaneously, and only applied the configured
+  `aggregationConfig.dataPath` afterwards — so even a `dataPath` couldn't reduce peak memory, because
+  the full contexts were already all retained. For a large fan-out (e.g. classifying many items) this
+  exhausted the lambda.
+
+  Branch resolution is now concurrency-bounded (`min(maxConcurrency, 20)`, default 10), and the
+  `dataPath` extraction is applied _during_ resolution so each branch's full context is released as
+  soon as its (small) result is extracted — only the extracted values are retained. Setting a
+  `dataPath` on the aggregation now genuinely bounds aggregator memory. Aggregation semantics
+  (COLLECT_ARRAY/MERGE_OBJECTS/SUM, `failOnBranchError`, branch-error preservation, S3-pointer
+  resolution, output order) are unchanged.
+
+  Note: `COLLECT_ARRAY` with no `dataPath` still collects each branch's whole output — set a `dataPath`
+  to collect only the field you need when branch contexts are large.
+
+- Updated dependencies [3209d7e]
+  - @allma/core-types@1.6.0
+
 ## 1.4.0
 
 ### Minor Changes
