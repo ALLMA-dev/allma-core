@@ -22,7 +22,7 @@ Closes #
 
 ### Checklist
 
--   [ ] I have read the [CONTRIBUTING.md](https://github.com/your-org/allma/blob/main/CONTRIBUTING.md) guide.
+-   [ ] I have read the [CONTRIBUTING.md](https://github.com/ALLMA-dev/allma-core/blob/main/CONTRIBUTING.md) guide.
 -   [ ] I have added tests that cover my changes.
 -   [ ] All new and existing tests passed (`npm test`).
 -   [ ] I have updated the documentation where necessary.
