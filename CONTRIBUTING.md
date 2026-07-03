@@ -2,7 +2,7 @@
 
 First off, thank you for considering contributing to Allma! We're thrilled you're interested in helping us build a powerful, open-source AI orchestration platform. Your contributions are what make the open-source community such an amazing place.
 
-This document provides a high-level overview of the contribution process. For a more detailed, step-by-step tutorial, please see our full **[Contribution Guide on our documentation website](/docs/community/contribution-guide)**.
+This document provides a high-level overview of the contribution process. For a more detailed, step-by-step tutorial, please see our full **[Contribution Guide on our documentation website](https://docs.allma.dev/community/contribution-guide)**.
 
 ## Code of Conduct
 
@@ -12,15 +12,15 @@ This project is governed by the [Allma Code of Conduct](CODE_OF_CONDUCT.md). By 
 
 There are many ways to contribute, from writing code and documentation to submitting bug reports and feature requests.
 
--   **🐞 Reporting Bugs:** If you find a bug, please search our [GitHub Issues](https://github.com/your-org/allma/issues) to see if it has already been reported. If not, [open a new bug report](https://github.com/your-org/allma/issues/new?assignees=&labels=bug&template=bug_report.md&title=).
--   **💡 Suggesting Enhancements:** We use [GitHub Discussions](https://github.com/your-org/allma/discussions/new?category=ideas) for new feature ideas. It's a great way to start a conversation with the community and maintainers before you invest time in writing code.
+-   **🐞 Reporting Bugs:** If you find a bug, please search our [GitHub Issues](https://github.com/ALLMA-dev/allma-core/issues) to see if it has already been reported. If not, [open a new bug report](https://github.com/ALLMA-dev/allma-core/issues/new?assignees=&labels=bug&template=bug_report.md&title=).
+-   **💡 Suggesting Enhancements:** We use [GitHub Discussions](https://github.com/ALLMA-dev/allma-core/discussions/new?category=ideas) for new feature ideas. It's a great way to start a conversation with the community and maintainers before you invest time in writing code.
 
 ## Your First Code Contribution
 
 Ready to write some code? You can get started by looking for issues tagged `good first issue` or `help wanted`.
 
--   [**Good first issues**](https://github.com/your-org/allma/labels/good%20first%20issue): Ideal for newcomers.
--   [**Help wanted issues**](https://github.com/your-org/allma/labels/help%20wanted): Well-defined tasks that are ready for implementation.
+-   [**Good first issues**](https://github.com/ALLMA-dev/allma-core/labels/good%20first%20issue): Ideal for newcomers.
+-   [**Help wanted issues**](https://github.com/ALLMA-dev/allma-core/labels/help%20wanted): Well-defined tasks that are ready for implementation.
 
 ### The Pull Request Workflow
 

@@ -9,20 +9,30 @@
 
 <p align="center">
   <a href="https://github.com/ALLMA-dev/allma-core/stargazers"><img src="https://img.shields.io/github/stars/ALLMA-dev/allma-core?style=social" alt="GitHub Stars"></a>
+  <a href="https://www.npmjs.com/package/@allma/core-cdk"><img src="https://img.shields.io/npm/v/@allma/core-cdk?style=flat-square&label=%40allma%2Fcore-cdk" alt="npm version"></a>
   <a href="https://docs.allma.dev"><img src="https://img.shields.io/badge/docs-stable-blue.svg?style=flat-square" alt="Documentation"></a>
+  <img src="https://img.shields.io/badge/deploys%20to-AWS-FF9900?style=flat-square&logo=amazonaws&logoColor=white" alt="Deploys to AWS">
+  <img src="https://img.shields.io/badge/TypeScript-98%25-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript">
   <a href="https://github.com/ALLMA-dev/allma-core/blob/main/LICENSE"><img src="https://img.shields.io/github/license/ALLMA-dev/allma-core?style=flat-square" alt="License"></a>
   <a href="https://github.com/ALLMA-dev/allma-core/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/ALLMA-dev/allma-core/main.yml?branch=main&style=flat-square" alt="Build Status"></a>
 </p>
 
 ---
 
-Allma is a serverless, event-driven platform designed to be a "digital factory" for your most complex business processes. It combines a visual flow editor, robust data integration, and first-class AI capabilities in a scalable and observable environment, allowing you to focus on your business logic, not your infrastructure.
+**Allma is an open-source, 100% serverless orchestration engine for AI workflows that runs entirely in your own AWS account** — built on AWS Step Functions + Lambda, written in TypeScript. Build, version, and debug LLM-powered flows in a visual editor, with time-travel debugging and immutable versioning baked in. No servers to manage, and no third-party vendor ever in your data path.
 
 ### See Allma in Action
 
+<!-- TODO(demo): record a 30–60s screen capture (visual editor → flow executing → Time Machine debugger)
+     and drop it at assets/img/allma-demo.gif, then uncomment the block below.
+     Shot-by-shot script: .growth/demo-video-script.md
 <p align="center">
-  <img src="URL_TO_ALLMA_DEMO_GIF.gif" alt="Allma Platform Demo" width="800"/>
-  <em>A brief look at the visual editor, execution monitoring, and the 'Time Machine' debugger.</em>
+  <img src="assets/img/allma-demo.gif" alt="Allma Platform Demo" width="800"/>
+</p>
+-->
+<p align="center">
+  <a href="https://docs.allma.dev/getting-started/quick-start"><strong>▶ Watch the walkthrough</strong></a><br/>
+  <em>Visual editor · live execution monitoring · the "Time Machine" debugger.</em>
 </p>
 
 ## ✨ Why Allma? Key Features
@@ -39,9 +49,37 @@ Allma is built for developers who need to ship resilient, scalable, and observab
 | 🔭 **Deep Observability**        | Get a detailed, step-by-step execution log for every run. Inspect the exact Input/Output context for every step and see precisely what changed with the **Context Diff Viewer**.                            |
 |  parallelism **Massive Parallelism**        | Natively process millions of items from S3 using AWS Step Functions' Distributed Map. Ideal for large-scale data processing, enrichment, or batch AI inference tasks.                             |
 
+## 🤔 How is Allma different?
+
+There are great tools for durable execution and for LLM orchestration. Allma sits at the
+intersection almost none of them own cleanly: **AWS-native, fully serverless, visual, and
+running entirely in your own account.**
+
+| | **Allma** | Raw AWS Step Functions | Trigger.dev / Inngest | LangChain / LlamaIndex |
+| --- | :---: | :---: | :---: | :---: |
+| Runs in **your own** AWS account | ✅ | ✅ | ⚠️ managed by default | ✅ (library) |
+| Fully serverless, no infra to run | ✅ | ✅ | ⚠️ | ❌ you host it |
+| Visual flow editor | ✅ | ⚠️ generic, not AI-aware | ❌ | ❌ |
+| Native LLM step + versioned prompts | ✅ | ❌ | ⚠️ in code | ✅ code-first |
+| Time-travel debugging (stateful redrive + sandbox) | ✅ | ❌ | ⚠️ replays | ❌ |
+| Immutable Draft / Published governance | ✅ | ❌ | ❌ | ❌ |
+| No third-party vendor in the data path | ✅ | ✅ | ❌ | ✅ |
+| Primary language | TypeScript | JSON / ASL | TypeScript | Python / JS |
+
+<sub>Comparison reflects each project's default posture; Trigger.dev and Inngest both offer
+self-hosting, and competitor capabilities evolve — verify for your use case.</sub>
+
 ## 🚀 Getting Started: Deploy in 5 Minutes
 
-Deploy the core Allma backend to your AWS account in minutes using our `basic-deployment` example.
+Deploy the core Allma backend to your AWS account using our `basic-deployment` example.
+
+> **Just want to look first?** You don't need an AWS account to evaluate Allma. Watch the
+> [walkthrough](https://docs.allma.dev/getting-started/quick-start) and skim the
+> [Key Concepts](https://docs.allma.dev/getting-started/key-concepts/flows-and-steps) to see
+> how flows, steps, and the Time Machine debugger work before you deploy anything.
+
+The deploy below needs an AWS account, an account ID + region, and a secret ARN for your
+AI provider key — budget ~15 minutes the first time.
 
 **1. Clone the Repository**
 ```bash
@@ -128,6 +166,14 @@ Join the community to ask questions, share your projects, and shape the future o
 ## 🤝 Contributing
 
 We welcome contributions of all kinds! Whether you're fixing a bug, improving documentation, or adding a new feature, your help is appreciated.
+
+**Ways to contribute:**
+
+*   🌱 **Start small:** Pick up a [`good first issue`](https://github.com/ALLMA-dev/allma-core/labels/good%20first%20issue) — these are scoped for newcomers.
+*   🛠️ **Take on more:** Browse [`help wanted`](https://github.com/ALLMA-dev/allma-core/labels/help%20wanted) issues that are ready for implementation.
+*   📖 **Improve the docs:** The documentation site lives in [`docs.allma.dev/`](docs.allma.dev/) — typo fixes and clearer guides are always welcome.
+*   💡 **Share an idea:** Propose a feature or ask a question in [GitHub Discussions](https://github.com/ALLMA-dev/allma-core/discussions).
+*   ⭐ **Spread the word:** If Allma is useful to you, a star helps others find it.
 
 Please read our [**CONTRIBUTING.md**](CONTRIBUTING.md) guide to learn about our development process, how to propose bugfixes and improvements, and how to build and test your changes.
 
