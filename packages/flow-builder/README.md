@@ -102,28 +102,72 @@ Two different `{{...}}` worlds — the builder keeps them straight:
 `stepDefinitionId` resolves to a known artifact, or is wrapped in `external(id)`
 to document an intentional out-of-dir reference.
 
+## Ergonomics: `jp()` and `class Flow`
+
+`jp('$.steps_output.x')` validates a JSONPath eagerly (a malformed path throws at
+author time) and returns it for use in `inputs`/`outputs` and conditions. Its
+comparison builders emit transition conditions in the runtime evaluator's grammar:
+
+```ts
+s.poll.when(jp.eq('$.poll.status', 'DONE'), s.done);
+s.poll.when(jp.gt('$.poll.attempts', 5), s.giveUp);
+```
+
+`class Flow` is an imperative authoring facade over the same internals as
+`defineFlow`, for teams preferring OO construction (it produces identical artifacts):
+
+```ts
+const flow = new Flow({ id: 'order-intake' });
+const load = flow.addStep('load', s3DataLoad({ sourceS3Uri: 's3://in/x' }));
+const done = flow.addStep('done', endFlow());
+load.next(done);
+flow.start(load);
+export default flow;
+```
+
 ## CLI
 
 ```
-allma-flows build "flows/**/*.flow.ts" --out config/flows   # TS -> deterministic *.flow.json
-allma-flows check "flows/**/*.flow.ts" [--out config/flows]  # validate + (with --out) drift check
+allma-flows build "flows/**/*.flow.ts" --out config/flows              # TS -> deterministic *.flow.json
+allma-flows check "flows/**/*.flow.ts" [--out config/flows] [--remote <baseUrl>]
+                                                                       # validate + drift checks
+allma-flows eject <flowId> --from "config/flows/*.json" [--out flows]  # JSON -> *.flow.ts (adoption)
 ```
 
 Flow modules must `export default` the builder. Run under a TypeScript loader
 (e.g. `tsx`) when pointing at `.flow.ts` sources. Commit the generated JSON and
 run `allma-flows check` in CI: the byte-stable artifact makes the diff meaningful
-and drift between the `.ts` source and committed `.json` fails the build.
+and drift between the `.ts` source and committed `.json` fails the build. With
+`--remote <baseUrl>` (and an `ALLMA_ADMIN_TOKEN` bearer token), `check` also fails
+if a code-owned flow's **deployed** copy was taken over in the Visual Editor.
 
 ## Coexistence with the Visual Editor
 
-The builder emits **no step positions**, so the editor's existing Dagre
-auto-layout arranges code-owned flows on first open. The persisted
-`authoringSource` marker and editor read-only enforcement are **Phase 2**.
+Code- and editor-authored flows coexist under an explicit, per-flow ownership
+model (RFC §6):
 
-## Known limitations (Phase 1)
+- The builder stamps `authoringSource: 'code'` and emits **no step positions**, so
+  the editor's existing Dagre auto-layout arranges code-owned flows on first open.
+- `@allma/admin-shell` opens `authoringSource === 'code'` flows **read-only**:
+  structural edits and Save are disabled (a "Managed in code" banner explains why),
+  while viewing and the single-step Sandbox stay available.
+- Ownership transfer is deliberate and one-way: `allma-flows eject` adopts a flow
+  **into** code (JSON → TS), and the editor's "Unlock for visual editing" action
+  flips ownership **back** to the editor.
+
+## `customConfig` validation (author-time)
+
+The builder hard-enforces each module step's `customConfig` against the centralized
+registry schema at **build time** — the earliest point any `customConfig` is
+validated. The shared `FlowDefinitionSchema` (the wire/storage contract) keeps the
+registry check **advisory** (warn-mode in the importer): a required `customConfig`
+field may legitimately be supplied at runtime via `inputMappings`, so a hard error
+there would reject valid flows. Author in code to get the strict, earliest check.
+
+## Known limitations
 
 - `customConfig` validation checks shape/type via the registry but does not
   reject unknown `customConfig` keys (the runtime strips them); leaf **payload**
   keys are strict.
-- `jp()` path helper, the `class Flow` OO facade, `allma-flows eject`/`deploy`,
-  and typed-context generics are deferred to later phases (RFC §11).
+- Typed `definePrompt`/`defineStep`/MCP object cross-references, `allma-flows
+  deploy`, and typed-context generics for mappings are **Phase 3** (RFC §11).

@@ -28,6 +28,77 @@ interface DefaultStepConfig {
   defaultErrorHandler?: StepErrorHandler;
 }
 
+/**
+ * Shared build core used by both {@link defineFlow}'s builder and the `class Flow`
+ * facade: assembles the flow object, runs the full strict authoring gate, and
+ * either throws an aggregated {@link FlowBuildError} or returns the deterministic
+ * {@link FlowAuthoringFormat}. Kept here (not duplicated) so the two authoring
+ * surfaces validate identically.
+ */
+export function buildFlowArtifact(
+  options: DefineFlowOptions,
+  stepMap: Map<string, Step>,
+  startStep: Step | undefined,
+): FlowAuthoringFormat {
+  const issues: string[] = [];
+
+  if (stepMap.size === 0) {
+    issues.push('flow has no steps; declare them via flow.steps({ ... }).');
+  }
+  if (!startStep) {
+    issues.push('no start step set; call flow.start(ref).');
+  }
+
+  const steps: Record<string, unknown> = {};
+  for (const [id, step] of stepMap) {
+    steps[id] = step._toInstance();
+  }
+
+  const flow: Record<string, unknown> = {
+    id: options.id,
+    version: options.version ?? 1,
+    startStepInstanceId: startStep ? startStep.id : '',
+    steps,
+    // Self-mark as code-owned (RFC §6): the Visual Editor opens these read-only.
+    authoringSource: 'code',
+  };
+  if (options.name !== undefined) flow.name = options.name;
+  if (options.description !== undefined) flow.description = options.description;
+  if (options.enableExecutionLogs !== undefined) flow.enableExecutionLogs = options.enableExecutionLogs;
+  if (options.variables !== undefined) flow.flowVariables = options.variables;
+  if (options.defaultStepConfig !== undefined) flow.defaultStepConfig = options.defaultStepConfig;
+  if (options.onCompletionActions !== undefined) flow.onCompletionActions = options.onCompletionActions;
+
+  // 1. Deploy-placeholder placement scan (Gap 2).
+  issues.push(...checkDeployTokens(flow));
+
+  // 2. Per-step strict leaf clone + registry customConfig parse.
+  for (const [id, step] of stepMap) {
+    const payload = step._getPayload();
+    issues.push(...checkStepPayload(id, step._getStepType(), payload));
+    issues.push(
+      ...checkModuleCustomConfig(id, payload.moduleIdentifier as string | undefined, payload.customConfig),
+    );
+  }
+
+  // 3. Shared authoring schema: cross-references + JSONPath well-formedness.
+  issues.push(...checkAuthoringSchema(flow));
+
+  if (issues.length > 0) {
+    throw new FlowBuildError(options.id, issues);
+  }
+  return flow as FlowAuthoringFormat;
+}
+
+/** Wraps a built flow in the deterministic deploy-file envelope. */
+export function toExportEnvelope(flow: FlowAuthoringFormat, exportedAt: string = STABLE_EXPORTED_AT): AllmaExportFormat {
+  return {
+    formatVersion: '1.0',
+    exportedAt,
+    flows: [flow],
+  } as unknown as AllmaExportFormat;
+}
+
 /** Options accepted by {@link defineFlow}. */
 export interface DefineFlowOptions {
   /** Stable flow id (the `flowDefinitionId`). */
@@ -89,60 +160,11 @@ class FlowBuilderImpl implements FlowBuilder {
   }
 
   build(): FlowAuthoringFormat {
-    const issues: string[] = [];
-
-    if (this.stepMap.size === 0) {
-      issues.push('flow has no steps; declare them via flow.steps({ ... }).');
-    }
-    if (!this.startStep) {
-      issues.push('no start step set; call flow.start(ref).');
-    }
-
-    const steps: Record<string, unknown> = {};
-    for (const [id, step] of this.stepMap) {
-      steps[id] = step._toInstance();
-    }
-
-    const flow: Record<string, unknown> = {
-      id: this.options.id,
-      version: this.options.version ?? 1,
-      startStepInstanceId: this.startStep ? this.startStep.id : '',
-      steps,
-    };
-    if (this.options.name !== undefined) flow.name = this.options.name;
-    if (this.options.description !== undefined) flow.description = this.options.description;
-    if (this.options.enableExecutionLogs !== undefined) flow.enableExecutionLogs = this.options.enableExecutionLogs;
-    if (this.options.variables !== undefined) flow.flowVariables = this.options.variables;
-    if (this.options.defaultStepConfig !== undefined) flow.defaultStepConfig = this.options.defaultStepConfig;
-    if (this.options.onCompletionActions !== undefined) flow.onCompletionActions = this.options.onCompletionActions;
-
-    // 1. Deploy-placeholder placement scan (Gap 2).
-    issues.push(...checkDeployTokens(flow));
-
-    // 2. Per-step strict leaf clone + registry customConfig parse.
-    for (const [id, step] of this.stepMap) {
-      const payload = step._getPayload();
-      issues.push(...checkStepPayload(id, step._getStepType(), payload));
-      issues.push(
-        ...checkModuleCustomConfig(id, payload.moduleIdentifier as string | undefined, payload.customConfig),
-      );
-    }
-
-    // 3. Shared authoring schema: cross-references + JSONPath well-formedness.
-    issues.push(...checkAuthoringSchema(flow));
-
-    if (issues.length > 0) {
-      throw new FlowBuildError(this.options.id, issues);
-    }
-    return flow as FlowAuthoringFormat;
+    return buildFlowArtifact(this.options, this.stepMap, this.startStep);
   }
 
   toExport(exportedAt: string = STABLE_EXPORTED_AT): AllmaExportFormat {
-    return {
-      formatVersion: '1.0',
-      exportedAt,
-      flows: [this.build()],
-    } as unknown as AllmaExportFormat;
+    return toExportEnvelope(this.build(), exportedAt);
   }
 }
 

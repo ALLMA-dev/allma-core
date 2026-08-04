@@ -15,6 +15,7 @@ import { EditableJsonView } from '@allma/ui-components';
 import { useSandboxStep } from '../../../../../api/flowControlService.js';
 import { SandboxResultModal } from './SandboxResultModal.js';
 import { notifications } from '@mantine/notifications';
+import { resolveEditorReadOnly } from '../../read-only.js';
 
 
 interface StepEditorPanelProps {
@@ -162,7 +163,7 @@ export function StepEditorPanel({ selectedNodeId, onClose, isShaking, onValidati
         return null;
     }
 
-    const isReadOnly = flowDefinition?.isPublished ?? false;
+    const isReadOnly = resolveEditorReadOnly(flowDefinition).readOnly;
 
     const handlePreviewPrompt = (promptId: string) => {
         setPreviewPromptId(promptId);
