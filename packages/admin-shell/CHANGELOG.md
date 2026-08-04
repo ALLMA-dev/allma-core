@@ -1,5 +1,38 @@
 # @allma/admin-shell
 
+## 9.0.0
+
+### Minor Changes
+
+- ba438df: Enforce read-only editing for code-owned flows in the Flow Editor (Flows-as-Code Phase 2, RFC §6).
+
+  When a flow's `authoringSource === 'code'`, the editor now opens read-only: structural edits
+  (drag, connect, delete, add step, step/edge config) and Save are disabled, and a "Managed in code"
+  banner explains that the source must be edited and redeployed. Viewing and the single-step Sandbox
+  stay fully available, and the existing Dagre auto-layout positions code-owned flows on open. The
+  read-only decision is centralized in a shared `resolveEditorReadOnly` helper used by the page, the
+  canvas, and the step/edge panels, so published-version and code-owned gating stay consistent.
+
+- ba438df: Add the "Unlock for visual editing" action for code-owned flows (Flows-as-Code Phase 2, RFC §6).
+
+  The `useUnlockFlowForVisualEditing` mutation and an editor button (behind a confirmation modal) flip
+  a code-owned flow's `authoringSource` from `'code'` back to `'visual'`, handing ownership to the
+  Visual Editor. This is the explicit, one-way transfer counterpart to `allma-flows eject`; the marker
+  flip is the persisted record of the transfer, and the editor re-renders editable afterward.
+
+### Patch Changes
+
+- 062e1ec: Declare `@allma/ui-components` as a dependency of `@allma/admin-shell`. It was imported in source
+  but never declared, so a clean build had no dependency-graph edge forcing `@allma/ui-components` to
+  build first and `tsup` would fail with `Could not resolve "@allma/ui-components"`. Declaring it fixes
+  the build ordering and lets `tsup` externalize the package (it is no longer inlined into the bundle),
+  so consumers receive it transitively with no action required.
+- Updated dependencies [062e1ec]
+- Updated dependencies [ba438df]
+- Updated dependencies [062e1ec]
+  - @allma/core-types@1.7.0
+  - @allma/core-sdk@1.1.1
+
 ## 8.0.0
 
 ### Patch Changes
