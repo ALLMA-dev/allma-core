@@ -1,6 +1,6 @@
 {
   "name": "@allma/flow-builder",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "TypeScript builder and CLI for authoring Allma flow definitions as code, with compile-time type safety and a deterministic JSON artifact.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -42,8 +42,8 @@
     "access": "public"
   },
   "dependencies": {
-    "@allma/core-sdk": "^1.1.1",
-    "@allma/core-types": "^1.7.0"
+    "@allma/core-sdk": "^1.2.0",
+    "@allma/core-types": "^1.8.0"
   },
   "devDependencies": {
     "@types/node": "^22.13.0",

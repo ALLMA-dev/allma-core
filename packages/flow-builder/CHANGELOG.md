@@ -1,5 +1,17 @@
 # @allma/flow-builder
 
+## 0.3.0
+
+### Minor Changes
+
+- 6c59a8b: Upgrade repository target to Node 24 and TypeScript 5.7. This bumps the \`@types/node\` definitions and compiler target, which may require consumers to update their build environments to Node 24 and TS 5.7+.
+
+### Patch Changes
+
+- Updated dependencies [6c59a8b]
+  - @allma/core-sdk@1.2.0
+  - @allma/core-types@1.8.0
+
 ## 0.2.0
 
 ### Minor Changes
