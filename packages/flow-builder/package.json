@@ -46,9 +46,9 @@
     "@allma/core-types": "^1.7.0"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
+    "@types/node": "^22.13.0",
     "eslint": "^9.8.0",
-    "typescript": "^5.9.3",
+    "typescript": "~5.7.3",
     "typescript-eslint": "^8.0.0",
     "vitest": "^1.2.0",
     "zod": "^3.22.4"
