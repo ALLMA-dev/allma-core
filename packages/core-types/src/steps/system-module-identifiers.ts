@@ -32,3 +32,11 @@ export const SystemModuleIdentifiers = {
     JOIN_DATA: 'system/join-data',
     GENERATE_UUID: 'system/generate-uuid',
 } as const;
+
+/**
+ * The string-literal union of every built-in system module identifier
+ * (e.g. `'system/s3-data-loader'`). Use this instead of a bare `string`
+ * when a value is known to be one of the platform's system modules.
+ */
+export type SystemModuleIdentifier =
+  (typeof SystemModuleIdentifiers)[keyof typeof SystemModuleIdentifiers];

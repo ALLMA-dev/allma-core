@@ -10,6 +10,7 @@ import {
   PromptTemplate,
   McpConnection,
   Agent,
+  applyFlowImportDefaults,
 } from '@allma/core-types';
 import { deepMerge } from './objectUtils.js';
 import { z } from 'zod';
@@ -33,7 +34,11 @@ export type ValidationResult =
  */
 export function validateAllmaConfig(rawData: unknown, sourceFileName?: string): ValidationResult {
   const filePrefix = sourceFileName ? `[${sourceFileName}] ` : '';
-  
+  // Authoring-format flows omit the server-owned `createdAt`/`updatedAt` fields;
+  // stamp them (and default `version`) before validation so they pass the full
+  // `FlowDefinitionSchema`. Full flows already carrying these are unchanged.
+  const nowIso = new Date().toISOString();
+
   // Define a simple schema for top-level validation of the export format structure.
   const topLevelSchema = z.object({
       formatVersion: z.literal('1.0'),
@@ -82,7 +87,8 @@ export function validateAllmaConfig(rawData: unknown, sourceFileName?: string): 
           }
       }
       
-      const flowValidation = FlowDefinitionSchema.safeParse(hydratedFlow);
+      const flowToValidate = applyFlowImportDefaults(hydratedFlow, nowIso);
+      const flowValidation = FlowDefinitionSchema.safeParse(flowToValidate);
       if (!flowValidation.success) {
         const flowIdentifier = (flow as any)?.id ? `Flow '${(flow as any).id}' (v${(flow as any).version})` : `Flow at index ${index}`;
         processIssues(flowValidation.error.issues, 'flows', index, flowIdentifier);

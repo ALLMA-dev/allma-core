@@ -64,33 +64,48 @@ export type FlowDefinition = {
 };
 
 /**
- * Defines an immutable version of an Allma flow.
- * It is cast to `z.ZodType<FlowDefinition>` to use the explicit type and
- * prevent TypeScript's inference chain from exceeding serialization limits.
+ * The author-facing shape of a flow: a {@link FlowDefinition} without the
+ * server-owned bookkeeping fields (`createdAt`/`updatedAt`/`publishedAt`/
+ * `isPublished`). `version` is retained because the importer needs it as the
+ * target version slot. This is what a code-authored or hand-written flow emits;
+ * the importer stamps the server-owned fields at import time. It is hand-written
+ * for the same TS7056 reason as {@link FlowDefinition}.
  */
-export const FlowDefinitionSchema = z.object({
-  id: z.string().min(1, "Flow definition ID is required."),
-  version: z.number().int().positive({ message: "Version must be a positive integer." }),
-  isPublished: z.boolean().default(false),
-  steps: z.record(z.string().min(1), StepInstanceSchema),
-  startStepInstanceId: z.string().min(1, "Start step instance ID is required."),
-  enableExecutionLogs: z.boolean().optional().default(false),
-  description: z.string().optional().nullable(),
-  flowVariables: z.record(z.any()).optional().default({}),
-  defaultStepConfig: z.object({
-    defaultInferenceParameters: LlmParametersSchema.optional(),
-    defaultCustomConfig: z.record(z.any()).optional(),
-    defaultErrorHandler: StepErrorHandlerSchema.optional(),
-  }).optional().nullable(),
-  onCompletionActions: z.array(OnCompletionActionSchema).optional(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
-  publishedAt: z.string().datetime().nullable().optional(),
-})
-.passthrough()
-.superRefine((data, ctx) => {
-  // This refinement block is only responsible for CROSS-FIELD validation,
-  // as the structure of each step is already validated by the main schema.
+export type FlowAuthoringFormat = {
+    id: string;
+    version: number;
+    steps: Record<string, StepInstance>;
+    startStepInstanceId: string;
+    enableExecutionLogs?: boolean;
+    description?: string | null;
+    flowVariables?: Record<string, any>;
+    defaultStepConfig?: {
+        defaultInferenceParameters?: LlmParameters;
+        defaultCustomConfig?: Record<string, any>;
+        defaultErrorHandler?: StepErrorHandler;
+    } | null;
+    onCompletionActions?: OnCompletionAction[];
+    // Accommodate passthrough fields
+    [key: string]: any;
+};
+
+/**
+ * Structural view of the fields the cross-reference refinement reads. Declared
+ * explicitly so the refinement can be shared between the full-definition and
+ * authoring schemas without re-triggering the TS7056 inference blow-up.
+ */
+type FlowCrossReferenceTarget = {
+  steps: Record<string, StepInstance>;
+  startStepInstanceId?: string;
+  onCompletionActions?: OnCompletionAction[];
+};
+
+/**
+ * CROSS-FIELD validation shared by {@link FlowDefinitionSchema} and
+ * {@link FlowAuthoringSchema}: the per-step structure is already validated by
+ * the object schema, so this only checks references and JSONPath well-formedness.
+ */
+const validateFlowCrossReferences = (data: FlowCrossReferenceTarget, ctx: z.RefinementCtx): void => {
   if (data.startStepInstanceId && !data.steps[data.startStepInstanceId]) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: `startStepInstanceId '${data.startStepInstanceId}' does not exist in the steps map.`, path: ["startStepInstanceId"] });
   }
@@ -133,4 +148,76 @@ export const FlowDefinitionSchema = z.object({
     if (action.payloadTemplate) Object.entries(action.payloadTemplate).forEach(([k, v]) => checkJsonPath(['onCompletionActions', index, 'payloadTemplate', k], v, ctx));
     if (action.actionType === 'SNS_SEND' && action.messageAttributesTemplate) Object.entries(action.messageAttributesTemplate).forEach(([k, v]) => checkJsonPath(['onCompletionActions', index, 'messageAttributesTemplate', k], v, ctx));
   });
-}) as z.ZodType<FlowDefinition>;
+};
+
+/**
+ * The object shape shared by the full-definition and authoring schemas. Kept
+ * private (and un-exported) so its heavy inferred type is never serialized into
+ * a `.d.ts`; the public schemas below are cast to their hand-written types.
+ */
+const FlowDefinitionObjectSchema = z.object({
+  id: z.string().min(1, "Flow definition ID is required."),
+  version: z.number().int().positive({ message: "Version must be a positive integer." }),
+  isPublished: z.boolean().default(false),
+  steps: z.record(z.string().min(1), StepInstanceSchema),
+  startStepInstanceId: z.string().min(1, "Start step instance ID is required."),
+  enableExecutionLogs: z.boolean().optional().default(false),
+  description: z.string().optional().nullable(),
+  flowVariables: z.record(z.any()).optional().default({}),
+  defaultStepConfig: z.object({
+    defaultInferenceParameters: LlmParametersSchema.optional(),
+    defaultCustomConfig: z.record(z.any()).optional(),
+    defaultErrorHandler: StepErrorHandlerSchema.optional(),
+  }).optional().nullable(),
+  onCompletionActions: z.array(OnCompletionActionSchema).optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  publishedAt: z.string().datetime().nullable().optional(),
+});
+
+/**
+ * Defines an immutable version of an Allma flow.
+ * It is cast to `z.ZodType<FlowDefinition>` to use the explicit type and
+ * prevent TypeScript's inference chain from exceeding serialization limits.
+ */
+export const FlowDefinitionSchema = FlowDefinitionObjectSchema
+  .passthrough()
+  // The runtime shape matches `FlowCrossReferenceTarget`; cast through `unknown`
+  // to share the refinement without forcing TS to serialize the inferred type.
+  .superRefine((data, ctx) => validateFlowCrossReferences(data as unknown as FlowCrossReferenceTarget, ctx)) as z.ZodType<FlowDefinition>;
+
+/**
+ * The authoring schema: {@link FlowDefinitionSchema} without the server-owned
+ * fields (`createdAt`/`updatedAt`/`publishedAt`/`isPublished`), with `version`
+ * defaulting to `1`. Hand-authored and code-generated flows are validated
+ * against this; the importer stamps the omitted server-owned fields. Inherits
+ * the same cross-reference and JSONPath validation as the full schema.
+ */
+export const FlowAuthoringSchema = FlowDefinitionObjectSchema
+  .omit({ createdAt: true, updatedAt: true, publishedAt: true, isPublished: true })
+  .extend({ version: z.number().int().positive({ message: "Version must be a positive integer." }).default(1) })
+  .passthrough()
+  .superRefine((data, ctx) => validateFlowCrossReferences(data as unknown as FlowCrossReferenceTarget, ctx)) as z.ZodType<FlowAuthoringFormat>;
+
+/**
+ * Fills in the server-owned bookkeeping fields that an authoring-format flow
+ * omits (`createdAt`/`updatedAt`) and defaults `version` to `1`, so a flow
+ * authored without those fields validates and imports cleanly. Existing values
+ * are always preserved, so a full {@link FlowDefinition} passes through
+ * unchanged — keeping import fully backward compatible. Mirrors the way the
+ * importer strips/stamps `createdAt`/`updatedAt` for connections and agents.
+ *
+ * @param flow The raw, unparsed flow object (authoring or full format).
+ * @param nowIso The ISO-8601 timestamp to stamp when a field is missing.
+ */
+export function applyFlowImportDefaults(
+  flow: Record<string, unknown>,
+  nowIso: string,
+): Record<string, unknown> {
+  return {
+    ...flow,
+    version: typeof flow.version === 'number' ? flow.version : 1,
+    createdAt: typeof flow.createdAt === 'string' ? flow.createdAt : nowIso,
+    updatedAt: typeof flow.updatedAt === 'string' ? flow.updatedAt : nowIso,
+  };
+}

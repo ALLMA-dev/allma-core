@@ -1,23 +1,17 @@
 // packages/allma-app-logic/src/allma-core/data-loaders/sqs-get-queue-attributes.ts
 
 import { SQSClient, GetQueueAttributesCommand, QueueAttributeName } from '@aws-sdk/client-sqs';
-import { z } from 'zod';
 import {
     FlowRuntimeState,
     StepHandler,
     StepHandlerOutput,
     TransientStepError,
-    StepDefinition
+    StepDefinition,
+    SqsGetQueueAttributesCustomConfigSchema as SqsGetAttributesConfigSchema,
 } from '@allma/core-types';
 import { log_error, log_info } from '@allma/core-sdk';
 
 const sqsClient = new SQSClient({});
-
-// Zod schema for validating this module's specific configuration
-const SqsGetAttributesConfigSchema = z.object({
-    queueUrl: z.string().url(),
-    attributeNames: z.array(z.nativeEnum(QueueAttributeName)).min(1),
-});
 
 /**
  * A standard StepHandler for getting attributes from an SQS queue.
@@ -45,7 +39,9 @@ export const handleSqsGetQueueAttributes: StepHandler = async (
     try {
         const command = new GetQueueAttributesCommand({
             QueueUrl: config.queueUrl,
-            AttributeNames: config.attributeNames,
+            // The centralized schema validates against a re-declared enum of the
+            // same string values; cast back to the SDK's nominal enum type.
+            AttributeNames: config.attributeNames as QueueAttributeName[],
         });
 
         const { Attributes } = await sqsClient.send(command);

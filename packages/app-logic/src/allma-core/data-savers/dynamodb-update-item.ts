@@ -1,20 +1,16 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, UpdateCommand } from '@aws-sdk/lib-dynamodb';
-import { z } from 'zod';
-import { FlowRuntimeState, StepHandler, StepHandlerOutput, TransientStepError, StepDefinition } from '@allma/core-types';
+import {
+  FlowRuntimeState,
+  StepHandler,
+  StepHandlerOutput,
+  TransientStepError,
+  StepDefinition,
+  DynamoDBUpdateItemCustomConfigSchema as DynamoDBUpdateConfigSchema,
+} from '@allma/core-types';
 import { log_error, log_info } from '@allma/core-sdk';
 
 const ddbDocClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
-
-// Schema for this module's specific configuration
-const DynamoDBUpdateConfigSchema = z.object({
-  tableName: z.string().min(1),
-  key: z.record(z.union([z.string(), z.number(), z.boolean()])),
-  updateExpression: z.string().min(1),
-  expressionAttributeNames: z.record(z.string()).optional(),
-  expressionAttributeValues: z.record(z.any()).optional(),
-  conditionExpression: z.string().optional(),
-});
 
 /**
  * A generic data-saving module that performs a DynamoDB UpdateItem operation.
