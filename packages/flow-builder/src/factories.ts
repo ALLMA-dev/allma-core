@@ -40,6 +40,7 @@ import {
 } from '@allma/core-types';
 import { Step, type StepDraft } from './step.js';
 import { MODULE_STEP_TYPE } from './registry.js';
+import { normalizeRefs, type PromptRef, type FlowRef, type McpConnectionRef } from './refs.js';
 
 /**
  * The config a factory accepts: the leaf payload's input shape minus the
@@ -61,14 +62,22 @@ const moduleStep = (moduleIdentifier: string, customConfig: unknown): StepDraft 
 
 // --- Typed-payload factories (one per non-module StepType) ---------------------
 
-export const llmInvocation = (config: LeafConfig<typeof LlmInvocationStepSchema>): StepDraft =>
-  typedStep(StepType.LLM_INVOCATION, config);
+/** LLM config, but `promptTemplateId` also accepts a typed {@link PromptRef}. */
+type LlmConfig = Omit<LeafConfig<typeof LlmInvocationStepSchema>, 'promptTemplateId'> & {
+  promptTemplateId?: string | PromptRef;
+};
+export const llmInvocation = (config: LlmConfig): StepDraft =>
+  typedStep(StepType.LLM_INVOCATION, normalizeRefs(config, ['promptTemplateId']));
 
 export const apiCall = (config: LeafConfig<typeof ApiCallStepSchema>): StepDraft =>
   typedStep(StepType.API_CALL, config);
 
-export const mcpCall = (config: LeafConfig<typeof McpCallStepSchema>): StepDraft =>
-  typedStep(StepType.MCP_CALL, config);
+/** MCP config, but `mcpConnectionId` also accepts a typed {@link McpConnectionRef}. */
+type McpCallConfig = Omit<LeafConfig<typeof McpCallStepSchema>, 'mcpConnectionId'> & {
+  mcpConnectionId: string | McpConnectionRef;
+};
+export const mcpCall = (config: McpCallConfig): StepDraft =>
+  typedStep(StepType.MCP_CALL, normalizeRefs(config, ['mcpConnectionId']));
 
 export const customLambdaInvoke = (config: LeafConfig<typeof CustomLambdaInvokeStepSchema>): StepDraft =>
   typedStep(StepType.CUSTOM_LAMBDA_INVOKE, config);
@@ -76,11 +85,19 @@ export const customLambdaInvoke = (config: LeafConfig<typeof CustomLambdaInvokeS
 export const parallelForkManager = (config: LeafConfig<typeof ParallelForkManagerStepSchema>): StepDraft =>
   typedStep(StepType.PARALLEL_FORK_MANAGER, config);
 
-export const startSubFlow = (config: LeafConfig<typeof StartSubFlowStepSchema>): StepDraft =>
-  typedStep(StepType.START_SUB_FLOW, config);
+/** Sub-flow config, but `subFlowDefinitionId` also accepts a typed {@link FlowRef}. */
+type StartSubFlowConfig = Omit<LeafConfig<typeof StartSubFlowStepSchema>, 'subFlowDefinitionId'> & {
+  subFlowDefinitionId: string | FlowRef;
+};
+export const startSubFlow = (config: StartSubFlowConfig): StepDraft =>
+  typedStep(StepType.START_SUB_FLOW, normalizeRefs(config, ['subFlowDefinitionId']));
 
-export const startFlowExecution = (config: LeafConfig<typeof StartFlowExecutionStepSchema>): StepDraft =>
-  typedStep(StepType.START_FLOW_EXECUTION, config);
+/** Start-flow config, but `flowDefinitionId` also accepts a typed {@link FlowRef}. */
+type StartFlowExecutionConfig = Omit<LeafConfig<typeof StartFlowExecutionStepSchema>, 'flowDefinitionId'> & {
+  flowDefinitionId: string | FlowRef;
+};
+export const startFlowExecution = (config: StartFlowExecutionConfig): StepDraft =>
+  typedStep(StepType.START_FLOW_EXECUTION, normalizeRefs(config, ['flowDefinitionId']));
 
 export const noOp = (config: LeafConfig<typeof NoOpStepSchema> = {}): StepDraft =>
   typedStep(StepType.NO_OP, config);

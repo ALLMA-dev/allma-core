@@ -1,4 +1,5 @@
 import type { StepType, DelayOptions, StepErrorHandler } from '@allma/core-types';
+import { refId, type StepDefRef } from './refs.js';
 
 /** A progress-milestone tag attached to a step (mirrors `StepInstance.checkpoint`). */
 export interface Checkpoint {
@@ -39,8 +40,8 @@ export interface StepDraft {
   checkpoint(checkpoint: Checkpoint): this;
   /** Override canvas position. Omit to let the editor auto-layout. */
   position(position: Position): this;
-  /** Reference a reusable, stored step definition to merge from. */
-  fromDefinition(stepDefinitionId: string): this;
+  /** Reference a reusable, stored step definition to merge from (id or typed handle). */
+  fromDefinition(stepDefinitionId: string | StepDefRef): this;
   /** Cap how many times the default (`next`) transition may be taken (0 = infinite). */
   defaultNextMaxTransitions(max: number): this;
   /** Disable S3 payload offload for this step. */
@@ -129,6 +130,31 @@ export class Step implements StepRef {
     return this.payload;
   }
 
+  /**
+   * @internal Emits the reusable **step-definition** body: the leaf payload plus
+   * the non-wiring config (`inputMappings`/`outputMappings`/`literals`/`onError`).
+   * Instance-only concerns (id, displayName, position, checkpoint, transitions,
+   * default-next) are deliberately omitted — a stored {@link defineStep} definition
+   * has no graph context. Throws if a graph-dependent `onError.fallback` was set,
+   * since a standalone definition has no sibling step to reference.
+   */
+  _toDefinitionBody(): Record<string, unknown> {
+    const body: Record<string, unknown> = { stepType: this.stepType, ...this.payload };
+    if (this._inputMappings !== undefined) body.inputMappings = this._inputMappings;
+    if (this._outputMappings !== undefined) body.outputMappings = this._outputMappings;
+    if (this._literals !== undefined) body.literals = this._literals;
+    if (this._onError !== undefined) {
+      const { fallback, ...rest } = this._onError;
+      if (fallback !== undefined) {
+        throw new Error(
+          'onError.fallback is not supported in a reusable step definition (no sibling steps to reference). Wire the fallback on the step instance instead.',
+        );
+      }
+      body.onError = { ...rest };
+    }
+    return body;
+  }
+
   // --- Config setters (Phase 1) ---
   displayName(name: string): this {
     this._displayName = name;
@@ -154,8 +180,8 @@ export class Step implements StepRef {
     this._position = position;
     return this;
   }
-  fromDefinition(stepDefinitionId: string): this {
-    this._stepDefinitionId = stepDefinitionId;
+  fromDefinition(stepDefinitionId: string | StepDefRef): this {
+    this._stepDefinitionId = refId(stepDefinitionId);
     return this;
   }
   defaultNextMaxTransitions(max: number): this {

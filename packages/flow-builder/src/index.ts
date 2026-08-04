@@ -21,7 +21,29 @@ export type { DeployVar, AllowedDeployToken, TokenIssue } from './deploy-var.js'
 
 export { external, isExternal } from './external.js';
 
-export { FlowBuildError } from './validate.js';
+export {
+  definePrompt,
+  defineStep,
+  defineMcpConnection,
+  STABLE_TIMESTAMP,
+} from './artifacts.js';
+export type {
+  DefinedArtifact,
+  DefinedPrompt,
+  DefinedStepDefinition,
+  DefinedMcpConnection,
+  PromptInput,
+  McpConnectionInput,
+  StepDefinitionMeta,
+} from './artifacts.js';
+
+export { refId } from './refs.js';
+export type { PromptRef, FlowRef, StepDefRef, McpConnectionRef, AnyArtifactRef } from './refs.js';
+
+export { flowContext } from './typed-context.js';
+export type { TypedJp, ContextPaths } from './typed-context.js';
+
+export { FlowBuildError, ArtifactBuildError } from './validate.js';
 
 export { stableStringify, sortKeysDeep } from './serialize.js';
 
@@ -33,3 +55,14 @@ export type { EjectOptions, BuilderSpec } from './eject.js';
 
 export { detectDrift } from './drift.js';
 export type { DriftIssue, LocalCodeFlow, DeployedFlow, FetchDeployed } from './drift.js';
+
+export { planDeploy, executeDeploy } from './deploy.js';
+export type {
+  DeployOptions,
+  DeployPlan,
+  DeployAdapter,
+  DeployResult,
+  PublishTarget,
+  ImportResultSummary,
+  ImportItemError,
+} from './deploy.js';
