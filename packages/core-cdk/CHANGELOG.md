@@ -1,5 +1,60 @@
 # @allma/core-cdk
 
+## 1.4.2
+
+### Patch Changes
+
+- 062e1ec: Centralize the remaining system-module `customConfig` schemas into
+  `@allma/core-types`, completing the module-config registry started in Phase 0.
+
+  - **`@allma/core-types`**: add and export the `customConfig` schemas (and their
+    inferred types) for the 13 system modules that previously validated their
+    config only inside `allma-app-logic`: `ddb-query-to-s3-manifest`,
+    `s3-list-files`, `sqs-get-queue-attributes`, `sqs-receive-messages`,
+    `dynamodb-query-and-update`, `dynamodb-update-item`, `array-aggregator`,
+    `compose-object-from-input`, `date-time-calculator`, `flatten-array`,
+    `generate-array`, `join-data`, and `generate-uuid`. All 16 system modules are
+    now registered in `SYSTEM_MODULE_CONFIG_SCHEMAS`, so
+    `SYSTEM_MODULES_WITHOUT_CONFIG_SCHEMA` is now empty. A new
+    `QueueAttributeNameSchema` re-declares the SQS queue-attribute enum so
+    core-types stays free of an `@aws-sdk/client-sqs` dependency. The Phase 0
+    completeness test continues to enforce that every module is classified.
+  - **`@allma/core-cdk`**: rebuilt to pick up the bundled `allma-app-logic`
+    handlers, which now import these schemas from `@allma/core-types` instead of
+    re-declaring them locally (single source of truth; no runtime behavior change).
+
+  Additive and backward compatible: the schemas are byte-for-byte equivalent to the
+  ones the runtime handlers already enforced, so no flow that validates today stops
+  validating.
+
+- 062e1ec: Flows-as-Code Phase 0 — foundational, fully backward-compatible platform changes.
+
+  - **`@allma/core-types`**: add the canonical module-config registry
+    (`SYSTEM_MODULE_CONFIG_SCHEMAS`, `SYSTEM_MODULES_WITHOUT_CONFIG_SCHEMA`,
+    `MODULE_CONFIG_STEP_TYPES`, `getSystemModuleConfigSchema`) mapping system
+    `moduleIdentifier`s to their existing `customConfig` schemas, plus a reusable
+    warn-mode validator (`collectCustomConfigWarnings`) that never throws on
+    unknown/consumer modules. Add `FlowAuthoringSchema`/`FlowAuthoringFormat`
+    (a `FlowDefinition` without the server-owned `createdAt`/`updatedAt`/
+    `publishedAt`/`isPublished`, `version` defaulting to `1`) and the
+    `applyFlowImportDefaults` helper. Add the `SystemModuleIdentifier` type. A
+    completeness test fails CI if a new step type or system module is added without
+    a registry entry or an explicit gap acknowledgement.
+  - **`@allma/core-sdk`**: `validateAllmaConfig` now stamps `createdAt`/`updatedAt`
+    (and defaults `version`) for authoring-format flows before validation, so
+    flows authored without those server-owned fields import cleanly. Full flows
+    already carrying them are unchanged.
+  - **`@allma/core-cdk`**: rebuilt to pick up the bundled `allma-app-logic`
+    importer change — the import path now stamps flow timestamps and runs a
+    non-fatal `customConfig` lint pass (logged via the structured logger). No
+    flow that imports today stops importing; enforcement is a later phase.
+
+- Updated dependencies [062e1ec]
+- Updated dependencies [ba438df]
+- Updated dependencies [062e1ec]
+  - @allma/core-types@1.7.0
+  - @allma/core-sdk@1.1.1
+
 ## 1.4.1
 
 ### Patch Changes
