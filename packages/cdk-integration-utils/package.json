@@ -37,7 +37,7 @@
   },
   "dependencies": {
     "@allma/core-types": "1.7.0",
-    "aws-cdk-lib": "^2.200.1",
+    "aws-cdk-lib": "^2.263.0",
     "constructs": "^10.0.0"
   },
   "devDependencies": {
