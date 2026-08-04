@@ -32,7 +32,7 @@ It also supports **multimodal (vision) input**: you can attach images and PDFs t
 
 ---
 
-### Templated Model Selection {#templated-model-selection}
+### Templated Model Selection \{#templated-model-selection}
 
 The model-selection fields — `llmProvider`, `modelId`, and every entry inside `fallbacks[]` — are rendered as **Handlebars templates** against the flow context at runtime, just like `inputMappings`, `customConfig`, and the prompt body. This lets a flow centralize and parameterize model choice instead of hardcoding model IDs in every step.
 
@@ -109,7 +109,7 @@ If `jsonOutputMode` is `true`, the output is the parsed JSON object from the mod
 
 ---
 
-### Media Attachments (Vision) {#media-attachments-vision}
+### Media Attachments (Vision) \{#media-attachments-vision}
 
 Attach images and PDFs so a vision-capable model can "see" them alongside your text prompt. This is supported for **`GEMINI`** models and **`AWS_BEDROCK`** Anthropic Claude models. For any other provider/model the media is ignored and the prompt is sent as text only.
 
