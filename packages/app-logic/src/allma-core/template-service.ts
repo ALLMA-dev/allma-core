@@ -1,7 +1,15 @@
 import Handlebars from 'handlebars';
 import { JSONPath } from 'jsonpath-plus';
 import { MappingEvent, MappingEventStatus, MappingEventType, TemplateContextMappingItem, isS3OutputPointerWrapper } from '@allma/core-types';
-import { log_debug, log_warn, resolveS3Pointer, hydrateInputFromS3Pointers } from '@allma/core-sdk';
+import {
+  log_debug,
+  log_warn,
+  hydrateInputFromS3Pointers,
+  resolveS3PointerCached,
+  deepMerge,
+  isObject,
+  type S3HydrationCache,
+} from '@allma/core-sdk';
 import { getSmartValueByJsonPath } from './data-mapper.js'; // Import the smart resolver
 
 /**
@@ -41,10 +49,23 @@ export class TemplateService {
         template: string,
         context: Record<string, any>,
         correlationId?: string,
+        cache?: S3HydrationCache,
     ): Promise<string> {
-        // Hydrate the entire context to resolve any S3 pointers before rendering.
-        const hydratedContext = await hydrateInputFromS3Pointers(context, correlationId);
-        
+        // Handlebars is synchronous, so any S3 pointers referenced by the template must be resolved
+        // up front. The naive approach — hydrating the *entire* context — is catastrophic when the
+        // context carries offloaded payloads it doesn't reference (e.g. a sub-flow return whose
+        // fields were offloaded to S3): rendering a one-token template like an ARN would pull every
+        // offloaded blob back into memory at once, defeating the offloading and risking OutOfMemory.
+        //
+        // Instead we statically inspect the template and hydrate only the pointers it actually
+        // references, leaving unreferenced offloaded branches as pointers. We fall back to full
+        // hydration only for constructs whose data dependencies can't be resolved statically.
+        const hydrationCache: S3HydrationCache = cache ?? new Map();
+        const { paths, needsFullContext } = this.analyzeTemplatePaths(template);
+        const hydratedContext = needsFullContext
+            ? await hydrateInputFromS3Pointers(context, correlationId, hydrationCache)
+            : await this.hydrateReferencedPaths(context, paths, hydrationCache, correlationId);
+
         const compiledTemplate = this.handlebars.compile(template, {
             noEscape: true, // We are not generating HTML, so we don't need escaping.
             strict: false,  // Be lenient with missing properties, they'll just be empty.
@@ -60,6 +81,173 @@ export class TemplateService {
         
         // Coerce other types (number, boolean) to string, which is the expected behavior.
         return String(result ?? '');
+    }
+
+    /**
+     * Statically inspects a Handlebars template to determine which context paths it references.
+     *
+     * Returns the concrete top-level paths the template reads (so the caller can hydrate only those
+     * S3 pointers) and a `needsFullContext` flag. The flag is set — meaning the caller must fall
+     * back to hydrating the whole context — whenever the template uses a construct whose data
+     * dependencies can't be resolved statically: block helpers (`#each`/`#with`/…) that rebind the
+     * inner scope, parent-context references (`../`), `@root`, a bare `this`/`.`, partials, or any
+     * node type we don't explicitly understand. This keeps the optimization strictly correctness-
+     * preserving: in the worst case we hydrate exactly as much as the previous implementation did.
+     */
+    private analyzeTemplatePaths(template: string): { paths: string[][]; needsFullContext: boolean } {
+        const paths: string[][] = [];
+        const state = { needsFullContext: false };
+
+        let ast: hbs.AST.Program;
+        try {
+            ast = this.handlebars.parse(template);
+        } catch {
+            // Malformed template: compile() will surface the error. Hydrate fully to be safe.
+            return { paths: [], needsFullContext: true };
+        }
+
+        const recordPath = (path: hbs.AST.PathExpression): void => {
+            if (path.data) {
+                // `@`-variable. Only `@root` reaches the whole context; loop metadata (`@index`,
+                // `@key`, `@first`, …) carries no context data dependency.
+                if (path.parts[0] === 'root') state.needsFullContext = true;
+                return;
+            }
+            if ((path.depth ?? 0) > 0) {
+                // `../` parent-scope reference — not statically resolvable to an absolute path.
+                state.needsFullContext = true;
+                return;
+            }
+            if (!path.parts || path.parts.length === 0) {
+                // Bare `this` / `.` — references the entire current scope.
+                state.needsFullContext = true;
+                return;
+            }
+            paths.push(path.parts);
+        };
+
+        const walkExpression = (expr: hbs.AST.Expression | undefined): void => {
+            if (!expr) return;
+            if (expr.type === 'PathExpression') {
+                recordPath(expr as hbs.AST.PathExpression);
+            } else if (expr.type === 'SubExpression') {
+                walkCall(expr as hbs.AST.SubExpression);
+            }
+            // Literals carry no data dependency.
+        };
+
+        const walkCall = (node: hbs.AST.MustacheStatement | hbs.AST.SubExpression): void => {
+            const hasArgs =
+                (node.params && node.params.length > 0) ||
+                (node.hash && node.hash.pairs && node.hash.pairs.length > 0);
+            if (hasArgs) {
+                // A helper invocation: `node.path` is the helper *name*, not a data path. Its data
+                // dependencies live in the params and hash values.
+                for (const param of node.params) walkExpression(param);
+                if (node.hash) for (const pair of node.hash.pairs) walkExpression(pair.value);
+            } else {
+                // Plain interpolation `{{a.b.c}}`: `node.path` is the data path itself.
+                walkExpression(node.path);
+            }
+        };
+
+        const walkStatement = (node: hbs.AST.Statement | hbs.AST.Program): void => {
+            switch (node.type) {
+                case 'Program':
+                    for (const stmt of (node as hbs.AST.Program).body) walkStatement(stmt);
+                    break;
+                case 'ContentStatement':
+                case 'CommentStatement':
+                    break;
+                case 'MustacheStatement':
+                    walkCall(node as hbs.AST.MustacheStatement);
+                    break;
+                case 'BlockStatement':
+                    // Block helpers rebind the inner scope, so references inside the block body
+                    // can't be mapped back to absolute context paths. Be conservative.
+                    state.needsFullContext = true;
+                    break;
+                default:
+                    // Partials, decorators, and anything unrecognized: hydrate fully.
+                    state.needsFullContext = true;
+            }
+        };
+
+        walkStatement(ast);
+        return { paths, needsFullContext: state.needsFullContext };
+    }
+
+    /**
+     * Produces a context in which S3 pointers along/under the given referenced paths are resolved,
+     * while every unreferenced branch is passed through untouched (its pointers are never
+     * downloaded). Intermediate objects are shallow-cloned so the caller's context is never mutated.
+     */
+    private async hydrateReferencedPaths(
+        context: Record<string, any>,
+        paths: string[][],
+        cache: S3HydrationCache,
+        correlationId?: string,
+    ): Promise<Record<string, any>> {
+        // Each pass returns a fresh top-level clone with one referenced path hydrated, carrying the
+        // previously-hydrated branches forward by reference. Shared path prefixes are simply
+        // re-cloned (cheap) and the pointer cache guarantees no blob is fetched twice.
+        let result: any = context;
+        for (const parts of paths) {
+            result = await this.hydrateNodeAtPath(result, parts, cache, correlationId);
+        }
+        return result;
+    }
+
+    /**
+     * Walks `node` along `parts`, resolving S3 pointers encountered en route, and fully hydrates the
+     * subtree at the target. Returns a shallow-cloned copy along the traversed path; sibling branches
+     * are preserved by reference so their pointers stay unresolved.
+     */
+    private async hydrateNodeAtPath(
+        node: any,
+        parts: string[],
+        cache: S3HydrationCache,
+        correlationId?: string,
+    ): Promise<any> {
+        // A pointer at this level must be resolved before we can descend (or to become the target).
+        if (isS3OutputPointerWrapper(node)) {
+            const resolved = await resolveS3PointerCached(node._s3_output_pointer, correlationId, cache);
+            const { _s3_output_pointer, ...otherKeys } = node;
+            if (Object.keys(otherKeys).length === 0) {
+                node = resolved;
+            } else {
+                const hydratedOther = await hydrateInputFromS3Pointers(otherKeys, correlationId, cache);
+                node = isObject(resolved) ? deepMerge(resolved, hydratedOther) : { content: resolved, ...hydratedOther };
+            }
+        }
+
+        if (parts.length === 0) {
+            // Target reached: hydrate everything beneath it (the template may read the whole subtree).
+            return hydrateInputFromS3Pointers(node, correlationId, cache);
+        }
+
+        const [head, ...rest] = parts;
+
+        if (Array.isArray(node)) {
+            const index = Number(head);
+            if (Number.isInteger(index) && index >= 0 && index < node.length) {
+                const clone = [...node];
+                clone[index] = await this.hydrateNodeAtPath(node[index], rest, cache, correlationId);
+                return clone;
+            }
+            // A non-numeric segment against an array (e.g. `items.name` used loosely): the referenced
+            // property may exist on any element, so descend into each.
+            return Promise.all(node.map(item => this.hydrateNodeAtPath(item, parts, cache, correlationId)));
+        }
+
+        if (isObject(node) && Object.prototype.hasOwnProperty.call(node, head)) {
+            const clone = { ...node };
+            clone[head] = await this.hydrateNodeAtPath(node[head], rest, cache, correlationId);
+            return clone;
+        }
+
+        // Referenced key is absent (or node is a primitive): nothing to hydrate.
+        return node;
     }
 
   /**

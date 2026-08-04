@@ -16,9 +16,10 @@ import {
     ENV_VAR_NAMES,
 } from '@allma/core-types';
 import {
-    log_info, log_error, log_debug, log_warn, deepMerge, resolveS3Pointer, isObject, offloadIfLarge,
+    log_info, log_error, log_debug, log_warn, deepMerge, resolveS3Pointer, isObject,
 } from '@allma/core-sdk';
 import { loadFlowDefinition } from '../../allma-core/config-loader.js';
+import { offloadFlowContextIfLarge } from '../../allma-core/utils/context-offload.js';
 import { handleTerminalError } from './error-handler.js';
 import { determineNextSfnAction, resolveNextStep } from './transition-resolver.js';
 import { handleAsyncResume, handleWaitForEvent } from './async-handler.js';
@@ -207,17 +208,13 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
             };
             
             if (EXECUTION_TRACES_BUCKET_NAME) {
-                const offloadedContext = await offloadIfLarge(
+                runtimeState.currentContextData = await offloadFlowContextIfLarge(
                     runtimeState.currentContextData,
                     EXECUTION_TRACES_BUCKET_NAME,
                     `flow_state/${correlationId}/${runtimeState.currentStepInstanceId || 'end'}`,
                     correlationId,
                     SFN_SAFE_PAYLOAD_LIMIT
                 );
-                if (offloadedContext && isS3OutputPointerWrapper(offloadedContext)) {
-                    log_warn(`IterativeStepProcessor context size exceeded threshold. Auto-offloaded currentContextData to S3.`, {}, correlationId);
-                    runtimeState.currentContextData = { _s3_context_pointer: offloadedContext._s3_output_pointer };
-                }
             }
             return finalOutput;
         }
@@ -307,16 +304,13 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
                 const forkOutput = await handleParallelFork(stepInstance, runtimeState, correlationId);
                 if (forkOutput) {
                     if (EXECUTION_TRACES_BUCKET_NAME) {
-                        const offloadedContext = await offloadIfLarge(
+                        forkOutput.runtimeState.currentContextData = await offloadFlowContextIfLarge(
                             forkOutput.runtimeState.currentContextData,
                             EXECUTION_TRACES_BUCKET_NAME,
                             `flow_state/${correlationId}/${forkOutput.runtimeState.currentStepInstanceId || 'end'}`,
                             correlationId,
                             SFN_SAFE_PAYLOAD_LIMIT
                         );
-                        if (offloadedContext && isS3OutputPointerWrapper(offloadedContext)) {
-                            forkOutput.runtimeState.currentContextData = { _s3_context_pointer: offloadedContext._s3_output_pointer };
-                        }
                     }
                     
                     // Clear internal state so the aggregator phase gets a new startTime
@@ -355,16 +349,13 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
                 log_info(`Step '${currentStepInstanceId}' is a synchronous START_FLOW_EXECUTION. Preparing sub-flow.`, {}, correlationId);
                 const syncOutput = await handleSyncFlowStart(stepInstance, runtimeState, correlationId);
                 if (EXECUTION_TRACES_BUCKET_NAME) {
-                    const offloadedContext = await offloadIfLarge(
+                    syncOutput.runtimeState.currentContextData = await offloadFlowContextIfLarge(
                         syncOutput.runtimeState.currentContextData,
                         EXECUTION_TRACES_BUCKET_NAME,
                         `flow_state/${correlationId}/${syncOutput.runtimeState.currentStepInstanceId || 'end'}`,
                         correlationId,
                         SFN_SAFE_PAYLOAD_LIMIT
                     );
-                    if (offloadedContext && isS3OutputPointerWrapper(offloadedContext)) {
-                        syncOutput.runtimeState.currentContextData = { _s3_context_pointer: offloadedContext._s3_output_pointer };
-                    }
                 }
                 // Intentionally preserving currentStepStartTime so the COMPLETED event binds seamlessly.
                 return syncOutput;
@@ -537,20 +528,13 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
     // The final safety-net offload respects the step's `disableS3Offload` flag, consistent
     // with the per-step output handling in step-executor and parallel-handler.
     if (EXECUTION_TRACES_BUCKET_NAME && !stepInstance?.disableS3Offload) {
-        const offloadedContext = await offloadIfLarge(
+        runtimeState.currentContextData = await offloadFlowContextIfLarge(
             runtimeState.currentContextData,
             EXECUTION_TRACES_BUCKET_NAME,
             `flow_state/${correlationId}/${runtimeState.currentStepInstanceId || 'end'}`,
             correlationId,
             SFN_SAFE_PAYLOAD_LIMIT
         );
-
-        if (offloadedContext && isS3OutputPointerWrapper(offloadedContext)) {
-            log_warn(`IterativeStepProcessor context size exceeded threshold. Auto-offloaded currentContextData to S3.`, {}, correlationId);
-            runtimeState.currentContextData = {
-                _s3_context_pointer: offloadedContext._s3_output_pointer
-            };
-        }
     }
 
     log_debug(`IterativeStepProcessor final output for ${runtimeState.currentStepInstanceId || 'end-of-flow'}:`, finalOutput.pollingTaskInput ? { ...finalOutput, pollingTaskInput: 'OMITTED_FOR_BREVITY' } : finalOutput, correlationId);

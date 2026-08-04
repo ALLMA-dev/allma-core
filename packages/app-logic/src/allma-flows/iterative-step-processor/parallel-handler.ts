@@ -6,6 +6,7 @@ import {
     StepInstance,
     AggregationConfig,
     AggregationStrategy,
+    AllmaError,
     BranchResult,
     ProcessorOutput,
     ProcessorInput,
@@ -26,6 +27,7 @@ import { processStepOutput, getSmartValueByJsonPath } from '../../allma-core/dat
 import { executionLoggerClient } from '../../allma-core/execution-logger-client.js';
 import { resolveNextStep } from './transition-resolver.js';
 import { enforceTransitionLimits } from './transition-limits.js';
+import { offloadFlowContextIfLarge } from '../../allma-core/utils/context-offload.js';
 
 // Configure client with adaptive retry strategy to smoothly handle massive traffic spikes
 const s3Client = new S3Client({ maxAttempts: 10, retryMode: 'adaptive' });
@@ -37,6 +39,34 @@ const SFN_INLINE_PAYLOAD_LIMIT_BYTES = 100 * 1024;
 // Read global limit. Default to a safe "soft limit" of 20 if undefined.
 const GLOBAL_MAX_CONCURRENCY_STR = process.env[ENV_VAR_NAMES.MAX_CONCURRENT_STEP_EXECUTIONS];
 const GLOBAL_MAX_CONCURRENCY = GLOBAL_MAX_CONCURRENCY_STR ? parseInt(GLOBAL_MAX_CONCURRENCY_STR, 10) : 20;
+
+// Bounded concurrency for resolving branch outputs during aggregation. An unbounded Promise.all over
+// a Distributed Map's branches would hydrate every branch's full context into memory simultaneously,
+// exhausting the aggregator lambda; we cap how many are resolved at once instead.
+const DEFAULT_AGGREGATION_RESOLVE_CONCURRENCY = 10;
+const MAX_AGGREGATION_RESOLVE_CONCURRENCY = 20;
+
+/**
+ * Maps over `items`, running at most `limit` async tasks concurrently and preserving input order in
+ * the result. Used to bound how many branch contexts are materialized in memory at once during
+ * parallel aggregation.
+ */
+async function mapWithConcurrency<T, R>(
+    items: T[],
+    fn: (item: T, index: number) => Promise<R>,
+    limit: number,
+): Promise<R[]> {
+    const results: R[] = new Array(items.length);
+    const workerCount = Math.min(Math.max(1, limit), items.length || 1);
+    let nextIndex = 0;
+    const worker = async (): Promise<void> => {
+        for (let current = nextIndex++; current < items.length; current = nextIndex++) {
+            results[current] = await fn(items[current], current);
+        }
+    };
+    await Promise.all(Array.from({ length: workerCount }, () => worker()));
+    return results;
+}
 
 function aggregateBranchOutputs(
     branchOutputs: BranchResult[],
@@ -154,6 +184,32 @@ function aggregateBranchOutputs(
     return { aggregatedData: aggregatedResult };
 }
 
+/**
+ * Determines whether a branch's (unresolved) output represents a failure by reading ONLY the small,
+ * inline finalize output (`status` / `error`) — it never resolves the branch's S3 context. This lets
+ * the NONE aggregation strategy honor `failOnBranchError` without paying the memory cost of hydration.
+ */
+function isBranchFailed(branchResult: BranchResult): { failed: boolean; error?: AllmaError } {
+    if (branchResult.error) {
+        return { failed: true, error: branchResult.error };
+    }
+    let output = branchResult.output;
+    if (typeof output === 'string') {
+        try {
+            output = JSON.parse(output);
+        } catch {
+            /* not JSON — treat as a non-failure opaque output */
+        }
+    }
+    if (output && typeof output === 'object' && output.status === 'FAILED') {
+        return {
+            failed: true,
+            error: output.errorInfo || { errorName: 'BranchFailed', errorMessage: 'Branch flow failed', isRetryable: false },
+        };
+    }
+    return { failed: false };
+}
+
 export const handleParallelAggregation = async (
     parallelAggregateInput: Exclude<ProcessorInput['parallelAggregateInput'], undefined>,
     runtimeState: FlowRuntimeState,
@@ -174,8 +230,14 @@ export const handleParallelAggregation = async (
 
     let branchOutputs = parallelAggregateInput.branchOutputs || [];
 
+    // The NONE strategy is a barrier that does not collect branch results. With failOnBranchError it
+    // still needs the small per-branch statuses; with failOnBranchError=false it needs nothing at all,
+    // so we can skip fetching the Distributed Map results entirely (pure fire-and-forget).
+    const isNoneStrategy = aggregationConfig.strategy === AggregationStrategy.NONE;
+    const skipBranchFetch = isNoneStrategy && !aggregationConfig.failOnBranchError;
+
     // Check if Distributed Map results exist in S3 (from PARALLEL_FORK_S3)
-    if (parallelAggregateInput.mapResultsDetails?.MapRunArn && parallelAggregateInput.mapResultsDetails?.ResultWriterDetails?.Bucket) {
+    if (!skipBranchFetch && parallelAggregateInput.mapResultsDetails?.MapRunArn && parallelAggregateInput.mapResultsDetails?.ResultWriterDetails?.Bucket) {
         log_info('Detected Distributed Map results. Fetching from S3 manifest...', { mapResultsDetails: parallelAggregateInput.mapResultsDetails }, correlationId);
         try {
             branchOutputs = await fetchDistributedMapResults(parallelAggregateInput.mapResultsDetails, correlationId);
@@ -185,7 +247,19 @@ export const handleParallelAggregation = async (
         }
     }
 
-    const resolutionPromises = branchOutputs.map(async (branchResult) => {
+    // Extract the configured dataPath DURING resolution (below), not after. Applying it here — while
+    // each branch's full context is briefly in scope — means only the small extracted value is
+    // retained; the full context is released before the next branch is processed. Combined with the
+    // bounded concurrency below, this keeps the aggregator's memory O(concurrency) instead of
+    // O(branchCount), which is what previously exhausted it. Mirrors aggregateBranchOutputs' own
+    // normalization of `dataPath` (empty / '$.output' => collect the whole branch output).
+    let effectiveDataPath = aggregationConfig.dataPath;
+    if (!effectiveDataPath || effectiveDataPath === '$.output') {
+        effectiveDataPath = '';
+    }
+    const extractsDataPath = effectiveDataPath !== '' && effectiveDataPath !== '$.';
+
+    const resolveBranch = async (branchResult: BranchResult): Promise<BranchResult> => {
         let finalizeOutput = branchResult.output;
 
         // Parse stringified JSON output from SFN RUN_JOB execution if necessary
@@ -254,32 +328,81 @@ export const handleParallelAggregation = async (
                     normalizedOutput = resolvedData.output;
                 }
 
-                let finalOutput = normalizedOutput;
                 if (Object.keys(otherKeys).length > 0) {
                     if (typeof normalizedOutput === 'object' && normalizedOutput !== null && !Array.isArray(normalizedOutput)) {
-                        finalOutput = { ...normalizedOutput, ...otherKeys };
+                        finalizeOutput = { ...normalizedOutput, ...otherKeys };
                     } else {
-                        finalOutput = { content: normalizedOutput, ...otherKeys };
+                        finalizeOutput = { content: normalizedOutput, ...otherKeys };
                     }
+                } else {
+                    finalizeOutput = normalizedOutput;
                 }
-
-                return { ...branchResult, output: finalOutput };
             } catch (e: any) {
                 return { branchId: branchResult.branchId, error: { errorName: 'S3OutputPointerResolutionError', errorMessage: e.message, isRetryable: false } };
             }
         }
 
+        // Extract the dataPath now, while the (potentially large) full context is in scope, so only
+        // the small result survives once this branch returns. A bad path is treated as a branch error,
+        // matching the previous behaviour when extraction lived in aggregateBranchOutputs.
+        if (extractsDataPath) {
+            try {
+                finalizeOutput = JSONPath({ path: effectiveDataPath, json: finalizeOutput, wrap: false });
+            } catch (e: any) {
+                log_warn(`Failed to apply dataPath '${effectiveDataPath}' to a branch output.`, { branchId: branchResult.branchId, error: e.message }, correlationId);
+                return { branchId: branchResult.branchId, error: { errorName: 'DataPathError', errorMessage: `Failed to extract data using path: ${e.message}`, isRetryable: false } };
+            }
+        }
+
         return { ...branchResult, output: finalizeOutput };
-    });
+    };
 
-    const resolvedBranchOutputs = await Promise.all(resolutionPromises);
+    let resolvedBranchOutputs: BranchResult[];
+    let aggregationResult: Record<string, any> | null;
 
-    const aggregationResult = aggregateBranchOutputs(
-        resolvedBranchOutputs,
-        aggregationConfig,
-        runtimeState,
-        correlationId
-    );
+    if (isNoneStrategy) {
+        // Barrier: skip resolving/collecting branch contexts entirely (the memory-heavy work that
+        // OOMs on large fan-outs). Only honor failOnBranchError from the small inline branch statuses.
+        resolvedBranchOutputs = [];
+        const failedBranches = aggregationConfig.failOnBranchError
+            ? branchOutputs.map(isBranchFailed).filter(result => result.failed)
+            : [];
+
+        if (failedBranches.length > 0) {
+            log_error('NONE aggregation: one or more branches failed and failOnBranchError is true.', { failedCount: failedBranches.length }, correlationId);
+            runtimeState.errorInfo = {
+                errorName: 'ParallelBranchExecutionError',
+                errorMessage: `One or more parallel branches failed. First error: ${failedBranches[0].error?.errorMessage}`,
+                errorDetails: { branchErrors: failedBranches.map(result => result.error) },
+                isRetryable: false,
+            };
+            runtimeState.status = 'FAILED';
+            aggregationResult = null;
+        } else {
+            // A small summary stands in for the (deliberately uncollected) branch results.
+            aggregationResult = {
+                aggregatedData: null,
+                aggregationSkipped: true,
+                ...(skipBranchFetch ? {} : { branchCount: branchOutputs.length, failedBranchCount: 0 }),
+            };
+            log_info('NONE aggregation strategy: branch results were not collected (barrier only).', { branchCount: skipBranchFetch ? undefined : branchOutputs.length }, correlationId);
+        }
+    } else {
+        const resolveConcurrency = Math.min(
+            Math.max(1, aggregationConfig.maxConcurrency || DEFAULT_AGGREGATION_RESOLVE_CONCURRENCY),
+            MAX_AGGREGATION_RESOLVE_CONCURRENCY,
+        );
+        resolvedBranchOutputs = await mapWithConcurrency(branchOutputs, resolveBranch, resolveConcurrency);
+
+        // dataPath extraction has already been applied per branch above, so clear it here to avoid a
+        // second (redundant) extraction pass in aggregateBranchOutputs.
+        aggregationResult = aggregateBranchOutputs(
+            resolvedBranchOutputs,
+            { ...aggregationConfig, dataPath: undefined },
+            runtimeState,
+            correlationId
+        );
+    }
 
     if (aggregationResult === null) {
         // Explicitly log the failure state of the aggregator
@@ -456,17 +579,13 @@ export const handleParallelFork = async (
     if (totalOutputSize > SFN_INLINE_PAYLOAD_LIMIT_BYTES) {
         log_warn(`Branch payload + state is large (${totalOutputSize} bytes). Automatically creating S3 manifest and switching to Distributed Map.`, {}, correlationId);
 
-        const offloadedSharedContext = await offloadIfLarge(
+        runtimeState.currentContextData = await offloadFlowContextIfLarge(
             runtimeState.currentContextData,
             EXECUTION_TRACES_BUCKET_NAME,
             `shared_context/${correlationId}/${stepInstanceConfig.stepInstanceId}`,
             correlationId,
             0 // Force offload for state payload limits
         );
-
-        if (offloadedSharedContext && isS3OutputPointerWrapper(offloadedSharedContext)) {
-            runtimeState.currentContextData = { _s3_context_pointer: offloadedSharedContext._s3_output_pointer };
-        }
 
         const manifestContent = JSON.stringify(branchesToExecute);
         const manifestKey = `manifests/${correlationId}/${stepInstanceConfig.stepInstanceId}-${new Date().toISOString()}.json`;

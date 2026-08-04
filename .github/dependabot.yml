@@ -1,0 +1,46 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      aws-sdk:
+        patterns:
+          - "@aws-sdk/*"
+      aws-cdk:
+        patterns:
+          - "aws-cdk*"
+          - "@aws-cdk/*"
+          - "cdk-nag"
+      langchain:
+        patterns:
+          - "@langchain/*"
+          - "langchain"
+
+  - package-ecosystem: "npm"
+    directory: "/allma.cdk"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      aws-cdk:
+        patterns:
+          - "aws-cdk*"
+          - "@aws-cdk/*"
+
+  - package-ecosystem: "npm"
+    directory: "/docs.allma.dev"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      docusaurus:
+        patterns:
+          - "@docusaurus/*"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
