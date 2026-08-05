@@ -1,5 +1,11 @@
 # @allma/ui-components
 
+## 1.1.0
+
+### Minor Changes
+
+- 6c59a8b: Upgrade repository target to Node 24 and TypeScript 5.7. This bumps the \`@types/node\` definitions and compiler target, which may require consumers to update their build environments to Node 24 and TS 5.7+.
+
 ## 1.0.4
 
 ### Patch Changes
