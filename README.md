@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/deploys%20to-AWS-FF9900?style=flat-square&logo=amazonaws&logoColor=white" alt="Deploys to AWS">
   <img src="https://img.shields.io/badge/TypeScript-98%25-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript">
   <a href="https://github.com/ALLMA-dev/allma-core/blob/main/LICENSE"><img src="https://img.shields.io/github/license/ALLMA-dev/allma-core?style=flat-square" alt="License"></a>
-  <a href="https://github.com/ALLMA-dev/allma-core/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/ALLMA-dev/allma-core/main.yml?branch=main&style=flat-square" alt="Build Status"></a>
+  <a href="https://github.com/ALLMA-dev/allma-core/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/ALLMA-dev/allma-core/ci.yml?branch=main&style=flat-square" alt="Build Status"></a>
 </p>
 
 ---
