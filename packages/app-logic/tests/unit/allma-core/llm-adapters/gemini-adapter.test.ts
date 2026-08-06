@@ -1,6 +1,6 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
-import { LLMProviderType, LlmMediaKind, type LlmGenerationRequest } from '@allma/core-types';
+import { LLMProviderType, LlmMediaKind, LlmBuiltInToolType, type LlmGenerationRequest } from '@allma/core-types';
 import { mockClient, resetAwsClientMocks } from '../../_helpers/aws-mock.js';
 
 // @google/genai is a third-party SDK, so it is mocked as a collaborator. The secret fetch
@@ -21,6 +21,13 @@ vi.mock('@google/genai', () => ({
     HARM_CATEGORY_DANGEROUS_CONTENT: 'HARM_CATEGORY_DANGEROUS_CONTENT',
   },
   HarmBlockThreshold: { BLOCK_MEDIUM_AND_ABOVE: 'BLOCK_MEDIUM_AND_ABOVE' },
+  FunctionCallingConfigMode: {
+    MODE_UNSPECIFIED: 'MODE_UNSPECIFIED',
+    AUTO: 'AUTO',
+    ANY: 'ANY',
+    NONE: 'NONE',
+    VALIDATED: 'VALIDATED',
+  },
 }));
 
 import { GeminiAdapter } from '../../../../src/allma-core/llm-adapters/gemini-adapter.js';
@@ -117,6 +124,120 @@ describe('GeminiAdapter.generateContent', () => {
 
     const passedConfig = generateContentMock.mock.calls[0][0].config;
     expect(passedConfig.responseMimeType).toBe('application/json');
+  });
+
+  it('passes google_search tool in config and extracts groundingMetadata from candidate', async () => {
+    generateContentMock.mockResolvedValue({
+      text: 'search result text',
+      candidates: [
+        {
+          finishReason: 'STOP',
+          groundingMetadata: { webSearchQueries: ['test query'] },
+        },
+      ],
+      usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 20 },
+    });
+
+    const result = await adapter.generateContent(
+      makeRequest({
+        tools: [{ type: 'google_search', config: {} }],
+      })
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.responseText).toBe('search result text');
+    expect(result.groundingMetadata).toEqual({ webSearchQueries: ['test query'] });
+
+    const passedConfig = generateContentMock.mock.calls[0][0].config;
+    expect(passedConfig.tools).toEqual([{ googleSearch: {} }]);
+  });
+
+  it('omits responseMimeType when jsonOutputMode is true and google_search tool is present', async () => {
+    generateContentMock.mockResolvedValue({
+      text: '{"result": "ok"}',
+      candidates: [{ finishReason: 'STOP' }],
+      usageMetadata: {},
+    });
+
+    const result = await adapter.generateContent(
+      makeRequest({
+        jsonOutputMode: true,
+        tools: [{ type: 'google_search' }],
+      })
+    );
+
+    expect(result.success).toBe(true);
+    const passedConfig = generateContentMock.mock.calls[0][0].config;
+    expect(passedConfig.responseMimeType).toBeUndefined();
+    expect(passedConfig.tools).toEqual([{ googleSearch: {} }]);
+  });
+
+  it('passes code_execution tool in config sent to generateContent', async () => {
+    generateContentMock.mockResolvedValue({
+      text: 'code execution result',
+      candidates: [{ finishReason: 'STOP' }],
+      usageMetadata: {},
+    });
+
+    const result = await adapter.generateContent(
+      makeRequest({
+        tools: [{ type: LlmBuiltInToolType.CODE_EXECUTION }],
+      })
+    );
+
+    expect(result.success).toBe(true);
+    const passedConfig = generateContentMock.mock.calls[0][0].config;
+    expect(passedConfig.tools).toEqual([{ codeExecution: {} }]);
+  });
+
+  it('handles custom function tool declarations, toolChoice, and extracts functionCalls from response', async () => {
+    generateContentMock.mockResolvedValue({
+      text: '',
+      functionCalls: [
+        { id: 'call-1', name: 'get_weather', args: { location: 'San Francisco' } },
+      ],
+      candidates: [{ finishReason: 'STOP' }],
+      usageMetadata: { promptTokenCount: 15, candidatesTokenCount: 10 },
+    });
+
+    const result = await adapter.generateContent(
+      makeRequest({
+        tools: [
+          {
+            type: 'function',
+            name: 'get_weather',
+            description: 'Get weather for location',
+            parameters: { type: 'object', properties: { location: { type: 'string' } } },
+          },
+        ],
+        toolChoice: { type: 'function', name: 'get_weather' },
+      })
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.responseText).toBeNull();
+    expect(result.toolCalls).toEqual([
+      { id: 'call-1', name: 'get_weather', args: { location: 'San Francisco' } },
+    ]);
+
+    const passedConfig = generateContentMock.mock.calls[0][0].config;
+    expect(passedConfig.tools).toEqual([
+      {
+        functionDeclarations: [
+          {
+            name: 'get_weather',
+            description: 'Get weather for location',
+            parameters: { type: 'object', properties: { location: { type: 'string' } } },
+          },
+        ],
+      },
+    ]);
+    expect(passedConfig.toolConfig).toEqual({
+      functionCallingConfig: {
+        mode: 'ANY',
+        allowedFunctionNames: ['get_weather'],
+      },
+    });
   });
 
   it('reports a safety-blocked prompt as an unsuccessful, safety-flagged result', async () => {

@@ -10,6 +10,7 @@ import {
     LlmProviderAdapter,
     LlmGenerationRequest,
     LlmGenerationResponse,
+    LlmToolCallRequest,
     PermanentStepError,
     TransientStepError
 } from '@allma/core-types';
@@ -131,21 +132,76 @@ export class BedrockAdapter implements LlmProviderAdapter {
         if (sampling.temperature !== undefined) payload.temperature = sampling.temperature;
         if (sampling.topP !== undefined) payload.top_p = sampling.topP;
 
+        if (request.tools && request.tools.length > 0) {
+            payload.tools = request.tools.map((tool: any) => {
+                if (tool.type === 'function') {
+                    return {
+                        name: tool.name,
+                        description: tool.description,
+                        input_schema: tool.parameters,
+                    };
+                }
+                return {
+                    name: tool.name || tool.type,
+                    description: tool.description || `Built-in ${tool.type} tool`,
+                    input_schema: tool.parameters || tool.config || { type: 'object', properties: {} },
+                };
+            });
+        }
+
+        if (request.toolChoice) {
+            if (request.toolChoice === 'auto') {
+                payload.tool_choice = { type: 'auto' };
+            } else if (request.toolChoice === 'none') {
+                payload.tool_choice = { type: 'none' };
+            } else if (request.toolChoice === 'required') {
+                payload.tool_choice = { type: 'any' };
+            } else if (typeof request.toolChoice === 'object' && request.toolChoice.type === 'function') {
+                payload.tool_choice = { type: 'tool', name: request.toolChoice.name };
+            }
+        }
+
         return JSON.stringify(payload);
     }
 
     /**
      * Parses the response from an Anthropic Claude model on Bedrock.
      * @param responseBody - The parsed JSON object from the Bedrock API response.
-     * @returns An object with the extracted responseText and tokenUsage.
+     * @returns An object with the extracted responseText, tokenUsage, and optional toolCalls.
      */
-    private parseAnthropicResponse(responseBody: any): { responseText: string; tokenUsage: { inputTokens: number; outputTokens: number } } {
-        const responseText = responseBody.content?.[0]?.text ?? '';
+    private parseAnthropicResponse(responseBody: any): {
+        responseText: string;
+        tokenUsage: { inputTokens: number; outputTokens: number };
+        toolCalls?: LlmToolCallRequest[];
+    } {
+        const contentBlocks: any[] = responseBody.content ?? [];
+        const textParts: string[] = [];
+        const toolCalls: LlmToolCallRequest[] = [];
+
+        for (const block of contentBlocks) {
+            if (block.type === 'text' && typeof block.text === 'string') {
+                textParts.push(block.text);
+            } else if (block.type === 'tool_use') {
+                toolCalls.push({
+                    ...(block.id && { id: block.id }),
+                    name: block.name,
+                    args: block.input ?? {},
+                });
+            } else if (!block.type && typeof block.text === 'string') {
+                textParts.push(block.text);
+            }
+        }
+
+        const responseText = textParts.join('');
         const tokenUsage = {
             inputTokens: responseBody.usage?.input_tokens ?? 0,
             outputTokens: responseBody.usage?.output_tokens ?? 0,
         };
-        return { responseText, tokenUsage };
+        return {
+            responseText,
+            tokenUsage,
+            ...(toolCalls.length > 0 && { toolCalls }),
+        };
     }
 
     /**
@@ -245,7 +301,11 @@ export class BedrockAdapter implements LlmProviderAdapter {
         }
 
         let body: string;
-        let responseParser: (body: any) => { responseText: string; tokenUsage: { inputTokens: number; outputTokens: number } };
+        let responseParser: (body: any) => {
+            responseText: string;
+            tokenUsage: { inputTokens: number; outputTokens: number };
+            toolCalls?: LlmToolCallRequest[];
+        };
 
         try {
             switch (provider) {
@@ -292,10 +352,15 @@ export class BedrockAdapter implements LlmProviderAdapter {
 
             log_debug('Received raw response from Bedrock', { responseBody }, correlationId);
 
-            const { responseText, tokenUsage } = responseParser(responseBody);
+            const { responseText, tokenUsage, toolCalls } = responseParser(responseBody);
 
             return {
-                success: true, provider: LLMProviderType.AWS_BEDROCK, modelUsed: modelId, responseText, tokenUsage,
+                success: true,
+                provider: LLMProviderType.AWS_BEDROCK,
+                modelUsed: modelId,
+                responseText,
+                tokenUsage,
+                ...(toolCalls && toolCalls.length > 0 && { toolCalls }),
             };
         } catch (error: any) {
             log_error('Error invoking Bedrock model', { modelId, errorName: error.name, errorMessage: error.message }, correlationId);

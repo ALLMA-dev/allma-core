@@ -25,6 +25,9 @@ It also supports **multimodal (vision) input**: you can attach images and PDFs t
 | `templateContextMappings`   | `object`                           |    No    | Builds dynamic variables for your prompt template by collecting and formatting data from the Flow Context. Each key becomes a variable name (e.g., `chat_history`) available in your prompt.            |
 | `mediaAttachments`          | `{ s3Pointer \| url \| base64, mimeType? }[]` |    No    | A **static** list of images/PDFs to send to vision-capable models. Each item has **exactly one** source — `s3Pointer` (`{ bucket, key }`), `url` (public http(s)), or `base64` (inline data) — plus an optional `mimeType`. See [Media Attachments](#media-attachments-vision). |
 | `mediaAttachmentsPath`      | `string` (JSONPath)                |    No    | A **dynamic** JSONPath pointing to an array of media attachment objects in the flow context (e.g., `$.steps_output.fetch_images.files`). Mutually exclusive with `mediaAttachments`. |
+| `tools`                     | `object[]`                         |    No    | A list of built-in tool configurations (`google_search`, `code_execution`, `web_search`) or custom function declarations. See [Tools, Search Grounding & Function Calling](#tools-grounding-and-function-calling). |
+| `toolsPath`                 | `string` (JSONPath)                |    No    | A dynamic JSONPath pointing to an array of tool declarations in the context. |
+| `toolChoice`                | `string \| object`                 |    No    | Tool selection strategy (`auto`, `none`, `required`, or `{ type: "function", name: "func_name" }`). |
 | `customConfig.jsonOutputMode` | `boolean`                          |    No    | Set to `true` to instruct the LLM to return valid JSON. The step will automatically parse the response. If parsing fails, it can trigger the `retryOnContentError` policy.                            |
 | `customConfig.anthropic_version`| `string`                           |    No    | (Bedrock/Anthropic only) Specify a different Anthropic version string, e.g., `bedrock-2023-05-31`.                                                                                                   |
 | `securityValidatorConfig`   | `object`                           |    No    | An integrated check to prevent prompt leaking or harmful content. Can check for `forbiddenStrings`.                                                                                                  |
@@ -146,6 +149,107 @@ The same resolved media is sent to the primary model **and** every configured fa
 ```
 
 The data at that path must be an array of media attachment objects, e.g. `[{ "s3Pointer": { "bucket": "b", "key": "k.jpg" } }]`.
+
+---
+
+### Tools, Search Grounding & Function Calling \{#tools-grounding-and-function-calling\}
+
+The `LLM_INVOCATION` step supports both provider-native built-in tools (such as live search grounding and code execution) and custom function calling declarations.
+
+#### Built-in Tools & Search Grounding
+
+Built-in tools are executed natively server-side by the provider during generation:
+
+- **`google_search`**: (Gemini) Performs live Google Search grounding.
+- **`code_execution`**: (Gemini) Executes generated Python code in a sandboxed environment during generation.
+- **`web_search`**: (Bedrock / Anthropic / OpenAI) Enables provider-managed web search.
+
+When search grounding is active, search citations, queries, and metadata are returned in `_meta.groundingMetadata`.
+
+:::info Google Search & JSON Output Mode Conflict Guard
+The Gemini API does not allow combining `google_search` grounding with structured JSON output mode (`responseMimeType: "application/json"`). When `google_search` is configured alongside `jsonOutputMode: true`, Allma automatically omits the `responseMimeType` parameter during the Gemini API call to prevent runtime API errors.
+:::
+
+#### Custom Function Calling
+
+For custom function calling, declare tools using `type: "function"` along with a `name`, `description`, and JSON schema `parameters`:
+
+```json
+{
+  "type": "function",
+  "name": "get_weather",
+  "description": "Get current weather for a location",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "location": { "type": "string", "description": "City and state, e.g. San Francisco, CA" }
+    },
+    "required": ["location"]
+  }
+}
+```
+
+When the model decides to call one or more functions, the requested tool calls are returned in `outputData.tool_calls` as well as `_meta.toolCalls`:
+
+```json
+{
+  "tool_calls": [
+    {
+      "id": "call_123",
+      "name": "get_weather",
+      "args": { "location": "San Francisco, CA" }
+    }
+  ],
+  "_meta": {
+    "toolCalls": [
+      {
+        "id": "call_123",
+        "name": "get_weather",
+        "args": { "location": "San Francisco, CA" }
+      }
+    ]
+  }
+}
+```
+
+#### Dynamic Tool Resolution & Tool Choice
+
+- **Static vs Dynamic Tools:** You can pass a static array of tool declarations via `tools` or point to a dynamic array in the flow context using `toolsPath` (e.g. `$.steps_output.get_tools.list`). Note that `tools` and `toolsPath` are mutually exclusive.
+- **Tool Choice:** Use `toolChoice` to control selection behavior:
+  - `"auto"` (default): Model decides whether to invoke tools.
+  - `"none"`: Disables tool calling even if tools are provided.
+  - `"required"`: Forces the model to call at least one tool.
+  - `{ "type": "function", "name": "func_name" }`: Forces invocation of a specific function.
+
+#### Examples
+
+**Static Tools Example (`google_search`):**
+
+```json
+{
+  "stepType": "LLM_INVOCATION",
+  "llmProvider": "GEMINI",
+  "modelId": "gemini-1.5-pro-latest",
+  "promptTemplateId": "current-events-summary",
+  "tools": [
+    { "type": "google_search" }
+  ],
+  "toolChoice": "auto"
+}
+```
+
+**Dynamic Tools Example (`toolsPath`):**
+
+```json
+{
+  "stepType": "LLM_INVOCATION",
+  "llmProvider": "AWS_BEDROCK",
+  "modelId": "anthropic.claude-3-sonnet-20240229-v1:0",
+  "promptTemplateId": "dynamic-agent-step",
+  "toolsPath": "$.steps_output.fetch_system_tools.availableTools",
+  "toolChoice": "auto"
+}
+```
 
 ---
 

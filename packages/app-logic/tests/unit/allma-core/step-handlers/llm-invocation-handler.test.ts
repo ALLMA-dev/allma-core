@@ -365,4 +365,53 @@ describe('handleLlmInvocation', () => {
       ).rejects.toThrow('is not a valid LLM provider');
     });
   });
+
+  describe('tools integration', () => {
+    it('passes resolved tools and toolChoice to the adapter request', async () => {
+      const generateContent = stubAdapter({ responseText: 'ok' });
+      const tools = [{ type: 'web_search' }];
+      const toolChoice = 'auto';
+
+      await handleLlmInvocation(
+        makeLlmStepDef({
+          tools,
+          toolChoice,
+        } as Partial<StepDefinition>),
+        {},
+        makeRuntimeState()
+      );
+
+      expect(generateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tools,
+          toolChoice,
+        })
+      );
+    });
+
+    it('records groundingMetadata and toolCalls in outputData and _meta', async () => {
+      const groundingMetadata = { webSearchQueries: ['test query'] };
+      const toolCalls = [{ name: 'get_weather', args: { location: 'Seattle' } }];
+      stubAdapter({
+        responseText: 'Using tool',
+        groundingMetadata,
+        toolCalls,
+      });
+
+      const result = await handleLlmInvocation(
+        makeLlmStepDef(),
+        {},
+        makeRuntimeState()
+      );
+
+      expect(result.outputData).toMatchObject({
+        llm_response: 'Using tool',
+        tool_calls: toolCalls,
+        _meta: expect.objectContaining({
+          groundingMetadata,
+          toolCalls,
+        }),
+      });
+    });
+  });
 });

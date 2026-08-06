@@ -4,9 +4,18 @@ import {
   SafetySetting,
   HarmCategory,
   HarmBlockThreshold,
-  GenerateContentConfig
+  GenerateContentConfig,
+  FunctionCallingConfigMode
 } from '@google/genai';
-import { LLMProviderType, ENV_VAR_NAMES, LlmProviderAdapter, LlmGenerationRequest, LlmGenerationResponse } from '@allma/core-types';
+import {
+  LLMProviderType,
+  ENV_VAR_NAMES,
+  LlmProviderAdapter,
+  LlmGenerationRequest,
+  LlmGenerationResponse,
+  LlmToolCallRequest,
+  LlmBuiltInToolType
+} from '@allma/core-types';
 import { log_info, log_debug, log_warn, log_error } from '@allma/core-sdk';
 
 const secretsManagerClient = new SecretsManagerClient({});
@@ -159,6 +168,41 @@ export class GeminiAdapter implements LlmProviderAdapter {
       const client = await this.getClient(correlationId);
       const safetySettings = (customConfig?.safetySettings as SafetySetting[]) || DEFAULT_SAFETY_SETTINGS;
       
+      let geminiTools: any[] | undefined = undefined;
+      let hasGoogleSearch = false;
+
+      if (request.tools && request.tools.length > 0) {
+        const toolsList: any[] = [];
+        const functionDeclarations: any[] = [];
+
+        for (const tool of request.tools) {
+          if (tool.type === LlmBuiltInToolType.GOOGLE_SEARCH) {
+            hasGoogleSearch = true;
+            toolsList.push({ googleSearch: tool.config ?? {} });
+          } else if (tool.type === LlmBuiltInToolType.CODE_EXECUTION) {
+            toolsList.push({ codeExecution: tool.config ?? {} });
+          } else if (tool.type === 'function') {
+            functionDeclarations.push({
+              name: tool.name,
+              description: tool.description,
+              parameters: tool.parameters,
+            });
+          }
+        }
+
+        if (functionDeclarations.length > 0) {
+          toolsList.push({ functionDeclarations });
+        }
+
+        if (toolsList.length > 0) {
+          geminiTools = toolsList;
+        }
+      }
+
+      if (hasGoogleSearch && jsonOutputMode) {
+        log_warn('GeminiAdapter: google_search tool is enabled alongside jsonOutputMode. Omitting responseMimeType to prevent Gemini API conflict.', {}, correlationId);
+      }
+
       const generationConfig: GenerateContentConfig = {
         safetySettings,
         candidateCount: 1,
@@ -167,8 +211,34 @@ export class GeminiAdapter implements LlmProviderAdapter {
         topP: topP ?? 0.95,
         topK: topK ?? 40,
         ...(seed !== undefined && { seed }),
-        ...(jsonOutputMode && { responseMimeType: "application/json" })
+        ...(jsonOutputMode && !hasGoogleSearch && { responseMimeType: "application/json" }),
+        ...(geminiTools && { tools: geminiTools }),
       };
+
+      if (request.toolChoice) {
+        let mode: FunctionCallingConfigMode;
+        let allowedFunctionNames: string[] | undefined = undefined;
+
+        if (request.toolChoice === 'auto') {
+          mode = FunctionCallingConfigMode.AUTO;
+        } else if (request.toolChoice === 'none') {
+          mode = FunctionCallingConfigMode.NONE;
+        } else if (request.toolChoice === 'required') {
+          mode = FunctionCallingConfigMode.ANY;
+        } else if (typeof request.toolChoice === 'object' && request.toolChoice.type === 'function') {
+          mode = FunctionCallingConfigMode.ANY;
+          allowedFunctionNames = [request.toolChoice.name];
+        } else {
+          mode = FunctionCallingConfigMode.AUTO;
+        }
+
+        generationConfig.toolConfig = {
+          functionCallingConfig: {
+            mode,
+            ...(allowedFunctionNames && { allowedFunctionNames }),
+          },
+        };
+      }
       
       log_info(`GeminiAdapter: Requesting content from model: ${modelId}`, { generationConfig }, correlationId);
       
@@ -217,11 +287,39 @@ export class GeminiAdapter implements LlmProviderAdapter {
             };
           }
 
-          const textContent = response.text; //candidate.content?.parts?.map((p: Part) => p.text).join('') || "";
+          const groundingMetadata = candidate.groundingMetadata as Record<string, any> | undefined;
+
+          const toolCalls: LlmToolCallRequest[] = [];
+          if (response.functionCalls && response.functionCalls.length > 0) {
+            for (const fc of response.functionCalls) {
+              if (fc.name) {
+                toolCalls.push({
+                  ...(fc.id && { id: fc.id }),
+                  name: fc.name,
+                  args: (fc.args as Record<string, any>) ?? {},
+                });
+              }
+            }
+          } else if (candidate.content?.parts) {
+            for (const part of candidate.content.parts) {
+              if ((part as any).functionCall) {
+                const fc = (part as any).functionCall;
+                if (fc.name) {
+                  toolCalls.push({
+                    ...(fc.id && { id: fc.id }),
+                    name: fc.name,
+                    args: (fc.args as Record<string, any>) ?? {},
+                  });
+                }
+              }
+            }
+          }
+
+          const textContent = response.text;
 
           log_info(`GeminiAdapter: Successfully received response from ${modelId}`, { finishReason: candidate.finishReason }, correlationId);
 
-          if (!textContent) {
+          if (!textContent && toolCalls.length === 0) {
             throw new Error("No content received from Gemini.");
           }
 
@@ -230,11 +328,13 @@ export class GeminiAdapter implements LlmProviderAdapter {
             success: true,
             provider: LLMProviderType.GEMINI,
             modelUsed: modelId,
-            responseText: textContent,
+            responseText: textContent || null,
             tokenUsage: {
               inputTokens: response.usageMetadata?.promptTokenCount || 0,
               outputTokens: response.usageMetadata?.candidatesTokenCount || 0,
             },
+            ...(groundingMetadata && { groundingMetadata }),
+            ...(toolCalls.length > 0 && { toolCalls }),
           };
 
         } catch (error: any) {

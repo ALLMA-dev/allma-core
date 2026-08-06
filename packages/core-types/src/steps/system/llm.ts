@@ -1,7 +1,12 @@
 import { z } from 'zod';
 import { StepTypeSchema } from '../../common/enums.js';
 import { S3PointerSchema, JsonPathStringSchema } from '../../common/core.js';
-import { LLMProviderTypeSchema, LlmParametersSchema } from '../../llm/index.js';
+import {
+  LLMProviderTypeSchema,
+  LlmParametersSchema,
+  LlmToolDeclarationSchema,
+  LlmToolChoiceSchema,
+} from '../../llm/index.js';
 import { TemplateContextMappingItemSchema } from '../templating.js';
 
 /**
@@ -53,6 +58,9 @@ export const LlmInvocationFallbackSchema = z.object({
   customConfig: z.object({
     jsonOutputMode: z.boolean().optional(),
   }).passthrough().optional(),
+  tools: z.array(LlmToolDeclarationSchema).optional(),
+  toolsPath: JsonPathStringSchema.optional(),
+  toolChoice: LlmToolChoiceSchema.optional(),
 });
 export type LlmInvocationFallback = z.infer<typeof LlmInvocationFallbackSchema>;
 
@@ -67,6 +75,9 @@ export const LlmInvocationStepPayloadSchema = z.object({
   directPrompt: z.string().optional().describe("Direct Prompt|textarea|Enter a prompt directly. Overrides Prompt Template if used."),
   mediaAttachments: z.array(LlmMediaAttachmentSchema).optional().describe("Media Attachments|json|Static list of images/PDFs to send to the model. Each item has exactly one source: s3Pointer, url, or base64. Only used by multimodal providers (Gemini, Bedrock Anthropic)."),
   mediaAttachmentsPath: JsonPathStringSchema.optional().describe("Dynamic Media Path|text|A JSONPath to an array of media attachment objects in the context (e.g. `$.steps_output.my_step.images`). Use this for a dynamic list."),
+  tools: z.array(LlmToolDeclarationSchema).optional().describe("Tools|json|Static list of tool declarations (built-in or function tools) available for the LLM."),
+  toolsPath: JsonPathStringSchema.optional().describe("Dynamic Tools Path|text|A JSONPath to an array of tool declarations in the context (e.g. `$.steps_output.my_step.tools`). Use this for a dynamic list."),
+  toolChoice: LlmToolChoiceSchema.optional().describe("Tool Choice|json|Tool choice configuration ('auto', 'none', 'required', or a specific function)."),
   inferenceParameters: LlmParametersSchema.optional().describe("Inference Parameters|json|Advanced LLM settings like temperature, topP, etc."),
   customConfig: z.object({
     jsonOutputMode: z.boolean().optional(),

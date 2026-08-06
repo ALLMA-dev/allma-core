@@ -61,6 +61,66 @@ export const SUPPORTED_LLM_DOCUMENT_MIME_TYPES = [
 ] as const;
 
 /**
+ * Built-in tools supported across LLM providers.
+ */
+export enum LlmBuiltInToolType {
+    GOOGLE_SEARCH = 'google_search',
+    CODE_EXECUTION = 'code_execution',
+    WEB_SEARCH = 'web_search',
+}
+export const LlmBuiltInToolTypeSchema = z.nativeEnum(LlmBuiltInToolType);
+
+/**
+ * Schema for custom function tool definitions.
+ */
+export const LlmFunctionToolSchema = z.object({
+    type: z.literal('function'),
+    name: z.string().min(1).regex(/^[a-zA-Z0-9_-]+$/),
+    description: z.string().min(1),
+    parameters: z.record(z.any()),
+});
+export type LlmFunctionTool = z.infer<typeof LlmFunctionToolSchema>;
+
+/**
+ * Schema for built-in provider tool declarations.
+ */
+export const LlmBuiltInToolSchema = z.object({
+    type: LlmBuiltInToolTypeSchema,
+    config: z.record(z.any()).optional(),
+});
+export type LlmBuiltInTool = z.infer<typeof LlmBuiltInToolSchema>;
+
+/**
+ * Union schema for tool declarations (built-in or function tools).
+ */
+export const LlmToolDeclarationSchema = z.union([
+    LlmBuiltInToolSchema,
+    LlmFunctionToolSchema,
+]);
+export type LlmToolDeclaration = z.infer<typeof LlmToolDeclarationSchema>;
+
+/**
+ * Schema for tool choice specifications.
+ */
+export const LlmToolChoiceSchema = z.union([
+    z.enum(['auto', 'none', 'required']),
+    z.object({
+        type: z.literal('function'),
+        name: z.string().min(1),
+    }),
+]);
+export type LlmToolChoice = z.infer<typeof LlmToolChoiceSchema>;
+
+/**
+ * Represents a tool call request requested by an LLM model response.
+ */
+export interface LlmToolCallRequest {
+    id?: string;
+    name: string;
+    args: Record<string, any>;
+}
+
+/**
  * Standardized input for any LLM provider adapter.
  */
 export interface LlmGenerationRequest {
@@ -78,6 +138,8 @@ export interface LlmGenerationRequest {
     customConfig?: Record<string, any>;
     jsonOutputMode?: boolean;
     correlationId?: string;
+    tools?: LlmToolDeclaration[];
+    toolChoice?: LlmToolChoice;
 }
   
 /**
@@ -96,6 +158,8 @@ export interface LlmGenerationResponse {
     safetyDetails?: any;
     errorMessage?: string;
     errorDetails?: any;
+    groundingMetadata?: Record<string, any>;
+    toolCalls?: LlmToolCallRequest[];
 }
   
 /**

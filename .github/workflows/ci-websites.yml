@@ -13,6 +13,7 @@ on:
     paths:
       - 'allma.cdk/**'
       - 'docs.allma.dev/**'
+  workflow_dispatch:
 
 # Prevent overlapping deploys to the live site; let a newer push supersede an in-flight PR build.
 concurrency:
@@ -24,10 +25,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: 'npm'
