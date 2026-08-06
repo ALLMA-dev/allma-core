@@ -13,6 +13,7 @@ on:
     paths:
       - 'allma.cdk/**'
       - 'docs.allma.dev/**'
+  workflow_dispatch:
 
 # Prevent overlapping deploys to the live site; let a newer push supersede an in-flight PR build.
 concurrency:
