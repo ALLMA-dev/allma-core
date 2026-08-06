@@ -1,5 +1,11 @@
 # @allma/core-types
 
+## 1.9.0
+
+### Minor Changes
+
+- 62ea629: Add top-level tool schemas (`LlmBuiltInToolType`, `LlmBuiltInToolSchema`, `LlmFunctionToolSchema`, `LlmToolDeclarationSchema`, `LlmToolChoiceSchema`, `LlmToolCallRequest`) to `LLM_INVOCATION` step payloads and extend `LlmGenerationRequest`/`LlmGenerationResponse`.
+
 ## 1.8.0
 
 ### Minor Changes
