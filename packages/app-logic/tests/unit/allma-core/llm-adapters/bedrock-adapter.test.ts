@@ -154,4 +154,63 @@ describe('BedrockAdapter.generateContent', () => {
     expect(body.temperature).toBe(0.3);
     expect(body.top_p).toBeUndefined();
   });
+
+  it('builds Anthropic tool payload and tool_choice', async () => {
+    bedrockMock.on(InvokeModelCommand).resolves({
+      body: encode({ content: [{ text: 'ok' }], usage: {} }),
+    });
+
+    await adapter.generateContent(
+      makeRequest({
+        tools: [
+          {
+            type: 'function',
+            name: 'calculator',
+            description: 'Calculate expression',
+            parameters: { type: 'object', properties: { expr: { type: 'string' } } },
+          },
+        ],
+        toolChoice: 'required',
+      })
+    );
+
+    const body = lastSentBody();
+    expect(body.tools).toEqual([
+      {
+        name: 'calculator',
+        description: 'Calculate expression',
+        input_schema: { type: 'object', properties: { expr: { type: 'string' } } },
+      },
+    ]);
+    expect(body.tool_choice).toEqual({ type: 'any' });
+  });
+
+  it('parses tool_use blocks into toolCalls in Anthropic response', async () => {
+    bedrockMock.on(InvokeModelCommand).resolves({
+      body: encode({
+        content: [
+          { type: 'text', text: 'Let me calculate that.' },
+          {
+            type: 'tool_use',
+            id: 'toolu_01A',
+            name: 'calculator',
+            input: { expr: '2+2' },
+          },
+        ],
+        usage: { input_tokens: 20, output_tokens: 15 },
+      }),
+    });
+
+    const result = await adapter.generateContent(makeRequest());
+
+    expect(result.success).toBe(true);
+    expect(result.responseText).toBe('Let me calculate that.');
+    expect(result.toolCalls).toEqual([
+      {
+        id: 'toolu_01A',
+        name: 'calculator',
+        args: { expr: '2+2' },
+      },
+    ]);
+  });
 });
