@@ -1,6 +1,6 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
-import { LLMProviderType, LlmMediaKind, type LlmGenerationRequest } from '@allma/core-types';
+import { LLMProviderType, LlmMediaKind, LlmBuiltInToolType, type LlmGenerationRequest } from '@allma/core-types';
 import { mockClient, resetAwsClientMocks } from '../../_helpers/aws-mock.js';
 
 // @google/genai is a third-party SDK, so it is mocked as a collaborator. The secret fetch
@@ -170,6 +170,24 @@ describe('GeminiAdapter.generateContent', () => {
     const passedConfig = generateContentMock.mock.calls[0][0].config;
     expect(passedConfig.responseMimeType).toBeUndefined();
     expect(passedConfig.tools).toEqual([{ googleSearch: {} }]);
+  });
+
+  it('passes code_execution tool in config sent to generateContent', async () => {
+    generateContentMock.mockResolvedValue({
+      text: 'code execution result',
+      candidates: [{ finishReason: 'STOP' }],
+      usageMetadata: {},
+    });
+
+    const result = await adapter.generateContent(
+      makeRequest({
+        tools: [{ type: LlmBuiltInToolType.CODE_EXECUTION }],
+      })
+    );
+
+    expect(result.success).toBe(true);
+    const passedConfig = generateContentMock.mock.calls[0][0].config;
+    expect(passedConfig.tools).toEqual([{ codeExecution: {} }]);
   });
 
   it('handles custom function tool declarations, toolChoice, and extracts functionCalls from response', async () => {
