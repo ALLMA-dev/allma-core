@@ -23,6 +23,7 @@ import { getLlmAdapter } from '../llm-adapters/adapter-registry.js';
 import { TemplateService } from '../template-service.js';
 import { loadPromptTemplate } from '../config-loader.js';
 import { getMediaAttachmentsConfig, resolveLlmMedia } from './llm/media-resolver.js';
+import { getToolsConfig, getToolChoiceConfig } from './llm/tool-resolver.js';
 import { renderNestedTemplates } from '../utils/template-renderer.js';
 
 const EXECUTION_TRACES_BUCKET_NAME = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME]!;
@@ -273,6 +274,21 @@ export const handleLlmInvocation: StepHandler = async (
   );
   const resolvedMedia = await resolveLlmMedia(mediaAttachmentConfigs, correlationId);
 
+  const toolSourceData = { ...runtimeState.currentContextData, ...runtimeState, ...stepInput };
+  const resolvedTools = getToolsConfig(
+    llmStepDef.tools,
+    llmStepDef.toolsPath,
+    llmStepDef.customConfig?.tools,
+    toolSourceData,
+    correlationId
+  );
+  const resolvedToolChoice = getToolChoiceConfig(
+    llmStepDef.toolChoice,
+    llmStepDef.customConfig?.toolChoice,
+    toolSourceData,
+    correlationId
+  );
+
   // Prepare this now, so it's available in both success and error paths
   const s3KeyPrefix = `step_outputs/${runtimeState.flowExecutionId}/${llmStepDef.id}/template_context`;
   const finalTemplateContextForLog = await offloadIfLarge(
@@ -312,6 +328,8 @@ export const handleLlmInvocation: StepHandler = async (
         modelId: model.modelId,
         prompt: finalPrompt,
         ...(resolvedMedia.length > 0 && { media: resolvedMedia }),
+        ...(resolvedTools.length > 0 && { tools: resolvedTools }),
+        ...(resolvedToolChoice !== undefined && { toolChoice: resolvedToolChoice }),
         temperature: model.inferenceParameters.temperature ?? 0.7,
         maxOutputTokens: model.inferenceParameters.maxOutputTokens ?? 16000,
         topP: model.inferenceParameters.topP ?? 0.95,
@@ -416,6 +434,10 @@ export const handleLlmInvocation: StepHandler = async (
     };
   }
 
+  if (responseToReturn.toolCalls && responseToReturn.toolCalls.length > 0) {
+    finalOutputData.tool_calls = responseToReturn.toolCalls;
+  }
+
   return {
     outputData: {
       ...finalOutputData,
@@ -426,6 +448,8 @@ export const handleLlmInvocation: StepHandler = async (
         llmRawResponse: responseToReturn.responseText,
         templateContextMappingResult: finalTemplateContextForLog,
         _templateContextMappingEvents: templateMappingEvents,
+        ...(responseToReturn.groundingMetadata && { groundingMetadata: responseToReturn.groundingMetadata }),
+        ...(responseToReturn.toolCalls && responseToReturn.toolCalls.length > 0 && { toolCalls: responseToReturn.toolCalls }),
       },
     },
   };
