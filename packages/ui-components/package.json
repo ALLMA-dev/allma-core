@@ -47,7 +47,7 @@
   },
   "devDependencies": {
     "@mantine/core": "^8.0.0",
-    "@mantine/hooks": "^8.0.0",
+    "@mantine/hooks": "^9.5.1",
     "@mantine/notifications": "^8.0.0",
     "@tabler/icons-react": "^3.11.0",
     "@uiw/react-json-view": "^2.0.0-alpha.34",
