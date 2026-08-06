@@ -1,5 +1,11 @@
 # @allma/ui-components
 
+## 1.1.1
+
+### Patch Changes
+
+- 1cff3a4: Move @mantine/\* packages to peerDependencies and externalize them in tsup config to prevent bundling @mantine into dist bundle
+
 ## 1.1.0
 
 ### Minor Changes
