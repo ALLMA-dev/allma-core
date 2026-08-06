@@ -7,6 +7,7 @@ export default defineConfig({
   splitting: false,
   sourcemap: true,
   clean: true,               // Clean the 'dist' directory before building
+  external: [/^@mantine\//, /^react/],
   // Add this banner to the top of all ESM files. This is crucial for
   // components to work correctly in modern React frameworks (like Next.js App Router).
   // It's a best practice for any new component library.
