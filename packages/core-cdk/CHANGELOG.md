@@ -1,5 +1,11 @@
 # @allma/core-cdk
 
+## 1.5.4
+
+### Patch Changes
+
+- 6e58437: Lower default Gemini safety thresholds to BLOCK_ONLY_HIGH to reduce false-positive blocks on search grounding
+
 ## 1.5.3
 
 ### Patch Changes
