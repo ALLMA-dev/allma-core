@@ -1,5 +1,11 @@
 # @allma/admin-shell
 
+## 11.0.1
+
+### Patch Changes
+
+- b1b0df5: Fix Gemini google_search tool execution in app-logic and display search grounding metadata in admin UI
+
 ## 11.0.0
 
 ### Patch Changes
