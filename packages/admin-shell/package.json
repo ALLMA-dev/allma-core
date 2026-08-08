@@ -1,6 +1,6 @@
 {
   "name": "@allma/admin-shell",
-  "version": "11.0.0",
+  "version": "11.0.1",
   "description": "The web-based administration panel for the Allma platform.",
   "type": "module",
   "main": "./dist/index.js",

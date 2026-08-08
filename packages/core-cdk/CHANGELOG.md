@@ -1,5 +1,11 @@
 # @allma/core-cdk
 
+## 1.5.1
+
+### Patch Changes
+
+- b1b0df5: Fix Gemini google_search tool execution in app-logic and display search grounding metadata in admin UI
+
 ## 1.5.0
 
 ### Minor Changes
