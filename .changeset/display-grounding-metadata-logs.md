@@ -1,5 +1,6 @@
 ---
 "@allma/admin-shell": patch
+"@allma/core-cdk": patch
 ---
 
-Display search grounding metadata and tool calls in execution step metadata logs
+Fix Gemini google_search tool execution in app-logic and display search grounding metadata in admin UI
