@@ -178,11 +178,7 @@ export class GeminiAdapter implements LlmProviderAdapter {
         for (const tool of request.tools) {
           if (tool.type === LlmBuiltInToolType.GOOGLE_SEARCH) {
             hasGoogleSearch = true;
-            if (tool.config && 'dynamicRetrievalConfig' in tool.config) {
-              toolsList.push({ googleSearchRetrieval: { dynamicRetrievalConfig: tool.config.dynamicRetrievalConfig } });
-            } else {
-              toolsList.push({ googleSearch: {} });
-            }
+            toolsList.push({ googleSearch: {} });
           } else if (tool.type === LlmBuiltInToolType.CODE_EXECUTION) {
             toolsList.push({ codeExecution: tool.config ?? {} });
           } else if (tool.type === 'function') {
