@@ -1,5 +1,11 @@
 # @allma/core-cdk
 
+## 1.5.3
+
+### Patch Changes
+
+- bd7bfcf: Ensure google_search tool payload is strictly googleSearch: {} for Gemini/Vertex AI
+
 ## 1.5.2
 
 ### Patch Changes
