@@ -44,6 +44,8 @@ export function StepMetadataDisplay({ metadata }: { metadata: Record<string, any
         llmRawResponse,
         templateContextMappingResult,
         transitionEvaluation,
+        groundingMetadata,
+        toolCalls,
         ...otherMetadata
     } = metadata as { transitionEvaluation?: TransitionEvaluationEvent } & Record<string, any>;
 
@@ -101,7 +103,51 @@ export function StepMetadataDisplay({ metadata }: { metadata: Record<string, any
                     </Group>
                 </Paper>
             )}
-            <Accordion variant="separated" multiple defaultValue={['llm-invocation-parameters', 'llm-prompt', 'llm-response', 'template-context', 'other-meta']}>
+            <Accordion variant="separated" multiple defaultValue={['grounding-metadata', 'tool-calls', 'llm-invocation-parameters', 'llm-prompt', 'llm-response', 'template-context', 'other-meta']}>
+                {groundingMetadata && (
+                    <Accordion.Item value="grounding-metadata">
+                        <Accordion.Control>
+                            <Group gap="xs">
+                                <Text size="sm" fw={500}>Search Grounding Metadata</Text>
+                                {groundingMetadata.webSearchQueries && Array.isArray(groundingMetadata.webSearchQueries) && (
+                                    <Badge size="xs" variant="light" color="blue">
+                                        {groundingMetadata.webSearchQueries.length} {groundingMetadata.webSearchQueries.length === 1 ? 'query' : 'queries'}
+                                    </Badge>
+                                )}
+                            </Group>
+                        </Accordion.Control>
+                        <Accordion.Panel>
+                            <Stack gap="xs">
+                                {groundingMetadata.webSearchQueries && Array.isArray(groundingMetadata.webSearchQueries) && groundingMetadata.webSearchQueries.length > 0 && (
+                                    <Group gap="xs" align="center">
+                                        <Text size="xs" fw={500} c="dimmed">Search Queries:</Text>
+                                        {groundingMetadata.webSearchQueries.map((q: string, idx: number) => (
+                                            <Badge key={idx} variant="outline" color="cyan" size="sm">{q}</Badge>
+                                        ))}
+                                    </Group>
+                                )}
+                                <EditableJsonView value={groundingMetadata} readOnly />
+                            </Stack>
+                        </Accordion.Panel>
+                    </Accordion.Item>
+                )}
+                {toolCalls && (
+                    <Accordion.Item value="tool-calls">
+                        <Accordion.Control>
+                            <Group gap="xs">
+                                <Text size="sm" fw={500}>Tool Calls</Text>
+                                {Array.isArray(toolCalls) && (
+                                    <Badge size="xs" variant="light" color="violet">
+                                        {toolCalls.length}
+                                    </Badge>
+                                )}
+                            </Group>
+                        </Accordion.Control>
+                        <Accordion.Panel>
+                            <EditableJsonView value={toolCalls} readOnly />
+                        </Accordion.Panel>
+                    </Accordion.Item>
+                )}
                 {llmInvocationParameters && (
                     <Accordion.Item value="llm-invocation-parameters">
                         <Accordion.Control>LLM Invocation Parameters</Accordion.Control>

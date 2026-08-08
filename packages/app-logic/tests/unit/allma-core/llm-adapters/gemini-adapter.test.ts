@@ -172,6 +172,25 @@ describe('GeminiAdapter.generateContent', () => {
     expect(passedConfig.tools).toEqual([{ googleSearch: {} }]);
   });
 
+  it('omits toolConfig when toolChoice is set but no custom function declarations exist', async () => {
+    generateContentMock.mockResolvedValue({
+      text: 'search result text',
+      candidates: [{ finishReason: 'STOP' }],
+      usageMetadata: {},
+    });
+
+    const result = await adapter.generateContent(
+      makeRequest({
+        tools: [{ type: 'google_search' }],
+        toolChoice: 'auto',
+      })
+    );
+
+    expect(result.success).toBe(true);
+    const passedConfig = generateContentMock.mock.calls[0][0].config;
+    expect(passedConfig.toolConfig).toBeUndefined();
+  });
+
   it('passes code_execution tool in config sent to generateContent', async () => {
     generateContentMock.mockResolvedValue({
       text: 'code execution result',

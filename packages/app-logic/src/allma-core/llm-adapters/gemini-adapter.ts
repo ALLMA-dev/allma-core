@@ -170,10 +170,10 @@ export class GeminiAdapter implements LlmProviderAdapter {
       
       let geminiTools: any[] | undefined = undefined;
       let hasGoogleSearch = false;
+      const functionDeclarations: any[] = [];
 
       if (request.tools && request.tools.length > 0) {
         const toolsList: any[] = [];
-        const functionDeclarations: any[] = [];
 
         for (const tool of request.tools) {
           if (tool.type === LlmBuiltInToolType.GOOGLE_SEARCH) {
@@ -215,7 +215,7 @@ export class GeminiAdapter implements LlmProviderAdapter {
         ...(geminiTools && { tools: geminiTools }),
       };
 
-      if (request.toolChoice) {
+      if (request.toolChoice && functionDeclarations.length > 0) {
         let mode: FunctionCallingConfigMode;
         let allowedFunctionNames: string[] | undefined = undefined;
 
