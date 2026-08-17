@@ -56,7 +56,7 @@
     "aws-sdk-client-mock-vitest": "^3.0.0",
     "chai": "^6.2.2",
     "cpy-cli": "^7.0.0",
-    "eslint": "^9.8.0",
+    "eslint": "^10.8.1",
     "estree-walker": "^2.0.2",
     "get-func-name": "^2.0.2",
     "local-pkg": "^0.5.0",
