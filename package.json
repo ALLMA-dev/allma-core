@@ -33,7 +33,7 @@
     "@mantine/core": "^8.3.18",
     "@mantine/dates": "^8.3.18",
     "@mantine/form": "^8.3.18",
-    "@mantine/hooks": "^8.3.18",
+    "@mantine/hooks": "^9.5.1",
     "@mantine/modals": "^8.3.18",
     "@mantine/notifications": "^8.3.18",
     "@tanstack/react-query": "^5.96.0",
