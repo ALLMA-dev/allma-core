@@ -28,7 +28,7 @@
   ],
   "dependencies": {
     "@aws-amplify/ui-react": "^6.15.2",
-    "@aws-sdk/client-lambda": "^3.1101.0",
+    "@aws-sdk/client-lambda": "^3.1111.0",
     "@emotion/react": "^11.14.0",
     "@mantine/core": "^8.3.18",
     "@mantine/dates": "^8.3.18",
