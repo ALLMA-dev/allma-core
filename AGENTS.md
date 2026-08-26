@@ -51,6 +51,7 @@ Before editing anything, classify the task and confirm scope:
 | If the task is about…                                              | Work in…                       | Authoritative rules            |
 | ------------------------------------------------------------------ | ------------------------------ | ------------------------------ |
 | Flow engine, step types, admin shell, SDK, types, CDK constructs   | `packages/*`, `allma.cdk/`     | **This file**                  |
+| Where a file belongs, what is safe to change, what a change drags with it | Read [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | This file + that document      |
 | Understanding how a feature/step/API behaves                       | Read `docs.allma.dev/docs/`    | See [Platform Documentation](#platform-documentation-where-to-read-about-allma) |
 | The documentation website (content or site config)                 | `docs.allma.dev/`              | This file + that package       |
 | A consumer/example application                                     | `examples/<app>/`              | `examples/<app>/AGENTS.md`     |
@@ -63,6 +64,8 @@ Guidance:
 ---
 
 ## Platform Documentation (Where to Read About Allma)
+
+[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) is the companion to this file: it records the repository's layers, canonical homes, change surfaces, infrastructure boundaries, testing contract, standing decisions and rejected alternatives — *how code is built here*. This file carries boundaries, routing, style and release policy; `docs.allma.dev/docs/` carries *what the platform does*.
 
 The sections below in this file are a **high-level summary**. The complete, authoritative, human-facing documentation of how the platform behaves lives in the repository under **`docs.allma.dev/docs/`** (a Docusaurus 3 site). **Read it before designing or changing platform behavior** — especially when adding or modifying a step type, an admin API, or flow semantics. The Markdown/MDX sources are the source of truth; the live site at `https://docs.allma.dev` is built from them by CI.
 
