@@ -6,8 +6,8 @@ inconsistent, the inconsistency is written down rather than tidied away.
 
 `allma-core` is a **framework consumed by other repositories**. Seven of its eight packages are
 published to npm under `@allma/*`; consumers deploy `AllmaStack` into their own AWS accounts and
-never fork this repo. That is why most rules below exist: a helper duplicated here is duplicated in
-every consumer, and an exported type changed here breaks builds nobody here can see.
+never fork this repo. Hence most rules below: a helper duplicated here is duplicated in every
+consumer, and an exported type changed here breaks builds nobody here can see.
 
 [`../AGENTS.md`](../AGENTS.md) carries repository boundaries, task routing, coding style and
 changeset policy; `docs.allma.dev/docs/` is the behavioural reference for every step type and admin
@@ -34,27 +34,27 @@ one above it.
 | 2 | `packages/flow-builder/src/` | Build-time flows-as-code DSL + `allma-flows` CLI | `@allma/core-sdk`, `@allma/core-types` |
 | 2 | `packages/cdk-integration-utils/src/` | CDK helper for consumers registering external steps | `@allma/core-types` |
 | 1 | `packages/ui-components/src/` | Generic Mantine primitives, no Allma concepts | Nothing in this repo |
-| 2 | `packages/admin-shell/src/` | React Admin Panel shell and its features | `@allma/ui-components`, `@allma/core-types` |
+| 2 | `packages/admin-shell/src/` | React Admin Panel shell and features | `@allma/ui-components`, `@allma/core-types`, `@allma/core-sdk` (constants only) |
 
-- **Nothing imports `allma-app-logic`.** It is `private: true` and has no `main`/`types`. Its only
-  outbound path is its build output: `packages/app-logic` runs `tsc` then copies `dist/**` into
-  `packages/core-cdk/dist-logic` (its `postbuild` script). CDK references those files by path
-  string, e.g. `'allma-flows/initialize-flow.js'`.
+- **Nothing imports `allma-app-logic`.** It is `private: true` with no `main`/`types`; its only
+  outbound path is build output — `tsc`, then `postbuild` copies `dist/**` into
+  `packages/core-cdk/dist-logic`, which CDK references by path string
+  (e.g. `'allma-flows/initialize-flow.js'`).
 - **`packages/core-types` is a leaf.** No `dependencies` block; anything it would need from
   `app-logic` cannot be imported — stated in-code at
-  `packages/core-types/src/steps/system/module-config-registry.ts:43`.
+  `packages/core-types/src/steps/system/module-config-registry.ts:43-44`.
 - **`packages/ui-components` must stay Allma-agnostic** — React/Mantine peer deps only. A component
   that knows what a Flow is belongs in `packages/admin-shell/src/features/`.
 
 ### Module layers inside `packages/app-logic/src/`
 
 There is no `handlers/` directory. Lambda entry points are the **top-level files** of three
-directories; everything in a subdirectory is a lower layer.
+directories; anything in a subdirectory is a lower layer.
 
 | Layer | Paths | Rule |
 | --- | --- | --- |
 | L1 — Lambda entry points | `src/allma-admin/*.ts` (11), `src/allma-flows/*.ts` (7), `src/allma-cdk/config-importer.ts`, `src/allma-flows/iterative-step-processor/index.ts`, `src/allma-core/execution-logger.ts` | Each exports `handler`. **Nothing may import an entry point** — verified: zero imports of these 21 files exist in `src/`. |
-| L2 — Services | `src/allma-admin/services/`, `src/services/` | Persistence and business logic. All DynamoDB access lives here; handlers never touch `ddbDocClient`. |
+| L2 — Services | `src/allma-admin/services/`, `src/services/` | Persistence and business logic for admin CRUD and flow/prompt versioning. Admin handlers reach DynamoDB only through these classes. |
 | L3 — Execution engine | `src/allma-flows/iterative-step-processor/` | The step-processing loop. Entered only through its own `index.ts`. |
 | L4 — Step handlers & transport adapters | `src/allma-core/step-handlers/`, `.../data-loaders/`, `.../data-savers/`, `.../data-transformers/`, `.../llm-adapters/`, `.../notifications/` | One file per step type or external system. Dispatched by registry, never by a `switch` in a caller. |
 | L5 — Utilities | `src/allma-core/utils/`, `src/allma-admin/utils/` | Stateless helpers. May not import L1–L4. |
@@ -77,11 +77,13 @@ direction (`allma-admin/services` → `allma-core`) is normal and appears in sev
 
 ### Boundary validation
 
-Every structure crossing a process boundary has a Zod schema, and the schema lives in
+Every structure crossing a process boundary has a Zod schema, and the schema belongs in
 `packages/core-types/src/` — not beside the code that validates it. Convention there:
-`XxxSchema = z.object(...)` followed by `export type Xxx = z.infer<typeof XxxSchema>`.
+`XxxSchema = z.object(...)` followed by `export type Xxx = z.infer<typeof XxxSchema>`. Eleven
+`z.object(...)` definitions still sit in seven `packages/app-logic/src/` files (e.g.
+`allma-flows/resume-flow.ts:26`) — debt, not a second home.
 
-Validation happens at three depths, deliberately: **Lambda entry** (`src/allma-admin/flow-trigger.ts:52`,
+Validation happens at three depths: **Lambda entry** (`src/allma-admin/flow-trigger.ts:52`,
 `src/allma-admin/utils/create-crud-handler.ts:37` shared by every admin CRUD Lambda), **service before
 persisting** (`src/allma-admin/services/flow-definition.service.ts:109`), and **step handler on the
 runtime payload** (`src/allma-core/step-handlers/poll-external-api-handler.ts:14`). New code validates
@@ -96,28 +98,30 @@ Check here before writing a helper. A duplicate added in this repo ships to ever
 
 | Thing | Home | Rule |
 | --- | --- | --- |
-| Shared types & interfaces | `packages/core-types/src/` — 12 domain subdirectories (`common/`, `flow/`, `steps/`, `llm/`, `logging/`, `runtime/`, `storage/`, `prompt/`, `mcp/`, `agent/`, `notifications/`, `admin/`) | A type used by more than one package goes here, never in the consuming package. |
-| Zod schemas | Colocated with the type they describe, in the same `packages/core-types/src/` files | There is deliberately **no** `schemas/` directory. Do not create one. |
+| Shared types & interfaces | `packages/core-types/src/` — 12 domain subdirectories (`common/`, `flow/`, `steps/`, `llm/`, `logging/`, `runtime/`, `storage/`, `prompt/`, `mcp/`, `agent/`, `notifications/`, `admin/`); 10 have an `index.ts`, `mcp/` and `agent/` are re-exported file-by-file | A type used by more than one package goes here, never in the consuming package. |
+| Zod schemas | Colocated with the type they describe, in the same `packages/core-types/src/` files | There is **no** `schemas/` directory anywhere in the repo. Do not create one. |
 | Enums | `packages/core-types/src/common/enums.ts` (`StepType`, `HttpMethod`, `SfnActionType`, `AggregationStrategy`) | Each native enum is paired with a `z.nativeEnum` schema in the same file. |
 | Environment variable names | `packages/core-types/src/common/shared.ts` — `ENV_VAR_NAMES` | Single definition in the repo, consumed by both `core-cdk` and `app-logic`. Never write a raw `process.env['...']` string. |
 | Admin API routes & version | `packages/core-types/src/admin/endpoints.ts` — `ALLMA_ADMIN_API_ROUTES`, `ARS`, `ALLMA_ADMIN_API_VERSION` | Centralized here and consumed by CDK, Lambdas and the Admin Panel alike. |
 | Other core-types constants | `Stage` in `common/shared.ts`; `ITEM_TYPE_ALLMA_*` in `common/core.ts`; `AdminPermission` in `admin/permissions.ts`; module ids in `steps/system-module-identifiers.ts` | — |
-| Per-module config schemas | `packages/core-types/src/steps/system/` (one file per system module) + `module-config-registry.ts` | Modules not yet centralized are listed in `SYSTEM_MODULES_WITHOUT_CONFIG_SCHEMA`; adding one there is the migration path, not an exception. |
+| Per-module config schemas | `packages/core-types/src/steps/system/` (one file per module), registered in `SYSTEM_MODULE_CONFIG_SCHEMAS` in `module-config-registry.ts` | Every system module is centralized; `SYSTEM_MODULES_WITHOUT_CONFIG_SCHEMA` is **empty and must stay that way** — adding a module there is a deliberate temporary exception, not the migration path (`module-config-registry.ts:67-78`). A module in neither fails CI by design. |
 | Structured logger | `packages/core-sdk/src/logger.ts` — `log_debug/info/warn/error/critical` | Mandatory. `console.log` is banned by `AGENTS.md`. Always pass a `correlationId` (usually `flowExecutionId`). |
 | S3 payload offload / hydration | `packages/core-sdk/src/s3Utils.ts` (`offloadIfLarge`, `resolveS3Pointer`), `hydrationUtils.ts` (`hydrateInputFromS3Pointers`, `S3HydrationCache`) | — |
-| Admin auth middleware | `packages/core-sdk/src/authUtils.ts` — `withAdminAuth`, `getAuthContext` | Every admin Lambda wraps its handler in `withAdminAuth`. |
+| Admin auth middleware | `packages/core-sdk/src/authUtils.ts` — `withAdminAuth`, `getAuthContext` | Every admin Lambda wraps its handler in `withAdminAuth`, directly or via `create-crud-handler.ts:254`. The one exception is `allma-admin/flow-trigger.ts`, the public trigger endpoint, which gates on `FlowActivationService.isFlowActive` instead. |
 | Other shared Lambda helpers | all in `packages/core-sdk/src/`: API Gateway responses `apiResponseBuilder.ts`; LLM JSON repair `jsonUtils.ts` (`extractAndParseJson`); object helpers `objectUtils.ts` (`isObject`, `deepMerge`); DynamoDB item mapping `storageUtils.ts`; token estimation `tokenEstimator.ts`; deploy-time config validation `config-validator.ts` (`validateAllmaConfig`); CloudFormation custom-resource replies `cloudformation-utils.ts` | — |
 | Generic React primitives | `packages/ui-components/src/components/` | Must not reference Allma domain concepts. |
 | Admin Panel feature UI | `packages/admin-shell/src/features/<domain>/` (11 domains) | Cross-feature UI goes in `packages/admin-shell/src/features/shared/`; app-wide in `packages/admin-shell/src/components/`. |
 | Admin Panel API clients | `packages/admin-shell/src/api/` — all through `axiosInstance.ts`, wrapped in React Query hooks | No direct `fetch`/`axios` in a component. |
 | Versioned DynamoDB entity access | `packages/app-logic/src/allma-admin/services/versioned-entity.service.ts`, `generic-entity.service.ts` | Extend these before writing new DynamoDB access. `AGENTS.md` makes this explicit. |
-| Test helpers (app-logic) | `packages/app-logic/tests/unit/_helpers/` | `aws-mock.ts`, `fixtures.ts`, `logger.ts`, `vitest.setup.ts`. |
-| Test helpers (admin-shell) | `packages/admin-shell/tests/_helpers/`, `packages/admin-shell/tests/_setup/` | — |
+| Test helpers | `packages/app-logic/tests/unit/_helpers/` (`aws-mock.ts`, `fixtures.ts`, `logger.ts`, `vitest.setup.ts`); `packages/admin-shell/tests/_helpers/` and `tests/_setup/` | — |
 
-**Known duplication, do not extend it.** Three collisions exist; none is a pattern to follow.
+**Known duplication, do not extend it.** Four collisions exist; none is a pattern to follow.
 
 - `packages/core-sdk/src/cdk-utils.ts` and `packages/cdk-integration-utils/src/cdk-utils.ts` are
-  byte-for-byte identical. Only the latter is exported; the `core-sdk` copy is dead.
+  identical but for a trailing newline. Only the latter is exported; the `core-sdk` copy is dead.
+- `packages/app-logic/src/allma-core/step-handlers/custom-lambda-invoke-handler.ts:23` declares a
+  local `CustomLambdaInvokeStepSchema` shadowing the exported one at
+  `packages/core-types/src/steps/definitions.ts:55` — same name, different schema.
 - `packages/core-types/src/admin/utils.ts` exports stub `withAdminAuth`, `AuthContext`,
   `offloadIfLarge` and response builders shadowing the real ones. Import those names from
   `@allma/core-sdk`, never from `@allma/core-types`.
@@ -137,7 +141,7 @@ violation.
 ### Public API surface — breaking to change, blast radius leaves this repository
 
 Seven packages are published. For each, **only what the barrel re-exports is public.** Everything
-else is internal, and free to move, rename or delete without a major bump.
+else is internal — free to move, rename or delete without a major bump.
 
 | Package | Public surface (the barrel) | Internal — free to move |
 | --- | --- | --- |
@@ -162,7 +166,7 @@ else is internal, and free to move, rename or delete without a major bump.
 ### Persisted and wire contracts — breaking even when no type changes
 
 - **DynamoDB item shapes.** Single-table, `PK`/`SK` composite keys, schemas in
-  `packages/core-types/src/storage/index.ts`. Four tables with ten GSIs in
+  `packages/core-types/src/storage/index.ts`. Four tables, ten GSIs, in
   `packages/core-cdk/lib/constructs/data-stores.ts`; a new query pattern may need a new GSI — a table
   update, not a code change.
 - **Step Functions payloads** between the orchestrator and
@@ -184,14 +188,13 @@ else is internal, and free to move, rename or delete without a major bump.
 | New environment variable | `ENV_VAR_NAMES` in `packages/core-types/src/common/shared.ts` **and** the Lambda definition in `packages/core-cdk/lib/constructs/compute.ts` — a name added in one place only fails at runtime, not at build. |
 | New `StageConfig` field | `packages/core-cdk/lib/config/stack-config.ts` (the interface) **and** `packages/core-cdk/lib/config/default-config.ts` (a sensible default). A field with no default breaks every consumer's synth. |
 | Any platform behaviour change | The matching page under `docs.allma.dev/docs/` in the same PR — `AGENTS.md` requires it, and `onBrokenLinks: 'throw'` makes a stale internal link fail the docs build. |
-| Any change to a published package | A changeset in `.changeset/`. Docs-only PRs need an *empty* changeset. |
 
 ### Contention files
 
-What two parallel subtasks collide on. A plan that splits work should give each of these to exactly
-one subtask.
+What two parallel subtasks collide on. A plan that splits work should give each to exactly one
+subtask. `package-lock.json` is the same hazard for any two subtasks adding dependencies.
 
-- `packages/core-types/src/index.ts` and the 12 sub-barrels under `packages/core-types/src/*/index.ts`
+- `packages/core-types/src/index.ts` and the 10 sub-barrels under `packages/core-types/src/*/index.ts`
 - `packages/core-types/src/common/enums.ts` (every new step type), `common/shared.ts`
   (`ENV_VAR_NAMES`), `admin/endpoints.ts` (every new endpoint)
 - `packages/core-sdk/src/index.ts`
@@ -202,7 +205,6 @@ one subtask.
 - `packages/flow-builder/src/index.ts` and `packages/flow-builder/src/factories.ts`
 - `packages/admin-shell/src/AuthenticatedApp.tsx` — nav items and routes, both arrays
 - `AGENTS.md`, this file, `README.md`
-- `package-lock.json` — two subtasks adding dependencies will conflict
 
 ---
 
@@ -212,9 +214,9 @@ one subtask.
 
 **At deploy time (CDK synth/deploy, run by the consumer — never by CI in this repo):**
 
-- Define and update every resource declared in `packages/core-cdk/lib/constructs/`: DynamoDB tables
-  and the traces bucket (`data-stores.ts`), SQS queues and SNS topics (`notifications.ts`,
-  `monitoring.ts`), Step Functions state machines (`orchestration.ts`, `polling-orchestrator.ts`),
+- Define and update every resource declared in `packages/core-cdk/lib/constructs/` and in the stack
+  root: DynamoDB tables and the traces bucket (`data-stores.ts`), the flow-start queue and its DLQ
+  (`lib/allma-stack.ts:90,95`), SNS topics (`notifications.ts`, `monitoring.ts`), Step Functions state machines (`orchestration.ts`, `polling-orchestrator.ts`),
   Cognito (`admin-authentication.ts`), the HTTP API and Lambdas (`admin-api.ts`, `api.construct.ts`,
   `compute.ts`), SES receipt rules (`email-integration.ts`), EventBridge rules (`monitoring.ts`) and
   the CloudFront/S3 web deployment (`web-app-deployment.ts`).
@@ -227,8 +229,12 @@ one subtask.
 
 **At runtime (inside a Lambda):**
 
-- Read and write the four DynamoDB tables, through the service classes in
-  `packages/app-logic/src/allma-admin/services/` — never a raw `ddbDocClient` call from a handler.
+- Read and write the four DynamoDB tables. Admin CRUD goes through the service classes in
+  `packages/app-logic/src/allma-admin/services/`; the `DATA_LOAD`/`DATA_SAVE` step family
+  (`allma-core/data-loaders/`, `data-savers/`) talks to DynamoDB directly by design. **Drift:** six
+  L1 entry points (`allma-admin/dashboard-stats.ts`, `step-management.ts`, `flow-control.ts`,
+  `allma-flows/email-ingress.ts`, `resume-flow.ts`, `execution-lifecycle-dispatcher.ts`) each build
+  their own `ddbDocClient` instead. Do not add a seventh; moving one into a service is an improvement.
 - Read and write objects in the execution-traces bucket, through `packages/core-sdk/src/s3Utils.ts`
   and `packages/app-logic/src/allma-core/data-loaders/` / `data-savers/`.
 - Send and receive SQS messages, publish to SNS, start and resume Step Functions executions, invoke
@@ -248,16 +254,18 @@ one subtask.
   `PutBucketPolicy` call exists anywhere under `packages/`. Infrastructure changes go through CDK.
 - **Create secrets.** The stack receives secret ARNs (`aiApiKeySecretArn` and the GCP service-account
   key ARN in `packages/core-cdk/lib/config/stack-config.ts`) and grants read. It never writes
-  Secrets Manager and never writes SSM — there is no SSM usage in the repo at all.
+  Secrets Manager, and never reads or writes SSM — `@aws-sdk/client-ssm` is a declared dependency of
+  `@allma/core-sdk` but is imported nowhere.
 - **Hardcode account IDs, ARNs, domains, regions or capacities in a construct.** They belong in
   `StageConfig`. `packages/core-cdk/lib/allma-stack.ts` throws if `awsAccountId` or
   `aiApiKeySecretArn` are still their placeholder values.
 - **Weaken a removal policy on a stateful resource.** All four DynamoDB tables and the traces bucket
-  are `isProd ? RETAIN : DESTROY` with `pointInTimeRecovery: isProd`
-  (`packages/core-cdk/lib/constructs/data-stores.ts`); the Cognito user pool
-  (`admin-authentication.ts`) and the SFN log group (`orchestration.ts`) match, and new stateful
-  resources must too. `web-app-deployment.ts` buckets are unconditionally `DESTROY` because they hold
-  only rebuildable static assets; `IncomingEmailsBucket` in `email-integration.ts` is unconditionally
+  are `isProd ? RETAIN : DESTROY` (`packages/core-cdk/lib/constructs/data-stores.ts`); the Cognito
+  user pool (`admin-authentication.ts`) and the SFN log group (`orchestration.ts`) match, and new
+  stateful resources must too. `pointInTimeRecovery: isProd` covers three of the four tables —
+  `AllmaFlowContinuationStateTable` (`data-stores.ts:189`) has none, a gap rather than the pattern.
+  The `web-app-deployment.ts` bucket is unconditionally `DESTROY` because it holds only rebuildable
+  static assets; `IncomingEmailsBucket` in `email-integration.ts` is unconditionally
   `DESTROY` and holds real inbound mail — a defect, not a pattern.
 - **Deploy the platform stack from this repository's CI.** `.github/workflows/ci.yml` never deploys.
   `.github/workflows/ci-websites.yml` deploys exactly one thing on push to `main`: the documentation
@@ -268,10 +276,9 @@ one subtask.
 ### Naming and IAM conventions
 
 - Every resource name is suffixed with the stage, e.g. `AllmaFlowStartRequestQueue-${stage}`.
-- Prefer `grant*` over hand-written `PolicyStatement`. Both exist today (~36 `grant*` vs ~29
-  `PolicyStatement`s in `packages/core-cdk/lib/`); the latter are for services with no L2 grant
-  (Bedrock, Secrets Manager, EventBridge Scheduler, `states:*` on a predictive ARN). Reach for
-  `PolicyStatement` only when no `grant*` exists.
+- Prefer `grant*` over hand-written `PolicyStatement` (~36 vs ~29 in `packages/core-cdk/lib/`). The
+  `PolicyStatement`s are for services with no L2 grant — Bedrock, Secrets Manager, EventBridge
+  Scheduler, `states:*` on a predictive ARN. Reach for one only when no `grant*` exists.
 - Where a wildcard resource is unavoidable, condition it — the in-codebase pattern is a resource-tag
   condition (`secretsmanager:ResourceTag/allma-mcp-secret`) in
   `packages/core-cdk/lib/constructs/compute.ts` and `api.construct.ts`.
@@ -332,8 +339,8 @@ not typechecked by any command.** A plan claiming "zero type errors" means `npm 
 
 - **Hermetic by default.** AWS clients are module-scope singletons, so they are intercepted at the
   client `send` layer with `aws-sdk-client-mock` + `aws-sdk-client-mock-vitest`, registered globally
-  in `packages/app-logic/tests/unit/_helpers/vitest.setup.ts`; shared stubs in `_helpers/aws-mock.ts`.
-  **No LocalStack, no testcontainers, no dynamodb-local** — none appears in the repo.
+  in `packages/app-logic/tests/unit/_helpers/vitest.setup.ts`; stubs in `_helpers/aws-mock.ts`.
+  **No LocalStack, testcontainers or dynamodb-local** — none appears in the repo.
 - **The live layer is opt-in by collection-gating, not by mocking.**
   `packages/app-logic/vitest.workspace.ts` sets the integration project's `include` to `[]` unless
   `RUN_LIVE_AWS=1`, and `test:integration` passes `--passWithNoTests`. It requires a deployed dev
@@ -355,8 +362,8 @@ not typechecked by any command.** A plan claiming "zero type errors" means `npm 
   templating, error/retry policy. The 10 files under
   `packages/app-logic/tests/unit/allma-flows/iterative-step-processor/` are where the density belongs.
 - **Not worth a test:** CDK wiring already asserted by synth, pure type declarations, barrels
-  (`src/**/index.ts`) and the admin-shell harness (`src/harness/**`) — the last two are excluded from
-  coverage in both configs.
+  (`src/**/index.ts`, excluded from coverage in both configs) and the admin-shell harness
+  (`src/harness/**`, excluded in `packages/admin-shell/vitest.config.ts`).
 - **What CI actually gates is narrower than the above.** `.github/workflows/ci.yml` runs
   `npm run lint` and `npm run build`, then `npm run test` **only in `packages/app-logic`**, and only
   when `TEST_AWS_*` secrets are present. The `admin-shell`, `flow-builder` and `core-types` suites do
@@ -373,13 +380,13 @@ strings). Two rules of restraint are added here.
 ### Volume — how large a change should be
 
 - **A change carries the files its acceptance criteria name, and no others.** A plan proposing files
-  no criterion asks for is over-scoped; drop them or add the criterion.
-- Rough sizes: a bug fix is one or two files plus its test. A new step type is the six-file set under
-  Change surfaces — not more, not fewer. A refactor spanning more than one package is two changes
+  no criterion asks for is over-scoped: drop them, or add the criterion.
+- Rough sizes: a bug fix is one or two files plus its test. A new step type is the seven-file set
+  under Change surfaces — not more, not fewer. A refactor spanning more than one package is two changes
   unless a type change forces them together.
 - **Split a file when it holds several logical parts** (`AGENTS.md`). The largest file here is 733
   lines (`packages/app-logic/src/allma-admin/services/execution-monitoring.service.ts`); treat ~700
-  as the point where a reviewer asks for a split, not a hard limit.
+  as where a reviewer asks for a split, not a hard limit.
 - **Never duplicate logic** — check Canonical homes first. The highest-cost mistake available in a
   consumed framework.
 - Do not restructure directories, rename exports, or migrate a package's test convention as a side
@@ -405,11 +412,11 @@ strings). Two rules of restraint are added here.
 Dated by the commit where the decision landed in code, or where the written design landed.
 
 - 2025-10-01 Serverless-first on AWS CDK: Step Functions drives execution, Lambda holds business
-  logic, DynamoDB and S3 hold state. No servers, no containers.
+  logic, DynamoDB and S3 hold state. No servers, no containers. (`8f57700`, the initial commit)
 - 2025-10-01 Configuration and execution state live in a **single DynamoDB table** with composite
-  `PK`/`SK` keys, so related items are fetched in one query.
+  `PK`/`SK` keys, so related items are fetched in one query. (`8f57700`)
 - 2025-10-01 Large payloads are **offloaded to S3 and passed as pointers**, so flow authors never
-  think about the Step Functions 256KB limit.
+  think about the Step Functions 256KB limit. (`8f57700`)
 - 2025-10-26 The platform ships as published `@allma/*` npm packages; `allma-app-logic` stays private
   and is bundled into CDK assets rather than published. (`fc0eb9a`)
 - 2025-10-26 Platform code stays **product-agnostic** — no consumer application's names, types or
@@ -434,8 +441,8 @@ Dated by the commit where the decision landed in code, or where the written desi
   immediate use, falling back to ADC/Workload Identity Federation, the production target. (`f4b1483`)
 - 2026-06-27 Execution progress is a **checkpoint on the step, not a flow-level list** — it travels
   with the step, so adding, removing, reordering or cloning steps keeps progress correct. (`be5a333`)
-- 2026-06-27 Progress is **stamped onto the metadata item by the orchestrator**, not derived from step
-  records on read, because the step logger is fire-and-forget and may lag or reorder. (`ce1e482`)
+- 2026-06-27 Progress is **stamped onto the metadata item by the orchestrator**, not derived from
+  step records on read: the step logger is fire-and-forget and may lag or reorder. (`ce1e482`)
 - 2026-06-27 Terminal execution notifications are emitted **only** by the EventBridge lifecycle
   dispatcher, never by `finalize-flow`: it is the only crash-proof terminal signal, and a single
   emitter avoids double-send. (`009f92a`)
@@ -444,9 +451,9 @@ Dated by the commit where the decision landed in code, or where the written desi
 - 2026-06-27 Execution status events are at-least-once and **unordered** — no consumer may assume
   `STARTED` arrives before `CHECKPOINT`. (`009f92a`)
 - 2026-07-02 The engine never materializes the whole flow context; sub-flow finalization and
-  parallel/Distributed-Map aggregation are bounded in memory. (`45caad0`, `011c520`)
-- 2026-07-02 `NONE` is a supported parallel-aggregation strategy: a pure barrier that collects
-  nothing, for fan-outs too large to aggregate. (`3209d7e`)
+  parallel/Distributed-Map aggregation are bounded in memory. (`45caad0`, `011c520`) — and `NONE` is
+  a supported aggregation strategy, a pure barrier collecting nothing, for fan-outs too large to
+  aggregate. (`3209d7e`)
 - 2026-08-04 `@allma/flow-builder` is a **build-time tool only** — no new runtime, orchestrator or
   DynamoDB schema; it emits the existing `AllmaExportFormat` JSON. (`062e1ec`)
 - 2026-08-04 For a given flow, **either code or the Visual Editor owns authoring, never both**, and
@@ -478,16 +485,13 @@ tested; or a package dependency rule stated anywhere but in the code. Undecided,
 
 | Alternative | Why it lost | Source |
 | --- | --- | --- |
-| GraphQL/AppSync for execution status | The platform stays REST + SNS/EventBridge. WebSocket push is deferred, not rejected — revisit only if 3s polling proves insufficient. | `docs/design/real-time-execution-status.md` |
-| `onCompletionActions` / `finalize-flow` as the client-notification path | Both are skipped on a hard crash. `onCompletionActions` stays supported for in-flow actions, but is not the crash-safe path. | `docs/design/real-time-execution-status.md` |
-| Deriving progress from step records at read time | The step logger is async and may lag or reorder. Kept only as a fallback for legacy un-stamped executions, without an S3 fetch so polling stays cheap. | `docs/design/real-time-execution-status.md`, `execution-monitoring.service.ts:421` |
+| GraphQL/AppSync for execution status | A second API paradigm for one read path; the platform stays REST + SNS/EventBridge. WebSocket push is deferred, not rejected. | `docs/design/real-time-execution-status.md:39` |
+| Deriving progress from step records at read time | The step logger is async and may lag or reorder. Kept only as a fallback for legacy un-stamped executions, without an S3 fetch so polling stays cheap. | `docs/design/real-time-execution-status.md`, `packages/app-logic/src/allma-admin/services/execution-monitoring.service.ts:421` |
 | Typed factories over object literals (flows-as-code Option A) | Smallest surface, but graph wiring stays stringly-typed with no forward-ref checking until Zod runs. | `design/flows-as-code.md` §3 |
 | A class/decorator `new Flow()` model as the primary API (Option C) | Eager construction makes forward refs awkward and weakens inference. An `addStep` facade sits over the chosen internals instead. | `design/flows-as-code.md` §3 |
-| Replacing the Visual Editor with flows-as-code | The editor stays fully supported; the two coexist under an explicit ownership model. | `design/flows-as-code.md` |
-| A new flow runtime, orchestrator or DynamoDB schema for flows-as-code | The builder is compile-time only and emits the existing artifact. | `design/flows-as-code.md` |
 | "JSON is the single source of truth" *and* code authors flows | The RFC's first draft held both; they conflict. Corrected: JSON is the wire/storage contract; per flow, either code or the editor owns authoring. | `design/flows-as-code.md` (self-reversal) |
 | Hard-failing `customConfig` validation in `FlowDefinitionSchema` | A required field may legitimately be supplied at runtime via `inputMappings`, so a hard error rejects valid flows. | `packages/flow-builder/README.md` |
 | Threading a context generic through `Step`/`StepRef`/`StepDraft` | Re-instantiates types across the 21-member step union — the inference blow-up the package exists to avoid. Typed context is opt-in, depth-bounded to 3. | `packages/flow-builder/src/typed-context.ts:20` |
 | Gemini Developer API (AI Studio key) as the production LLM path | Low per-project rate limits throttle production flows; Vertex AI has far higher quota, no prompt-data-for-training clause, and unified GCP IAM. | `documents/wip/gemini-vertex-migration.md` |
 | A long-lived GCP service-account JSON key as the production credential | Must be rotated, discouraged by Google. WIF is the production target; the SA-key path exists only to unblock. | `documents/wip/gemini-vertex-migration.md` |
-| Raw Step Functions / ASL, Trigger.dev / Inngest, LangChain / LlamaIndex as the platform | None sits at the intersection Allma targets: AWS-native, fully serverless, visual, TypeScript-first, no vendor in the data path, in the user's own account. | `README.md` |
+| Raw Step Functions / ASL, Trigger.dev / Inngest, LangChain / LlamaIndex as the platform | Each costs a constraint Allma holds: hand-written ASL loses the visual editor and versioning; the hosted orchestrators put a third party in the data path, outside the user's account; the LLM frameworks are libraries, not a deployable serverless control plane. | `README.md:58` |
