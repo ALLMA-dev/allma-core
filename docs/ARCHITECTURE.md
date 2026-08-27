@@ -64,8 +64,8 @@ What wins when two goods conflict. Highest first.
 
 ## Layers
 
-Two layer systems apply: **package layers** across the monorepo, and **module layers** inside
-`packages/app-logic/src/`. Both are one-way.
+Two one-way layer systems: **package layers** across the monorepo, **module layers** inside
+`packages/app-logic/src/`.
 
 ### Package layers
 
@@ -119,7 +119,7 @@ Allowed direction: **L1 → L2 → L3 → L4 → L5**, and any layer → `@allma
 **Known violation, do not copy it:** `src/allma-core/step-handlers/mcp-call-handler.ts:2` imports
 `McpConnectionService` from `../../allma-admin/services/` — the only `allma-core → allma-admin` edge
 in the package. Reject a plan that adds a second; welcome one that removes this. The reverse
-direction (`allma-admin/services` → `allma-core`) is normal and appears in several files.
+direction (`allma-admin/services` → `allma-core`) is normal.
 
 ### Boundary validation
 
@@ -133,24 +133,23 @@ Validation happens at three depths: **Lambda entry** (`src/allma-admin/flow-trig
 `src/allma-admin/utils/create-crud-handler.ts:37` shared by every admin CRUD Lambda), **service before
 persisting** (`src/allma-admin/services/flow-definition.service.ts:109`), and **step handler on the
 runtime payload** (`src/allma-core/step-handlers/poll-external-api-handler.ts:14`). New code validates
-at the entry point at minimum; the deeper two guard data from storage or a flow definition and do not
-substitute for it.
+at the entry point at minimum; the deeper two do not substitute for it.
 
 ---
 
 ## Canonical homes
 
-Check here before writing a helper. A duplicate here ships to every consumer.
+Check here before writing a helper.
 
 | Thing | Home | Rule |
 | --- | --- | --- |
 | Shared types & interfaces | `packages/core-types/src/` — 12 domain subdirectories (`common/`, `flow/`, `steps/`, `llm/`, `logging/`, `runtime/`, `storage/`, `prompt/`, `mcp/`, `agent/`, `notifications/`, `admin/`); 10 have an `index.ts`, `mcp/` and `agent/` are re-exported file-by-file | A type used by more than one package goes here, never in the consuming package. |
 | Zod schemas | Colocated with the type they describe, in the same `packages/core-types/src/` files | There is **no** `schemas/` directory anywhere in the repo. Do not create one. |
 | Enums | `packages/core-types/src/common/enums.ts` (`StepType`, `HttpMethod`, `SfnActionType`, `AggregationStrategy`) | Each native enum is paired with a `z.nativeEnum` schema in the same file. |
-| Environment variable names | `packages/core-types/src/common/shared.ts` — `ENV_VAR_NAMES` | Single definition in the repo, consumed by both `core-cdk` and `app-logic`. Never write a raw `process.env['...']` string. |
-| Admin API routes & version | `packages/core-types/src/admin/endpoints.ts` — `ALLMA_ADMIN_API_ROUTES`, `ARS`, `ALLMA_ADMIN_API_VERSION` | Centralized here and consumed by CDK, Lambdas and the Admin Panel alike. |
+| Environment variable names | `packages/core-types/src/common/shared.ts` — `ENV_VAR_NAMES` | Never write a raw `process.env['...']` string. |
+| Admin API routes & version | `packages/core-types/src/admin/endpoints.ts` — `ALLMA_ADMIN_API_ROUTES`, `ARS`, `ALLMA_ADMIN_API_VERSION` | Consumed by CDK, Lambdas and the Admin Panel alike. |
 | Other core-types constants | `Stage` in `common/shared.ts`; `ITEM_TYPE_ALLMA_*` in `common/core.ts`; `AdminPermission` in `admin/permissions.ts`; module ids in `steps/system-module-identifiers.ts` | — |
-| Per-module config schemas | `packages/core-types/src/steps/system/` (one file per module), registered in `SYSTEM_MODULE_CONFIG_SCHEMAS` in `module-config-registry.ts` | Every system module is centralized; `SYSTEM_MODULES_WITHOUT_CONFIG_SCHEMA` is **empty and must stay that way** — adding a module there is a deliberate temporary exception, not the migration path (`module-config-registry.ts:67-78`). A module in neither fails CI by design. |
+| Per-module config schemas | `packages/core-types/src/steps/system/` (one file per module), registered in `SYSTEM_MODULE_CONFIG_SCHEMAS` in `module-config-registry.ts` | `SYSTEM_MODULES_WITHOUT_CONFIG_SCHEMA` is **empty and must stay that way** — adding a module there is a deliberate temporary exception, not the migration path (`module-config-registry.ts:67-78`). A module in neither fails CI by design. |
 | Structured logger | `packages/core-sdk/src/logger.ts` — `log_debug/info/warn/error/critical` | Mandatory. `console.log` is banned by `AGENTS.md`. Always pass a `correlationId` (usually `flowExecutionId`). |
 | S3 payload offload / hydration | `packages/core-sdk/src/s3Utils.ts` (`offloadIfLarge`, `resolveS3Pointer`), `hydrationUtils.ts` (`hydrateInputFromS3Pointers`, `S3HydrationCache`) | — |
 | Admin auth middleware | `packages/core-sdk/src/authUtils.ts` — `withAdminAuth`, `getAuthContext` | Every admin Lambda wraps its handler in `withAdminAuth`, directly or via `create-crud-handler.ts:254`. The one exception is `allma-admin/flow-trigger.ts`, the public trigger endpoint, which gates on `FlowActivationService.isFlowActive` instead. |
@@ -184,14 +183,14 @@ violation.
 
 ## Change surfaces
 
-### Public API surface — breaking to change, blast radius leaves this repository
+### Public API surface
 
 For each published package, **only what the barrel re-exports is public.** Everything else is
 internal — free to move, rename or delete without a major bump.
 
 | Package | Public surface (the barrel) | Internal — free to move |
 | --- | --- | --- |
-| `@allma/core-types` | `packages/core-types/src/index.ts` → 13 sub-barrels; effectively the whole package, the widest surface here | — |
+| `@allma/core-types` | `packages/core-types/src/index.ts` → 13 sub-barrels | — |
 | `@allma/core-sdk` | `packages/core-sdk/src/index.ts` → 11 named modules | `packages/core-sdk/src/cdk-utils.ts` (not in the barrel) |
 | `@allma/admin-shell` | `packages/admin-shell/src/index.ts` — **only** `createAllmaAdminApp` and `./types/plugin` | All of `src/features/`, `src/api/`, `src/components/`, `src/hooks/`, `src/utils/` |
 | `@allma/ui-components` | `packages/ui-components/src/index.ts` — `PageContainer`, `EditableJsonView`, `CopyableText` | — |
@@ -200,8 +199,7 @@ internal — free to move, rename or delete without a major bump.
 | `@allma/flow-builder` | `packages/flow-builder/src/index.ts` (explicit named exports) plus the `allma-flows` bin → `src/cli/allma-flows.ts` | Anything not named in `index.ts` |
 
 - **Changing a symbol exported from a barrel is breaking** even when every in-repo caller moves in
-  the same commit. Consumers are separate repositories pinned to published versions
-  (§Standing decisions, 2026-06-22).
+  the same commit (§Standing decisions, 2026-06-22).
 - **Adding a construct under `packages/core-cdk/lib/constructs/` is not a public API change. Adding
   a field to `StageConfig` is** — `lib/config/stack-config.ts` is exported from the package main.
 - **`@allma/admin-shell` has a deliberately tiny surface**: refactoring under `src/features/` is a
@@ -217,9 +215,9 @@ internal — free to move, rename or delete without a major bump.
   update, not a code change.
 - **Step Functions payloads** between the orchestrator and
   `packages/app-logic/src/allma-flows/iterative-step-processor/`.
-- **The flow-definition JSON contract** (`AllmaExportFormat`) — at once what the Visual Editor writes,
-  what `packages/flow-builder` emits, what `packages/app-logic/src/allma-cdk/config-importer.ts`
-  imports, and what the engine reads.
+- **The flow-definition JSON contract** (`AllmaExportFormat`) — written by the Visual Editor and
+  `packages/flow-builder`, imported by `packages/app-logic/src/allma-cdk/config-importer.ts`, read by
+  the engine.
 - **The SNS execution-status event payload** from
   `packages/app-logic/src/allma-core/notifications/execution-notifier.ts`.
 
@@ -227,12 +225,12 @@ internal — free to move, rename or delete without a major bump.
 
 | Change | Also requires |
 | --- | --- |
-| New Lambda entry point in `packages/app-logic/src/` | A construct edit in `packages/core-cdk/lib/constructs/` (`compute.ts` or `api.construct.ts`), an IAM role, and the entry path string. The Lambda does not exist until CDK wires it. |
-| Any `packages/app-logic` change | It ships as build output copied into `packages/core-cdk/dist-logic`, so `@allma/core-cdk` must be republished and consumers redeploy. **`allma-app-logic` is in the changeset `ignore` list** (`.changeset/config.json`) and carries no version, so the changeset must name `@allma/core-cdk`. |
+| New Lambda entry point in `packages/app-logic/src/` | A construct edit in `packages/core-cdk/lib/constructs/` (`compute.ts` or `api.construct.ts`), an IAM role, and the entry path string. |
+| Any `packages/app-logic` change | It ships as build output copied into `packages/core-cdk/dist-logic`, so `@allma/core-cdk` must be republished and consumers redeploy. **`allma-app-logic` is in the changeset `ignore` list** (`.changeset/config.json`), so the changeset must name `@allma/core-cdk`. |
 | New step type | `StepType` in `packages/core-types/src/common/enums.ts`, a config schema under `packages/core-types/src/steps/system/`, a handler in `packages/app-logic/src/allma-core/step-handlers/` + registration in `handler-registry.ts`, a form in `packages/admin-shell/src/features/flows/`, a factory in `packages/flow-builder/src/factories.ts`, a page under `docs.allma.dev/docs/reference/step-types/`. |
 | New admin API endpoint | `packages/core-types/src/admin/endpoints.ts`, a handler in `packages/app-logic/src/allma-admin/`, a route + role in `packages/core-cdk/lib/constructs/admin-api.ts`, a client in `packages/admin-shell/src/api/`, a page under `docs.allma.dev/docs/reference/admin-api/`. |
-| New environment variable | `ENV_VAR_NAMES` in `packages/core-types/src/common/shared.ts` **and** the Lambda definition in `packages/core-cdk/lib/constructs/compute.ts` — a name added in one place only fails at runtime, not at build. |
-| New `StageConfig` field | `packages/core-cdk/lib/config/stack-config.ts` (the interface) **and** `packages/core-cdk/lib/config/default-config.ts` (a sensible default). A field with no default breaks every consumer's synth. |
+| New environment variable | `ENV_VAR_NAMES` in `packages/core-types/src/common/shared.ts` **and** the Lambda definition in `packages/core-cdk/lib/constructs/compute.ts`. |
+| New `StageConfig` field | `packages/core-cdk/lib/config/stack-config.ts` (the interface) **and** `packages/core-cdk/lib/config/default-config.ts` (a sensible default). |
 | Any platform behaviour change | The matching page under `docs.allma.dev/docs/` in the same PR — `AGENTS.md` requires it, and `onBrokenLinks: 'throw'` makes a stale internal link fail the docs build. |
 
 ### Contention files
@@ -262,7 +260,8 @@ subtask. `package-lock.json` is the same hazard for any two subtasks adding depe
 
 - Define and update every resource declared in `packages/core-cdk/lib/constructs/` and in the stack
   root: DynamoDB tables and the traces bucket (`data-stores.ts`), the flow-start queue and its DLQ
-  (`lib/allma-stack.ts:90,95`), SNS topics (`notifications.ts`, `monitoring.ts`), Step Functions state machines (`orchestration.ts`, `polling-orchestrator.ts`),
+  (`lib/allma-stack.ts:90,95`), SNS topics (`notifications.ts`, `monitoring.ts`), Step Functions
+  state machines (`orchestration.ts`, `polling-orchestrator.ts`),
   Cognito (`admin-authentication.ts`), the HTTP API and Lambdas (`admin-api.ts`, `api.construct.ts`,
   `compute.ts`), SES receipt rules (`email-integration.ts`), EventBridge rules (`monitoring.ts`) and
   the CloudFront/S3 web deployment (`web-app-deployment.ts`).
@@ -288,9 +287,8 @@ subtask. `package-lock.json` is the same hazard for any two subtasks adding depe
   (Bedrock, Gemini/Vertex) and arbitrary external HTTP APIs, `GetSecretValue` on granted secrets.
 - **Create, update and delete EventBridge Scheduler schedules** —
   `packages/app-logic/src/allma-admin/services/schedule.service.ts`. This is the one place runtime
-  code mutates AWS infrastructure outside CloudFormation; publishing a flow with a schedule trigger
-  reconciles live schedules against the flow version. Extend it there rather than adding a second
-  such surface.
+  code mutates AWS infrastructure outside CloudFormation. Extend it there rather than adding a
+  second such surface.
 
 ### What code here may never do
 
@@ -308,9 +306,9 @@ subtask. `package-lock.json` is the same hazard for any two subtasks adding depe
   user pool (`admin-authentication.ts`) and the SFN log group (`orchestration.ts`) match, and new
   stateful resources must too. `pointInTimeRecovery: isProd` covers three of the four tables —
   `AllmaFlowContinuationStateTable` (`data-stores.ts:189`) has none, a gap rather than the pattern.
-  The `web-app-deployment.ts` bucket is unconditionally `DESTROY` because it holds only rebuildable
-  static assets; `IncomingEmailsBucket` in `email-integration.ts` is unconditionally
-  `DESTROY` and holds real inbound mail — a defect, not a pattern.
+  The `web-app-deployment.ts` bucket is unconditionally `DESTROY` and holds only rebuildable assets;
+  `IncomingEmailsBucket` in `email-integration.ts` is unconditionally `DESTROY` and holds real
+  inbound mail — a defect, not a pattern.
 - **Deploy the platform stack from this repository's CI.** `.github/workflows/ci.yml` never deploys.
   `.github/workflows/ci-websites.yml` deploys exactly one thing on push to `main`: the documentation
   site, via `allma.cdk/bin/allma-websites.ts`. `AllmaStack` is deployed by consumers from their own
@@ -321,9 +319,9 @@ subtask. `package-lock.json` is the same hazard for any two subtasks adding depe
 
 - Every resource name is suffixed with the stage, e.g. `AllmaFlowStartRequestQueue-${stage}`.
 - Prefer `grant*` over hand-written `PolicyStatement` in `packages/core-cdk/lib/`. The
-  `PolicyStatement`s are for services with no L2 grant — Bedrock, Secrets Manager, EventBridge Scheduler, `states:*` on a predictive ARN.
-  Reach for one only when no `grant*` exists.
-- Where a wildcard resource is unavoidable, condition it — the in-codebase pattern is a resource-tag
+  `PolicyStatement`s there are the services with no L2 grant — Bedrock, Secrets Manager, EventBridge
+  Scheduler, `states:*` on a predictive ARN.
+- Where a wildcard resource is unavoidable, condition it — the pattern is a resource-tag
   condition (`secretsmanager:ResourceTag/allma-mcp-secret`) in
   `packages/core-cdk/lib/constructs/compute.ts` and `api.construct.ts`.
 - Lambda runtime is `NODEJS_22_X` for every platform Lambda; the one exception is the
@@ -380,9 +378,9 @@ not typechecked by any command.** A plan claiming "zero type errors" means `npm 
 
 ### How tests isolate
 
-- **Hermetic by default.** AWS clients are module-scope singletons, so they are intercepted at the
-  client `send` layer with `aws-sdk-client-mock` + `aws-sdk-client-mock-vitest`, registered globally
-  in `packages/app-logic/tests/unit/_helpers/vitest.setup.ts`; stubs in `_helpers/aws-mock.ts`.
+- **Hermetic by default.** AWS clients are intercepted at the client `send` layer with
+  `aws-sdk-client-mock` + `aws-sdk-client-mock-vitest`, registered globally in
+  `packages/app-logic/tests/unit/_helpers/vitest.setup.ts`; stubs in `_helpers/aws-mock.ts`.
   **No LocalStack, testcontainers or dynamodb-local.**
 - **The live layer is opt-in by collection-gating, not by mocking.**
   `packages/app-logic/vitest.workspace.ts` sets the integration project's `include` to `[]` unless
@@ -415,10 +413,9 @@ not typechecked by any command.** A plan claiming "zero type errors" means `npm 
 
 ## Code style
 
-`AGENTS.md` §Engineering Coding Style Guide is the full rule set. Two rules of restraint are added
-here.
+`AGENTS.md` §Engineering Coding Style Guide is the full rule set.
 
-### Volume — how large a change should be
+### Volume
 
 - **A change carries the files its acceptance criteria name, and no others.** A plan proposing files
   no criterion asks for is over-scoped: drop them, or add the criterion.
@@ -432,18 +429,18 @@ here.
 - Do not restructure directories, rename exports, or migrate a package's test convention as a side
   effect of another change.
 
-### Commentary — when a comment is admitted
+### Commentary
 
-- **Comment the *why*, never the *what*.** The code and the types are the documentation.
+- **Comment the *why*, never the *what*.**
 - Admit a comment for a contract another file depends on, an invariant the types cannot enforce, a
   "looks safe but does X" trap, or an approach tried and rejected. Model examples:
   `packages/app-logic/src/allma-flows/iterative-step-processor/step-executor.ts:242`,
   `packages/core-types/src/steps/system/module-config-registry.ts:126`,
   `packages/flow-builder/src/typed-context.ts:20`.
 - **JSDoc public exported functions, classes and complex types**, especially in
-  `packages/core-types/` and `packages/core-sdk/` — consumers read them without the implementation.
+  `packages/core-types/` and `packages/core-sdk/`.
   Do not JSDoc a declaration whose name and type already say it.
-- No changelog notes in code (`// added for #123`) — the changeset and git carry that.
+- No changelog notes in code (`// added for #123`).
 
 ---
 

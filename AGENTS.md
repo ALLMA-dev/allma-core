@@ -69,7 +69,7 @@ Guidance:
 
 Two constraints on `docs/ARCHITECTURE.md` specifically, neither visible from its contents:
 - **It names no consuming project at all** — stricter than the Hard rules above, which permit naming the generic demo. Not as an example, not as a justification. A rule that can only be understood by knowing who uses it is written wrong.
-- **Keep it under 40,000 characters.** Automated readers truncate past that, silently losing the tail of the file. It currently sits near the limit, so adding a rule means trimming prose elsewhere — never a rule, a path or a standing decision.
+- **Keep it under 40,000 characters, and keep real headroom below that.** Automated readers truncate past 40,000 and cut from the *end*, so the section that dies first is `## Rejected alternatives` — silently, with nothing to tell you. It sits at ~38,600, so adding a rule means trimming prose elsewhere in the same change — never a rule, a path, a standing decision or a rejected alternative.
 
 The sections below in this file are a **high-level summary**. The complete, authoritative, human-facing documentation of how the platform behaves lives in the repository under **`docs.allma.dev/docs/`** (a Docusaurus 3 site). **Read it before designing or changing platform behavior** — especially when adding or modifying a step type, an admin API, or flow semantics. The Markdown/MDX sources are the source of truth; the live site at `https://docs.allma.dev` is built from them by CI.
 
