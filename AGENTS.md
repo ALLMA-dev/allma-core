@@ -51,6 +51,7 @@ Before editing anything, classify the task and confirm scope:
 | If the task is about…                                              | Work in…                       | Authoritative rules            |
 | ------------------------------------------------------------------ | ------------------------------ | ------------------------------ |
 | Flow engine, step types, admin shell, SDK, types, CDK constructs   | `packages/*`, `allma.cdk/`     | **This file**                  |
+| Where a file belongs, what is safe to change, what a change drags with it | Read [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | This file + that document      |
 | Understanding how a feature/step/API behaves                       | Read `docs.allma.dev/docs/`    | See [Platform Documentation](#platform-documentation-where-to-read-about-allma) |
 | The documentation website (content or site config)                 | `docs.allma.dev/`              | This file + that package       |
 | A consumer/example application                                     | `examples/<app>/`              | `examples/<app>/AGENTS.md`     |
@@ -63,6 +64,12 @@ Guidance:
 ---
 
 ## Platform Documentation (Where to Read About Allma)
+
+[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) is the companion to this file: it records the repository's layers, canonical homes, change surfaces, infrastructure boundaries, testing contract, standing decisions and rejected alternatives — *how code is built here*, opening with the vision, non-goals, direction of travel and trade-off ranking that say *what it is for*. This file carries boundaries, routing, style and release policy; `docs.allma.dev/docs/` carries *what the platform does*.
+
+Two constraints on `docs/ARCHITECTURE.md` specifically, neither visible from its contents:
+- **It names no consuming project at all** — stricter than the Hard rules above, which permit naming the generic demo. Not as an example, not as a justification. A rule that can only be understood by knowing who uses it is written wrong.
+- **Keep it under 40,000 characters, and keep real headroom below that.** Automated readers truncate past 40,000 and cut from the *end*, so the section that dies first is `## Rejected alternatives` — silently, with nothing to tell you. It sits at ~38,600, so adding a rule means trimming prose elsewhere in the same change — never a rule, a path, a standing decision or a rejected alternative.
 
 The sections below in this file are a **high-level summary**. The complete, authoritative, human-facing documentation of how the platform behaves lives in the repository under **`docs.allma.dev/docs/`** (a Docusaurus 3 site). **Read it before designing or changing platform behavior** — especially when adding or modifying a step type, an admin API, or flow semantics. The Markdown/MDX sources are the source of truth; the live site at `https://docs.allma.dev` is built from them by CI.
 
@@ -317,3 +324,10 @@ Place code in the package that matches its responsibility (see the Package Refer
 ## GitHub Details
 - **Repository URL:** `https://github.com/ALLMA-dev/allma-core`
 - **Clone URL (HTTPS):** `https://github.com/ALLMA-dev/allma-core.git`
+
+## Maintaining this file
+
+Keep this file for knowledge useful to almost every future agent session in this project.
+Do not repeat what the codebase already shows; point to the authoritative file or command instead.
+Prefer rewriting or pruning existing entries over appending new ones.
+When updating this file, preserve this bar for all agents and keep entries concise.
