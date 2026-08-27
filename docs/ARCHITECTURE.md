@@ -1,7 +1,8 @@
 # Architecture
 
-The architectural rules of `allma-core` as they are today, derived from the code and the commit
-history. Where the code is inconsistent, the inconsistency is written down rather than tidied away.
+The architectural rules of `allma-core` as they are today, derived from the code, the commit history
+and the design docs under `docs/design/`, `design/` and `documents/wip/`. Where the code is
+inconsistent, the inconsistency is written down rather than tidied away.
 
 [`../AGENTS.md`](../AGENTS.md) carries repository boundaries, task routing, coding style and
 changeset policy; `docs.allma.dev/docs/` is the behavioural reference for every step type and admin
@@ -17,10 +18,10 @@ its own right, not internal scaffolding.
 
 **Winning is someone else shipping on it without ever talking to its authors.** That test makes
 developer experience, documentation and versioning discipline the product rather than overhead
-around it: a framework nobody can adopt unaided has not shipped, however good its internals.
+around it.
 
 **It serves the external developer building their first agent on it, holding only the
-documentation** — not the maintainers, not any one adopter. Where an adopter's needs and the
+documentation** — not the maintainers, not any one consumer. Where a consumer's needs and the
 framework's coherence conflict, **the general case wins**; no single consumer is privileged.
 
 ---
@@ -30,12 +31,10 @@ framework's coherence conflict, **the general case wins**; no single consumer is
 A plan proposing any of these fails outright.
 
 - **Never name a consuming project** — not in this document, not in the public API, not as an
-  example or a special case. A rule that can only be understood by knowing who uses it is written
-  wrong. Extends §Standing decisions, 2025-10-26.
+  example or a special case. A rule only understandable by knowing who uses it is written wrong.
 - **Never consumer-specific behaviour in core.**
 - **Never a feature that only makes sense with knowledge of a particular consumer.**
 - **Never a breaking change to an exported surface without a major version and a migration note.**
-  §Change surfaces defines that surface.
 - **Never an undocumented public API** — if an external developer cannot discover it, it does not
   ship.
 
@@ -43,8 +42,8 @@ A plan proposing any of these fails outright.
 
 ## Direction of travel
 
-A change that adds more of a FROM side is a direction violation even when it is clean, correct and
-well-layered. Cite the line.
+A change that adds more of a FROM side is a direction violation, however clean and well-layered.
+Cite the line.
 
 - FROM internal convenience → TOWARD an adoptable published surface.
 - FROM behaviour dispatched by a `switch` in a caller → TOWARD a registry.
@@ -141,7 +140,7 @@ substitute for it.
 
 ## Canonical homes
 
-Check here before writing a helper. A duplicate added in this repo ships to every consumer.
+Check here before writing a helper. A duplicate here ships to every consumer.
 
 | Thing | Home | Rule |
 | --- | --- | --- |
@@ -162,7 +161,7 @@ Check here before writing a helper. A duplicate added in this repo ships to ever
 | Versioned DynamoDB entity access | `packages/app-logic/src/allma-admin/services/versioned-entity.service.ts`, `generic-entity.service.ts` | Extend these before writing new DynamoDB access. `AGENTS.md` makes this explicit. |
 | Test helpers | `packages/app-logic/tests/unit/_helpers/` (`aws-mock.ts`, `fixtures.ts`, `logger.ts`, `vitest.setup.ts`); `packages/admin-shell/tests/_helpers/` and `tests/_setup/` | — |
 
-**Known duplication, do not extend it.** Four collisions exist.
+**Known duplication, do not extend it.**
 
 - `packages/core-sdk/src/cdk-utils.ts` and `packages/cdk-integration-utils/src/cdk-utils.ts` are
   identical but for a trailing newline. Only the latter is exported; the `core-sdk` copy is dead.
@@ -187,8 +186,8 @@ violation.
 
 ### Public API surface — breaking to change, blast radius leaves this repository
 
-For each published package, **only what the barrel re-exports is public.** Everything
-else is internal — free to move, rename or delete without a major bump.
+For each published package, **only what the barrel re-exports is public.** Everything else is
+internal — free to move, rename or delete without a major bump.
 
 | Package | Public surface (the barrel) | Internal — free to move |
 | --- | --- | --- |
@@ -259,7 +258,7 @@ subtask. `package-lock.json` is the same hazard for any two subtasks adding depe
 
 ### What code here may do
 
-**At deploy time (CDK synth/deploy, run by the adopter):**
+**At deploy time (CDK synth/deploy, run by the consumer):**
 
 - Define and update every resource declared in `packages/core-cdk/lib/constructs/` and in the stack
   root: DynamoDB tables and the traces bucket (`data-stores.ts`), the flow-start queue and its DLQ
@@ -314,15 +313,15 @@ subtask. `package-lock.json` is the same hazard for any two subtasks adding depe
   `DESTROY` and holds real inbound mail — a defect, not a pattern.
 - **Deploy the platform stack from this repository's CI.** `.github/workflows/ci.yml` never deploys.
   `.github/workflows/ci-websites.yml` deploys exactly one thing on push to `main`: the documentation
-  site, via `allma.cdk/bin/allma-websites.ts`. `AllmaStack` is deployed by adopters from their own
+  site, via `allma.cdk/bin/allma-websites.ts`. `AllmaStack` is deployed by consumers from their own
   app, into their own account.
 - **Add a product-specific resource, name or business rule** — `AGENTS.md` §Repository Boundaries.
 
 ### Naming and IAM conventions
 
 - Every resource name is suffixed with the stage, e.g. `AllmaFlowStartRequestQueue-${stage}`.
-- Prefer `grant*` over hand-written `PolicyStatement`. The `PolicyStatement`s are for services with
-  no L2 grant — Bedrock, Secrets Manager, EventBridge Scheduler, `states:*` on a predictive ARN.
+- Prefer `grant*` over hand-written `PolicyStatement` in `packages/core-cdk/lib/`. The
+  `PolicyStatement`s are for services with no L2 grant — Bedrock, Secrets Manager, EventBridge Scheduler, `states:*` on a predictive ARN.
   Reach for one only when no `grant*` exists.
 - Where a wildcard resource is unavoidable, condition it — the in-codebase pattern is a resource-tag
   condition (`secretsmanager:ResourceTag/allma-mcp-secret`) in
@@ -450,6 +449,8 @@ here.
 
 ## Standing decisions
 
+Dated by the commit where the decision landed in code, or where the written design landed.
+
 - 2025-10-01 Serverless-first on AWS CDK: Step Functions drives execution, Lambda holds business
   logic, DynamoDB and S3 hold state. No servers, no containers. (`8f57700`, the initial commit)
 - 2025-10-01 Configuration and execution state live in a **single DynamoDB table** with composite
@@ -513,10 +514,10 @@ here.
 - 2026-08-06 `@allma/ui-components` externalizes Mantine as a peer dependency, so a consumer's Mantine
   version is the only one in the bundle. (`1cff3a4`, `0d6ce95`)
 
-**Not covered.** Nothing sources a decision on: why the iterative Lambda loop was chosen over a
-hand-written Step Functions state machine; which of the two test-location conventions is preferred;
-whether the IaC layer should be tested; or a package dependency rule stated anywhere but in the
-code. Undecided, not omitted.
+**Not covered.** There is no ADR directory and only three written design docs. Nothing sources a
+decision on: why the iterative Lambda loop was chosen over a hand-written Step Functions state
+machine; which of the two test-location conventions is preferred; whether the IaC layer should be
+tested; or a package dependency rule stated anywhere but in the code. Undecided, not omitted.
 
 ---
 
@@ -528,7 +529,7 @@ code. Undecided, not omitted.
 | Deriving progress from step records at read time | The step logger is async and may lag or reorder. Kept only as a fallback for legacy un-stamped executions, without an S3 fetch so polling stays cheap. | `docs/design/real-time-execution-status.md`, `packages/app-logic/src/allma-admin/services/execution-monitoring.service.ts:421` |
 | Typed factories over object literals (flows-as-code Option A) | Smallest surface, but graph wiring stays stringly-typed with no forward-ref checking until Zod runs. | `design/flows-as-code.md` §3 |
 | A class/decorator `new Flow()` model as the primary API (Option C) | Eager construction makes forward refs awkward and weakens inference. An `addStep` facade sits over the chosen internals instead. | `design/flows-as-code.md` §3 |
-| "JSON is the single source of truth" *and* code authors flows | The first draft held both; they conflict. JSON is the wire/storage contract; per flow, either code or the editor owns authoring. | `design/flows-as-code.md` (self-reversal) |
+| "JSON is the single source of truth" *and* code authors flows | They conflict. JSON is the wire/storage contract; per flow, either code or the editor owns authoring. | `design/flows-as-code.md` (self-reversal) |
 | Hard-failing `customConfig` validation in `FlowDefinitionSchema` | A required field may legitimately be supplied at runtime via `inputMappings`, so a hard error rejects valid flows. | `packages/flow-builder/README.md` |
 | Threading a context generic through `Step`/`StepRef`/`StepDraft` | Re-instantiates types across the 21-member step union — the inference blow-up the package exists to avoid. Typed context is opt-in, depth-bounded to 3. | `packages/flow-builder/src/typed-context.ts:20` |
 | Gemini Developer API (AI Studio key) as the production LLM path | Low per-project rate limits throttle production flows; Vertex AI has far higher quota, no prompt-data-for-training clause, and unified GCP IAM. | `documents/wip/gemini-vertex-migration.md` |
