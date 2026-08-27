@@ -1,17 +1,65 @@
 # Architecture
 
-The architectural rules of `allma-core` as they are today, derived from the code, the commit history
-and the design docs under `docs/design/`, `design/` and `documents/wip/`. Where the code is
-inconsistent, the inconsistency is written down rather than tidied away.
-
-`allma-core` is a **framework consumed by other repositories**. Seven of its eight packages are
-published to npm under `@allma/*`; consumers deploy `AllmaStack` into their own AWS accounts and
-never fork this repo. Hence most rules below: a helper duplicated here is duplicated in every
-consumer, and an exported type changed here breaks builds nobody here can see.
+The architectural rules of `allma-core` as they are today, derived from the code and the commit
+history. Where the code is inconsistent, the inconsistency is written down rather than tidied away.
 
 [`../AGENTS.md`](../AGENTS.md) carries repository boundaries, task routing, coding style and
 changeset policy; `docs.allma.dev/docs/` is the behavioural reference for every step type and admin
-API. This file governs *how code is built*; those govern *what it does*.
+API.
+
+---
+
+## Vision
+
+`allma-core` is a serverless agent framework other people adopt and build on: message intake,
+Lambda event workflows, LLM tool integration and stateful multi-agent execution. It is a product in
+its own right, not internal scaffolding.
+
+**Winning is someone else shipping on it without ever talking to its authors.** That test makes
+developer experience, documentation and versioning discipline the product rather than overhead
+around it: a framework nobody can adopt unaided has not shipped, however good its internals.
+
+**It serves the external developer building their first agent on it, holding only the
+documentation** — not the maintainers, not any one adopter. Where an adopter's needs and the
+framework's coherence conflict, **the general case wins**; no single consumer is privileged.
+
+---
+
+## Non-goals
+
+A plan proposing any of these fails outright.
+
+- **Never name a consuming project** — not in this document, not in the public API, not as an
+  example or a special case. A rule that can only be understood by knowing who uses it is written
+  wrong. Extends §Standing decisions, 2025-10-26.
+- **Never consumer-specific behaviour in core.**
+- **Never a feature that only makes sense with knowledge of a particular consumer.**
+- **Never a breaking change to an exported surface without a major version and a migration note.**
+  §Change surfaces defines that surface.
+- **Never an undocumented public API** — if an external developer cannot discover it, it does not
+  ship.
+
+---
+
+## Direction of travel
+
+A change that adds more of a FROM side is a direction violation even when it is clean, correct and
+well-layered. Cite the line.
+
+- FROM internal convenience → TOWARD an adoptable published surface.
+- FROM behaviour dispatched by a `switch` in a caller → TOWARD a registry.
+- FROM implicit contracts → TOWARD type-safe schema validation at every boundary.
+
+---
+
+## Trade-off ranking
+
+What wins when two goods conflict. Highest first.
+
+1. **Public API stability.** A breaking change needs a migration path or it does not happen.
+2. **Documentation.** Undocumented is unshipped.
+3. **Generality**, and only where a second real consumer needs it.
+4. **Internal convenience**, last.
 
 ---
 
@@ -22,8 +70,7 @@ Two layer systems apply: **package layers** across the monorepo, and **module la
 
 ### Package layers
 
-Dependencies run strictly downward. A package may import from any package below it and never from
-one above it.
+A package may import from any package below it and never from one above it.
 
 | Tier | Package (source root) | Contains | May import from |
 | --- | --- | --- | --- |
@@ -53,7 +100,7 @@ directories; anything in a subdirectory is a lower layer.
 
 | Layer | Paths | Rule |
 | --- | --- | --- |
-| L1 — Lambda entry points | `src/allma-admin/*.ts` (11), `src/allma-flows/*.ts` (7), `src/allma-cdk/config-importer.ts`, `src/allma-flows/iterative-step-processor/index.ts`, `src/allma-core/execution-logger.ts` | Each exports `handler`. **Nothing may import an entry point** — verified: zero imports of these 21 files exist in `src/`. |
+| L1 — Lambda entry points | `src/allma-admin/*.ts` (11), `src/allma-flows/*.ts` (7), `src/allma-cdk/config-importer.ts`, `src/allma-flows/iterative-step-processor/index.ts`, `src/allma-core/execution-logger.ts` | Each exports `handler`. **Nothing may import an entry point**. |
 | L2 — Services | `src/allma-admin/services/`, `src/services/` | Persistence and business logic for admin CRUD and flow/prompt versioning. Admin handlers reach DynamoDB only through these classes. |
 | L3 — Execution engine | `src/allma-flows/iterative-step-processor/` | The step-processing loop. Entered only through its own `index.ts`. |
 | L4 — Step handlers & transport adapters | `src/allma-core/step-handlers/`, `.../data-loaders/`, `.../data-savers/`, `.../data-transformers/`, `.../llm-adapters/`, `.../notifications/` | One file per step type or external system. Dispatched by registry, never by a `switch` in a caller. |
@@ -115,7 +162,7 @@ Check here before writing a helper. A duplicate added in this repo ships to ever
 | Versioned DynamoDB entity access | `packages/app-logic/src/allma-admin/services/versioned-entity.service.ts`, `generic-entity.service.ts` | Extend these before writing new DynamoDB access. `AGENTS.md` makes this explicit. |
 | Test helpers | `packages/app-logic/tests/unit/_helpers/` (`aws-mock.ts`, `fixtures.ts`, `logger.ts`, `vitest.setup.ts`); `packages/admin-shell/tests/_helpers/` and `tests/_setup/` | — |
 
-**Known duplication, do not extend it.** Four collisions exist; none is a pattern to follow.
+**Known duplication, do not extend it.** Four collisions exist.
 
 - `packages/core-sdk/src/cdk-utils.ts` and `packages/cdk-integration-utils/src/cdk-utils.ts` are
   identical but for a trailing newline. Only the latter is exported; the `core-sdk` copy is dead.
@@ -140,7 +187,7 @@ violation.
 
 ### Public API surface — breaking to change, blast radius leaves this repository
 
-Seven packages are published. For each, **only what the barrel re-exports is public.** Everything
+For each published package, **only what the barrel re-exports is public.** Everything
 else is internal — free to move, rename or delete without a major bump.
 
 | Package | Public surface (the barrel) | Internal — free to move |
@@ -154,8 +201,8 @@ else is internal — free to move, rename or delete without a major bump.
 | `@allma/flow-builder` | `packages/flow-builder/src/index.ts` (explicit named exports) plus the `allma-flows` bin → `src/cli/allma-flows.ts` | Anything not named in `index.ts` |
 
 - **Changing a symbol exported from a barrel is breaking** even when every in-repo caller moves in
-  the same commit. Consumers are separate repositories pinned to published versions. `AGENTS.md`
-  forbids an agent choosing a `major` bump — raise it with a human instead.
+  the same commit. Consumers are separate repositories pinned to published versions
+  (§Standing decisions, 2026-06-22).
 - **Adding a construct under `packages/core-cdk/lib/constructs/` is not a public API change. Adding
   a field to `StageConfig` is** — `lib/config/stack-config.ts` is exported from the package main.
 - **`@allma/admin-shell` has a deliberately tiny surface**: refactoring under `src/features/` is a
@@ -212,7 +259,7 @@ subtask. `package-lock.json` is the same hazard for any two subtasks adding depe
 
 ### What code here may do
 
-**At deploy time (CDK synth/deploy, run by the consumer — never by CI in this repo):**
+**At deploy time (CDK synth/deploy, run by the adopter):**
 
 - Define and update every resource declared in `packages/core-cdk/lib/constructs/` and in the stack
   root: DynamoDB tables and the traces bucket (`data-stores.ts`), the flow-start queue and its DLQ
@@ -249,9 +296,7 @@ subtask. `package-lock.json` is the same hazard for any two subtasks adding depe
 ### What code here may never do
 
 - **Create or delete tables, buckets, queues, topics, functions, roles or policies at runtime.**
-  Verified: no `CreateTableCommand`, `DeleteTableCommand`, `CreateBucketCommand`,
-  `CreateQueueCommand`, `CreateTopicCommand`, `CreateFunctionCommand`, `PutRolePolicy` or
-  `PutBucketPolicy` call exists anywhere under `packages/`. Infrastructure changes go through CDK.
+  Infrastructure changes go through CDK.
 - **Create secrets.** The stack receives secret ARNs (`aiApiKeySecretArn` and the GCP service-account
   key ARN in `packages/core-cdk/lib/config/stack-config.ts`) and grants read. It never writes
   Secrets Manager, and never reads or writes SSM — `@aws-sdk/client-ssm` is a declared dependency of
@@ -269,16 +314,16 @@ subtask. `package-lock.json` is the same hazard for any two subtasks adding depe
   `DESTROY` and holds real inbound mail — a defect, not a pattern.
 - **Deploy the platform stack from this repository's CI.** `.github/workflows/ci.yml` never deploys.
   `.github/workflows/ci-websites.yml` deploys exactly one thing on push to `main`: the documentation
-  site, via `allma.cdk/bin/allma-websites.ts`. `AllmaStack` is deployed by consumers from their own
-  app (the pattern is `examples/basic-deployment`, gitignored here).
-- **Add a product-specific resource, name, or business rule.** `AGENTS.md` §Repository Boundaries.
+  site, via `allma.cdk/bin/allma-websites.ts`. `AllmaStack` is deployed by adopters from their own
+  app, into their own account.
+- **Add a product-specific resource, name or business rule** — `AGENTS.md` §Repository Boundaries.
 
 ### Naming and IAM conventions
 
 - Every resource name is suffixed with the stage, e.g. `AllmaFlowStartRequestQueue-${stage}`.
-- Prefer `grant*` over hand-written `PolicyStatement` (~36 vs ~29 in `packages/core-cdk/lib/`). The
-  `PolicyStatement`s are for services with no L2 grant — Bedrock, Secrets Manager, EventBridge
-  Scheduler, `states:*` on a predictive ARN. Reach for one only when no `grant*` exists.
+- Prefer `grant*` over hand-written `PolicyStatement`. The `PolicyStatement`s are for services with
+  no L2 grant — Bedrock, Secrets Manager, EventBridge Scheduler, `states:*` on a predictive ARN.
+  Reach for one only when no `grant*` exists.
 - Where a wildcard resource is unavoidable, condition it — the in-codebase pattern is a resource-tag
   condition (`secretsmanager:ResourceTag/allma-mcp-secret`) in
   `packages/core-cdk/lib/constructs/compute.ts` and `api.construct.ts`.
@@ -290,8 +335,8 @@ subtask. `package-lock.json` is the same hazard for any two subtasks adding depe
 
 ## Testing contract
 
-**Vitest only.** There is no Jest config or Jest test in the repository, despite a `"test": "jest"`
-script in `allma.cdk/package.json` that has no config and no tests behind it.
+**Vitest only.** No Jest config or Jest test exists here, despite an unbacked `"test": "jest"`
+script in `allma.cdk/package.json`.
 
 ### Where tests live
 
@@ -302,14 +347,13 @@ script in `allma.cdk/package.json` that has no config and no tests behind it.
 | `packages/flow-builder` | co-located `src/*.test.ts` | 13 | co-located |
 | `packages/core-types` | co-located `src/**/*.test.ts` | 4 | co-located |
 
-Both conventions are live. Match the package you are working in; do not migrate one to the other as
-part of an unrelated change. Naming is uniform `*.test.ts` / `*.test.tsx` — no `__tests__/`
-directories, no `*.spec.*` files.
+Both are live. Match the package you are in; do not migrate one to the other as part of an unrelated
+change. Naming is uniform `*.test.ts` / `*.test.tsx` — no `__tests__/` directories, no `*.spec.*`
+files.
 
 `packages/core-cdk`, `packages/core-sdk`, `packages/cdk-integration-utils`, `packages/ui-components`
-and `allma.cdk` have **no tests at all**; the IaC layer is untested, with no CDK snapshot or
-`aws-cdk-lib/assertions` tests anywhere. A plan adding the first test to one of these is adding a
-capability, not following a pattern.
+and `allma.cdk` have **no tests at all**: the IaC layer is untested. A plan adding the first test to
+one of these is adding a capability, not following a pattern.
 
 ### Commands
 
@@ -340,7 +384,7 @@ not typechecked by any command.** A plan claiming "zero type errors" means `npm 
 - **Hermetic by default.** AWS clients are module-scope singletons, so they are intercepted at the
   client `send` layer with `aws-sdk-client-mock` + `aws-sdk-client-mock-vitest`, registered globally
   in `packages/app-logic/tests/unit/_helpers/vitest.setup.ts`; stubs in `_helpers/aws-mock.ts`.
-  **No LocalStack, testcontainers or dynamodb-local** — none appears in the repo.
+  **No LocalStack, testcontainers or dynamodb-local.**
 - **The live layer is opt-in by collection-gating, not by mocking.**
   `packages/app-logic/vitest.workspace.ts` sets the integration project's `include` to `[]` unless
   `RUN_LIVE_AWS=1`, and `test:integration` passes `--passWithNoTests`. It requires a deployed dev
@@ -354,9 +398,8 @@ not typechecked by any command.** A plan claiming "zero type errors" means `npm 
 
 - **Coverage thresholds are a floor that ratchets, not a target.** `packages/app-logic/vitest.config.ts`
   (lines 55 / functions 69 / statements 55 / branches 74) and
-  `packages/admin-shell/vitest.config.ts` (35 / 63 / 35 / 73) carry the in-code comment *"Coverage
-  thresholds start deliberately low and are ratcheted up as modules gain tests."* A change may raise
-  them; it may not lower them to go green.
+  `packages/admin-shell/vitest.config.ts` (35 / 63 / 35 / 73). A change may raise them; it may not
+  lower them to go green (§Standing decisions, 2026-06-21).
 - **A test earns its place by guarding a rule that, if broken, corrupts state or loses work** —
   orchestration transitions, payload offload/hydration, versioning and publishing, mapping and
   templating, error/retry policy. The 10 files under
@@ -373,9 +416,8 @@ not typechecked by any command.** A plan claiming "zero type errors" means `npm 
 
 ## Code style
 
-`AGENTS.md` §Engineering Coding Style Guide is the full rule set (ES modules only, `.js` extension
-on relative imports, no `any`, `async/await`, kebab-case files / PascalCase components, no magic
-strings). Two rules of restraint are added here.
+`AGENTS.md` §Engineering Coding Style Guide is the full rule set. Two rules of restraint are added
+here.
 
 ### Volume — how large a change should be
 
@@ -387,8 +429,7 @@ strings). Two rules of restraint are added here.
 - **Split a file when it holds several logical parts** (`AGENTS.md`). The largest file here is 733
   lines (`packages/app-logic/src/allma-admin/services/execution-monitoring.service.ts`); treat ~700
   as where a reviewer asks for a split, not a hard limit.
-- **Never duplicate logic** — check Canonical homes first. The highest-cost mistake available in a
-  consumed framework.
+- **Never duplicate logic** — check Canonical homes first.
 - Do not restructure directories, rename exports, or migrate a package's test convention as a side
   effect of another change.
 
@@ -408,8 +449,6 @@ strings). Two rules of restraint are added here.
 ---
 
 ## Standing decisions
-
-Dated by the commit where the decision landed in code, or where the written design landed.
 
 - 2025-10-01 Serverless-first on AWS CDK: Step Functions drives execution, Lambda holds business
   logic, DynamoDB and S3 hold state. No servers, no containers. (`8f57700`, the initial commit)
@@ -474,10 +513,10 @@ Dated by the commit where the decision landed in code, or where the written desi
 - 2026-08-06 `@allma/ui-components` externalizes Mantine as a peer dependency, so a consumer's Mantine
   version is the only one in the bundle. (`1cff3a4`, `0d6ce95`)
 
-**Not covered.** There is no ADR directory and only three written design docs. Nothing sources a
-decision on: why the iterative Lambda loop was chosen over a hand-written Step Functions state
-machine; which of the two test-location conventions is preferred; whether the IaC layer should be
-tested; or a package dependency rule stated anywhere but in the code. Undecided, not omitted.
+**Not covered.** Nothing sources a decision on: why the iterative Lambda loop was chosen over a
+hand-written Step Functions state machine; which of the two test-location conventions is preferred;
+whether the IaC layer should be tested; or a package dependency rule stated anywhere but in the
+code. Undecided, not omitted.
 
 ---
 
@@ -489,7 +528,7 @@ tested; or a package dependency rule stated anywhere but in the code. Undecided,
 | Deriving progress from step records at read time | The step logger is async and may lag or reorder. Kept only as a fallback for legacy un-stamped executions, without an S3 fetch so polling stays cheap. | `docs/design/real-time-execution-status.md`, `packages/app-logic/src/allma-admin/services/execution-monitoring.service.ts:421` |
 | Typed factories over object literals (flows-as-code Option A) | Smallest surface, but graph wiring stays stringly-typed with no forward-ref checking until Zod runs. | `design/flows-as-code.md` §3 |
 | A class/decorator `new Flow()` model as the primary API (Option C) | Eager construction makes forward refs awkward and weakens inference. An `addStep` facade sits over the chosen internals instead. | `design/flows-as-code.md` §3 |
-| "JSON is the single source of truth" *and* code authors flows | The RFC's first draft held both; they conflict. Corrected: JSON is the wire/storage contract; per flow, either code or the editor owns authoring. | `design/flows-as-code.md` (self-reversal) |
+| "JSON is the single source of truth" *and* code authors flows | The first draft held both; they conflict. JSON is the wire/storage contract; per flow, either code or the editor owns authoring. | `design/flows-as-code.md` (self-reversal) |
 | Hard-failing `customConfig` validation in `FlowDefinitionSchema` | A required field may legitimately be supplied at runtime via `inputMappings`, so a hard error rejects valid flows. | `packages/flow-builder/README.md` |
 | Threading a context generic through `Step`/`StepRef`/`StepDraft` | Re-instantiates types across the 21-member step union — the inference blow-up the package exists to avoid. Typed context is opt-in, depth-bounded to 3. | `packages/flow-builder/src/typed-context.ts:20` |
 | Gemini Developer API (AI Studio key) as the production LLM path | Low per-project rate limits throttle production flows; Vertex AI has far higher quota, no prompt-data-for-training clause, and unified GCP IAM. | `documents/wip/gemini-vertex-migration.md` |
