@@ -13,6 +13,7 @@ import {
     PermanentStepError,
 } from '@allma/core-types';
 import { log_info, log_error, log_debug, offloadIfLarge } from '@allma/core-sdk';
+import { classifyStepError } from '../utils/error-classifier.js';
 
 const ddbDocClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const s3Client = new S3Client({});
@@ -132,7 +133,7 @@ export const handleDdbQueryToS3Manifest: StepHandler = async (stepDef: any, step
             errorMessage: error.message,
             stack: error.stack?.substring(0, 10000), // Log a snippet of the stack
         }, correlationId);
-        if (error instanceof PermanentStepError) throw error;
-        throw new TransientStepError(error.message);
+        if (error instanceof PermanentStepError || error instanceof TransientStepError) throw error;
+        throw classifyStepError(error);
     }
 };
