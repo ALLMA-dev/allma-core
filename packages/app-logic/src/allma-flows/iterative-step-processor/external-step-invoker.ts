@@ -1,8 +1,17 @@
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
-import { PermanentStepError } from '@allma/core-types';
-import { StepHandlerOutput, StepInstance, FlowRuntimeState, ExternalStepRegistryItem, ExternalStepRegistryItemSchema, ENV_VAR_NAMES } from '@allma/core-types';
+import {
+  PermanentStepError,
+  TransientStepError,
+  StepHandlerOutput,
+  StepInstance,
+  FlowRuntimeState,
+  ExternalStepRegistryItem,
+  ExternalStepRegistryItemSchema,
+  ENV_VAR_NAMES,
+} from '@allma/core-types';
+import { classifyStepError } from '../../allma-core/utils/error-classifier.js';
 
 const ALLMA_CONFIG_TABLE_NAME = process.env[ENV_VAR_NAMES.ALLMA_CONFIG_TABLE_NAME];
 if (!ALLMA_CONFIG_TABLE_NAME) {
@@ -49,17 +58,34 @@ export async function invokeExternalStep(
     InvocationType: 'RequestResponse', // Synchronous invocation
   });
 
-  const response = await lambdaClient.send(command);
+  let response;
+  try {
+    response = await lambdaClient.send(command);
+  } catch (error: any) {
+    if (error instanceof TransientStepError || error instanceof PermanentStepError) {
+      throw error;
+    }
+    throw classifyStepError(
+      error,
+      `External step Lambda for ${moduleIdentifier} failed`,
+    );
+  }
 
   // 4. Handle the response
   if (response.FunctionError) {
     if (response.Payload) {
-        const errorPayload = JSON.parse(new TextDecoder().decode(response.Payload));
-        throw new PermanentStepError(`External step Lambda for ${moduleIdentifier} failed: ${errorPayload.errorMessage}`, {
-            cause: errorPayload,
-        });
+      let errorPayload: any;
+      try {
+        errorPayload = JSON.parse(new TextDecoder().decode(response.Payload));
+      } catch {
+        errorPayload = { rawError: new TextDecoder().decode(response.Payload) };
+      }
+      throw classifyStepError(
+        errorPayload,
+        `External step Lambda for ${moduleIdentifier} failed`,
+      );
     } else {
-        throw new PermanentStepError(`External step Lambda for ${moduleIdentifier} failed with an unknown error and no payload.`);
+      throw new PermanentStepError(`External step Lambda for ${moduleIdentifier} failed with an unknown error and no payload.`);
     }
   }
 

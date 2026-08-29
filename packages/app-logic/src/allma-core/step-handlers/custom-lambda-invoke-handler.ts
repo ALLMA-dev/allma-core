@@ -4,6 +4,7 @@ import {
   StepDefinition,
   StepHandler,
   TransientStepError,
+  PermanentStepError,
   isS3OutputPointerWrapper,
   ENV_VAR_NAMES,
   TemplateContextMappingItem,
@@ -12,6 +13,7 @@ import {
 import { log_error, log_info, offloadIfLarge } from '@allma/core-sdk';
 import { z } from 'zod';
 import { TemplateService } from '../template-service.js';
+import { classifyStepError } from '../utils/error-classifier.js';
 
 // Configure clients with adaptive retry strategy to smoothly handle massive traffic spikes and AWS API 429 throttles
 const lambdaClient = new LambdaClient({ maxAttempts: 10, retryMode: 'adaptive' });
@@ -104,26 +106,20 @@ export const handleCustomLambdaInvoke: StepHandler = async (
     const result = await lambdaClient.send(command);
 
     if (result.FunctionError) {
-        const errorPayloadString = result.Payload ? new TextDecoder().decode(result.Payload) : '{}';
-        log_error(`Custom logic Lambda returned an error`, { errorPayloadString }, correlationId);
-        
-        let errorDetails: any = {};
-        try {
-            errorDetails = JSON.parse(errorPayloadString);
-        } catch (e) {
-            errorDetails = { rawError: errorPayloadString };
-        }
+      const errorPayloadString = result.Payload ? new TextDecoder().decode(result.Payload) : '{}';
+      log_error('Custom logic Lambda returned an error', { errorPayloadString }, correlationId);
 
-        const errorMessage = errorDetails.errorMessage || 'Custom lambda failed with an unparsable error.';
-        
-        // This is the key fix: Throw a structured TransientStepError.
-        // The `errorDetails` will be correctly serialized into the `Cause` string by SFN,
-        // preventing the double-stringification issue.
-        throw new TransientStepError(
-          `Failed to invoke custom logic Lambda '${lambdaArn}': ${errorMessage}`,
-          errorDetails,
-          new Error(errorMessage)
-        );
+      let errorDetails: any = {};
+      try {
+        errorDetails = JSON.parse(errorPayloadString);
+      } catch {
+        errorDetails = { rawError: errorPayloadString };
+      }
+
+      throw classifyStepError(
+        errorDetails,
+        `Failed to invoke custom logic Lambda '${lambdaArn}'`,
+      );
     }
 
     const responsePayload = result.Payload ? JSON.parse(new TextDecoder().decode(result.Payload)) : null;
@@ -148,20 +144,13 @@ export const handleCustomLambdaInvoke: StepHandler = async (
       outputData: finalPayloadForSfn,
     };
   } catch (error: any) {
-    // If the error is already a typed error (like the one we just threw), re-throw it.
-    if (error instanceof TransientStepError) {
-        throw error;
+    if (error instanceof TransientStepError || error instanceof PermanentStepError) {
+      throw error;
     }
-      
-    // Handle other invocation errors (e.g., IAM permissions, timeouts)
-    if (error.name === 'TooManyRequestsException') {
-      // Re-throw as a specific, catchable TransientStepError
-      throw new TransientStepError(`Failed to invoke custom logic Lambda '${lambdaArn}': Rate Exceeded.`, error.details, error);
-    }
-    if (error.name === 'ResourceNotFoundException' || error.name === 'InvalidRequestContentException') {
-      throw error; // Fail fast for configuration errors
-    }
-    // Assume other errors could be transient
-    throw new TransientStepError(`Failed to invoke custom logic Lambda '${lambdaArn}': ${error.message}`, error.details, error);
+
+    throw classifyStepError(
+      error,
+      `Failed to invoke custom logic Lambda '${lambdaArn}'`,
+    );
   }
 };

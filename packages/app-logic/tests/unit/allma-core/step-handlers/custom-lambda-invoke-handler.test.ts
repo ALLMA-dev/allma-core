@@ -1,6 +1,6 @@
 import { vi, describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
-import { StepType, TransientStepError, type StepDefinition } from '@allma/core-types';
+import { StepType, TransientStepError, PermanentStepError, type StepDefinition } from '@allma/core-types';
 import { mockClient, resetAwsClientMocks } from '../../_helpers/aws-mock.js';
 import { makeRuntimeState } from '../../_helpers/fixtures.js';
 
@@ -80,7 +80,7 @@ describe('handleCustomLambdaInvoke', () => {
     expect(result.outputData).toEqual(pointer);
   });
 
-  it('throws a TransientStepError when the Lambda reports a FunctionError', async () => {
+  it('throws a TransientStepError when the Lambda reports a generic FunctionError', async () => {
     lambdaMock
       .on(InvokeCommand)
       .resolves({ FunctionError: 'Unhandled', Payload: encode({ errorMessage: 'boom inside' }) });
@@ -95,7 +95,66 @@ describe('handleCustomLambdaInvoke', () => {
     await expect(promise).rejects.toThrow('boom inside');
   });
 
-  it('fails fast (no wrapping) on a ResourceNotFoundException', async () => {
+  it('throws a PermanentStepError when the Lambda reports a ValidationException FunctionError', async () => {
+    lambdaMock.on(InvokeCommand).resolves({
+      FunctionError: 'Unhandled',
+      Payload: encode({
+        errorMessage: 'ValidationException: One or more parameter values were invalid',
+        errorType: 'ValidationException',
+      }),
+    });
+
+    const promise = handleCustomLambdaInvoke(
+      makeStepDef(),
+      {},
+      makeRuntimeState({ currentContextData: { fn: 'f' } })
+    );
+
+    await expect(promise).rejects.toBeInstanceOf(PermanentStepError);
+    await expect(promise).rejects.not.toBeInstanceOf(TransientStepError);
+    await expect(promise).rejects.toThrow('ValidationException');
+  });
+
+  it('throws a PermanentStepError when the Lambda reports isRetryable: false', async () => {
+    lambdaMock.on(InvokeCommand).resolves({
+      FunctionError: 'Unhandled',
+      Payload: encode({
+        errorMessage: 'Deterministic business validation failed',
+        isRetryable: false,
+      }),
+    });
+
+    const promise = handleCustomLambdaInvoke(
+      makeStepDef(),
+      {},
+      makeRuntimeState({ currentContextData: { fn: 'f' } })
+    );
+
+    await expect(promise).rejects.toBeInstanceOf(PermanentStepError);
+    await expect(promise).rejects.not.toBeInstanceOf(TransientStepError);
+    await expect(promise).rejects.toThrow('Deterministic business validation failed');
+  });
+
+  it('throws a TransientStepError when the Lambda reports isRetryable: true', async () => {
+    lambdaMock.on(InvokeCommand).resolves({
+      FunctionError: 'Unhandled',
+      Payload: encode({
+        errorMessage: 'Downstream dependency timeout',
+        isRetryable: true,
+      }),
+    });
+
+    const promise = handleCustomLambdaInvoke(
+      makeStepDef(),
+      {},
+      makeRuntimeState({ currentContextData: { fn: 'f' } })
+    );
+
+    await expect(promise).rejects.toBeInstanceOf(TransientStepError);
+    await expect(promise).rejects.toThrow('Downstream dependency timeout');
+  });
+
+  it('fails fast as PermanentStepError on a ResourceNotFoundException', async () => {
     lambdaMock.on(InvokeCommand).rejects(
       Object.assign(new Error('no such function'), { name: 'ResourceNotFoundException' })
     );
@@ -106,8 +165,25 @@ describe('handleCustomLambdaInvoke', () => {
       makeRuntimeState({ currentContextData: { fn: 'f' } })
     );
 
+    await expect(promise).rejects.toBeInstanceOf(PermanentStepError);
     await expect(promise).rejects.not.toBeInstanceOf(TransientStepError);
     await expect(promise).rejects.toThrow('no such function');
+  });
+
+  it('fails fast as PermanentStepError on an invocation ValidationException', async () => {
+    lambdaMock.on(InvokeCommand).rejects(
+      Object.assign(new Error('Invalid parameter'), { name: 'ValidationException' })
+    );
+
+    const promise = handleCustomLambdaInvoke(
+      makeStepDef(),
+      {},
+      makeRuntimeState({ currentContextData: { fn: 'f' } })
+    );
+
+    await expect(promise).rejects.toBeInstanceOf(PermanentStepError);
+    await expect(promise).rejects.not.toBeInstanceOf(TransientStepError);
+    await expect(promise).rejects.toThrow('Invalid parameter');
   });
 
   it('wraps a throttling error as a TransientStepError', async () => {
