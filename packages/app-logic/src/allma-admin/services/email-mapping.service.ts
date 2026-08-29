@@ -1,4 +1,4 @@
-import { TransactWriteCommand, DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
+import { TransactWriteCommand, QueryCommand, DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import {
   ENV_VAR_NAMES,
@@ -14,10 +14,31 @@ import { TemplateService } from '../../allma-core/template-service.js';
 
 type EmailStartPointStepPayload = z.infer<typeof EmailStartPointStepPayloadSchema>;
 
+export interface RecipientEmailMapping {
+  emailAddress: string;
+  keyword: string;
+  flowDefinitionId: string;
+  stepInstanceId?: string;
+  triggerMessagePattern?: string;
+}
+
 const ddbDocClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const EMAIL_MAPPING_TABLE_NAME = process.env[ENV_VAR_NAMES.EMAIL_TO_FLOW_MAPPING_TABLE_NAME]!;
 
 export const EmailMappingService = {
+  async getMappingsForRecipient(emailAddress: string): Promise<RecipientEmailMapping[]> {
+    const command = new QueryCommand({
+      TableName: EMAIL_MAPPING_TABLE_NAME,
+      KeyConditionExpression: 'emailAddress = :recipient',
+      ExpressionAttributeValues: {
+        ':recipient': emailAddress,
+      },
+    });
+
+    const { Items } = await ddbDocClient.send(command);
+    return (Items as RecipientEmailMapping[]) || [];
+  },
+
   async syncMappingsForFlowVersion(flowId: string, oldVersion?: FlowDefinition, newVersion?: FlowDefinition) {
     const getNormalizedMappings = async (
       flow?: FlowDefinition,
