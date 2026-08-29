@@ -34,7 +34,7 @@ jobs:
 
       - name: Create Release Pull Request or Publish to npm
         id: changesets
-        uses: changesets/action@v1
+        uses: changesets/action@v2
         with:
           # This command will run publishing to npm.
           # It will only be run if the latest commit is a release commit (e.g., "Release v1.2.3").
