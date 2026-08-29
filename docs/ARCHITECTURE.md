@@ -298,12 +298,11 @@ subtask. `package-lock.json` is the same hazard for any two subtasks adding depe
   `aiApiKeySecretArn` are still their placeholder values.
 - **Weaken a removal policy on a stateful resource.** All four DynamoDB tables and the traces bucket
   are `isProd ? RETAIN : DESTROY` (`packages/core-cdk/lib/constructs/data-stores.ts`); the Cognito
-  user pool (`admin-authentication.ts`) and the SFN log group (`orchestration.ts`) match, and new
-  stateful resources must too. `pointInTimeRecovery: isProd` covers three of the four tables —
-  `AllmaFlowContinuationStateTable` (`data-stores.ts:189`) has none, a gap rather than the pattern.
-  The `web-app-deployment.ts` bucket is unconditionally `DESTROY` and holds only rebuildable assets;
-  `IncomingEmailsBucket` in `email-integration.ts` is unconditionally `DESTROY` and holds real
-  inbound mail — a defect, not a pattern.
+  user pool (`admin-authentication.ts`), the SFN log group (`orchestration.ts`) and the inbound-email
+  bucket (`email-integration.ts`) match, and new stateful resources must too. `pointInTimeRecovery: isProd`
+  covers three of the four tables — `AllmaFlowContinuationStateTable` (`data-stores.ts:189`) has none,
+  a gap rather than the pattern. The `web-app-deployment.ts` bucket is unconditionally `DESTROY` and
+  holds only rebuildable assets.
 - **Deploy the platform stack from this repository's CI.** `.github/workflows/ci.yml` never deploys.
   `.github/workflows/ci-websites.yml` deploys exactly one thing on push to `main`: the documentation
   site, via `allma.cdk/bin/allma-websites.ts`. `AllmaStack` is deployed by consumers from their own

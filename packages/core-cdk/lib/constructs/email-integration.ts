@@ -34,6 +34,7 @@ export class EmailIntegration extends Construct {
         super(scope, id);
 
         const { stageConfig, configTable, emailMappingTable, flowStartQueue, httpApi } = props;
+        const isProd = stageConfig.stage === 'prod';
 
         // 1. S3 Bucket to store incoming emails
         const incomingEmailsBucket = new s3.Bucket(this, 'IncomingEmailsBucket', {
@@ -41,8 +42,8 @@ export class EmailIntegration extends Construct {
             blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
             encryption: s3.BucketEncryption.S3_MANAGED,
             lifecycleRules: [{ expiration: cdk.Duration.days(7) }],
-            removalPolicy: cdk.RemovalPolicy.DESTROY,
-            autoDeleteObjects: stageConfig.stage !== 'prod',
+            removalPolicy: isProd ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
+            autoDeleteObjects: !isProd,
         });
 
         // 2. IAM Role for the Email Ingress Lambda
