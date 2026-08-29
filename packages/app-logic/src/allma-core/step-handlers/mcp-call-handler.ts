@@ -6,13 +6,9 @@ export const handleMcpCall: StepHandler = async (stepDefinition: StepDefinition,
   const validatedStep = McpCallStepPayloadSchema.parse(stepDefinition);
   const { mcpConnectionId, toolName } = validatedStep;
 
-  try {
-    const connection = await loadMcpConnection(mcpConnectionId, runtimeState.flowExecutionId);
-    const result = await callTool(connection, toolName, stepInput);
-    return {
-      outputData: { result },
-    };
-  } catch (error) {
-    throw error;
-  }
+  const connection = await loadMcpConnection(mcpConnectionId, runtimeState.flowExecutionId);
+  const result = await callTool(connection, toolName, stepInput);
+  return {
+    outputData: { result },
+  };
 };
