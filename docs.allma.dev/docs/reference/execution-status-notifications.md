@@ -100,6 +100,10 @@ be notified, **per execution** — no sinks are baked into the flow definition.
 | `correlationKey`  | Opaque string echoed back on every event.                                                       |
 | `signingSecretArn`| Secrets Manager ARN of the HMAC secret. Allma reads it at send time; it never stores raw secrets.|
 
+The signing secret must live in the **same AWS account and region** as the Allma stack and be
+tagged `allma-mcp-secret=true`. The platform role can read only secrets that carry this tag, so an
+untagged or cross-account secret ARN fails to resolve at send time.
+
 For cross-account SNS/SQS sinks, grant Allma's platform role permission to publish/send to your
 resource via its resource policy.
 

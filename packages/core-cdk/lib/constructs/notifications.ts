@@ -79,7 +79,10 @@ export class AllmaNotifications extends Construct {
     dispatcherRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: ['secretsmanager:GetSecretValue'],
-      resources: ['arn:aws:secretsmanager:*:*:secret:*'],
+      resources: [`arn:aws:secretsmanager:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:secret:*`],
+      conditions: {
+        StringEquals: { 'secretsmanager:ResourceTag/allma-mcp-secret': 'true' },
+      },
     }));
 
     const architecture =

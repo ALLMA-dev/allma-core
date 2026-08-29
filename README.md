@@ -71,7 +71,7 @@ self-hosting, and competitor capabilities evolve — verify for your use case.</
 
 ## 🚀 Getting Started: Deploy in 5 Minutes
 
-Allma deployments are consumer-driven: `@allma/core-cdk` exports the `AllmaStack` construct, which consumer applications instantiate and deploy into their own AWS accounts. Deploy the core Allma backend using our `basic-deployment` consumer example.
+Deploy the core Allma backend to your AWS account using our `basic-deployment` example.
 
 > **Just want to look first?** You don't need an AWS account to evaluate Allma. Watch the
 > [walkthrough](https://docs.allma.dev/getting-started/quick-start) and skim the
@@ -93,14 +93,14 @@ npm install
 ```
 
 **3. Configure Your Deployment**
-Navigate to the consumer example project and edit the configuration file.
+Navigate to the example project and edit the configuration file.
 ```bash
 cd examples/basic-deployment
 ```
 Open `config/allma.config.ts` and update the `awsAccountId`, `awsRegion`, and `aiApiKeySecretArn` with your own values.
 
 **4. Deploy the Platform**
-This command deploys the entire Allma backend stack to your AWS account from the consumer app.
+This command deploys the entire Allma backend stack to your AWS account.
 ```bash
 npm run deploy
 ```
