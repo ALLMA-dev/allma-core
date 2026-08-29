@@ -1,8 +1,6 @@
 import { z } from 'zod';
 import { APIGatewayProxyHandlerV2 } from 'aws-lambda';
 import { SFNClient, SendTaskSuccessCommand, TaskTimedOut, InvalidToken } from '@aws-sdk/client-sfn';
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, DeleteCommand } from '@aws-sdk/lib-dynamodb';
 import { ENV_VAR_NAMES } from '@allma/core-types';
 import {
   log_error,
@@ -12,10 +10,9 @@ import {
   buildSuccessResponse,
   buildErrorResponse,
 } from '@allma/core-sdk';
+import { ContinuationStateService } from '../allma-core/continuation-state.service.js';
 
 const sfnClient = new SFNClient({});
-const ddbDocClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
-const CONTINUATION_TABLE_NAME = process.env[ENV_VAR_NAMES.ALLMA_CONTINUATION_TABLE_NAME]!;
 
 const MAX_CONTEXT_DATA_SIZE_BYTES_DEFAULT = 220 * 1024;
 const MAX_CONTEXT_DATA_SIZE_BYTES = process.env[ENV_VAR_NAMES.MAX_CONTEXT_DATA_SIZE_BYTES] 
@@ -48,27 +45,15 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   let flowExecutionId: string;
 
   try {
-    // 2. Atomically delete the continuation record and retrieve its contents.
-    // This is the most robust way to prevent replay attacks and race conditions.
-    const deleteResult = await ddbDocClient.send(new DeleteCommand({
-        TableName: CONTINUATION_TABLE_NAME,
-        Key: {
-            correlationKey: correlationValue,
-        },
-        // Ask DynamoDB to return the item's content as it was before the deletion.
-        ReturnValues: 'ALL_OLD',
-    }));
+    const continuationRecord = await ContinuationStateService.consumeContinuationRecord(correlationValue);
 
-    // 3. Check if the record existed.
-    if (!deleteResult.Attributes) {
+    if (!continuationRecord) {
         log_warn('No active waiting task found for the given correlation key. It may have already been resumed or timed out.', { correlationValue });
         return createApiGatewayResponse(404, buildErrorResponse('No active flow found waiting for this event.', 'NOT_FOUND'), correlationId);
     }
 
-    // If we are here, the delete was successful.
     log_info('Successfully and atomically deleted continuation record to prevent replay.', { correlationValue }, correlationId);
 
-    const continuationRecord = deleteResult.Attributes;
     taskToken = continuationRecord.taskToken;
     flowExecutionId = continuationRecord.flowExecutionId;
 
