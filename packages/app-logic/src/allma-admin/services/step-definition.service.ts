@@ -1,25 +1,53 @@
 import { v4 as uuidv4 } from 'uuid';
-import { ITEM_TYPE_ALLMA_STEP_DEFINITION, StepDefinition, StepDefinitionSchema, CreateStepDefinitionInput } from '@allma/core-types';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import {
+    ITEM_TYPE_ALLMA_STEP_DEFINITION,
+    ITEM_TYPE_ALLMA_EXTERNAL_STEP_REGISTRY,
+    StepDefinition,
+    StepDefinitionSchema,
+    CreateStepDefinitionInput,
+    ExternalStepRegistryItem,
+    ENV_VAR_NAMES,
+} from '@allma/core-types';
 import { GenericEntityManager } from './generic-entity.service.js';
+
+const ddbDocClient = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
+    marshallOptions: { removeUndefinedValues: true },
+});
 
 const stepDefinitionManager = new GenericEntityManager<StepDefinition>({
     pkPrefix: 'STEP_DEF#',
     entityName: 'Step Definition',
     itemType: ITEM_TYPE_ALLMA_STEP_DEFINITION,
-    // The base schema for validation. The manager handles createdAt/updatedAt.
     schema: StepDefinitionSchema,
 });
 
-// Wrapper to handle ID generation for new step definitions.
 const createWithId = async (data: CreateStepDefinitionInput): Promise<StepDefinition> => {
-    // Prefix with 'usr-' to distinguish from system definitions.
     const id = `usr-${uuidv4()}`;
-    // The `create` method of the manager expects the full entity minus timestamps.
     const now = new Date().toISOString();
     const fullData = { ...data, id, version: 1, createdAt: now, updatedAt: now };
     return stepDefinitionManager.create(fullData as any);
 };
 
+const listExternalSteps = async (): Promise<ExternalStepRegistryItem[]> => {
+    const tableName = process.env[ENV_VAR_NAMES.ALLMA_CONFIG_TABLE_NAME] || process.env.ALLMA_CONFIG_TABLE_NAME;
+    if (!tableName) {
+        throw new Error(`Missing required environment variable: ${ENV_VAR_NAMES.ALLMA_CONFIG_TABLE_NAME}`);
+    }
+
+    const query = new QueryCommand({
+        TableName: tableName,
+        IndexName: 'GSI_ItemType_Id',
+        KeyConditionExpression: 'itemType = :itemType',
+        ExpressionAttributeValues: {
+            ':itemType': ITEM_TYPE_ALLMA_EXTERNAL_STEP_REGISTRY,
+        },
+    });
+
+    const result = await ddbDocClient.send(query);
+    return (result.Items || []) as ExternalStepRegistryItem[];
+};
 
 export const StepDefinitionService = {
     list: stepDefinitionManager.list.bind(stepDefinitionManager),
@@ -27,4 +55,5 @@ export const StepDefinitionService = {
     create: createWithId,
     update: stepDefinitionManager.update.bind(stepDefinitionManager),
     delete: stepDefinitionManager.delete.bind(stepDefinitionManager),
+    listExternalSteps,
 };
