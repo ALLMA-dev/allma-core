@@ -67,7 +67,7 @@
   "devDependencies": {
     "@types/adm-zip": "^0.5.7",
     "aws-cdk": "^2.1134.0",
-    "eslint": "^9.8.0",
+    "eslint": "^10.9.1",
     "ts-node": "^10.9.2",
     "typescript": "~5.7.3",
     "typescript-eslint": "^8.0.0"
