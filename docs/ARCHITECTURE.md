@@ -116,11 +116,6 @@ Allowed direction: **L1 → L2 → L3 → L4 → L5**, and any layer → `@allma
   `data-mapper.ts`, `template-service.ts`, `security-validator.ts`, `execution-logger-client.ts`).
   Treat these as L4; new shared runtime logic follows that pattern rather than growing `utils/`.
 
-**Known violation, do not copy it:** `src/allma-core/step-handlers/mcp-call-handler.ts:2` imports
-`McpConnectionService` from `../../allma-admin/services/` — the only `allma-core → allma-admin` edge
-in the package. Reject a plan that adds a second; welcome one that removes this. The reverse
-direction (`allma-admin/services` → `allma-core`) is normal.
-
 ### Boundary validation
 
 Every structure crossing a process boundary has a Zod schema, and the schema belongs in
