@@ -238,9 +238,8 @@ allma-core/
 | `allma-app-logic`                | No (private) | Lambda business logic; never published — bundled into CDK deployment assets.  |
 
 ### Key Configuration Notes
-- **Root `package.json`** declares `workspaces: ["packages/*", "examples/*"]` and exposes `build`, `dev`, `lint`, `test` scripts that fan out through Turbo. Examples are included as workspaces for local development only; they are not published. There is no root `cdk.json` or root `deploy` script because platform deployments are consumer-driven.
+- **Root `package.json`** declares `workspaces: ["packages/*", "examples/*"]` and exposes `build`, `dev`, `lint`, `test` scripts that fan out through Turbo. Examples are included as workspaces for local development only; they are not published.
 - **Published packages** (`@allma/*`) set `main`, `types`, and `files` for npm distribution and build with `tsc`/`tsup`. Do not add product-specific dependencies to them.
-- **`@allma/core-cdk`** is a construct library exporting `AllmaStack` for consumer applications to instantiate in their own CDK apps. Platform deployments are consumer-driven (e.g., from `examples/basic-deployment` or an external stack); `@allma/core-cdk` is not a standalone deployable app and has no `cdk.json`.
 - **`allma-app-logic`** is `private: true`, builds with `tsc`, and is tested with Vitest. Its code is bundled directly into CDK deployment assets rather than published.
 
 ### Versioning & Releases (Changesets)
