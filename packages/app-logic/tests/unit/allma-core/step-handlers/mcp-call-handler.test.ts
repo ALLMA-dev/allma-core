@@ -1,22 +1,19 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { StepType, PermanentStepError, TransientStepError, type StepDefinition } from '@allma/core-types';
 
-// Both collaborators are non-AWS: the connection service (DynamoDB-backed, mocked here as a
-// plain object) and the MCP client transport. Mocking them keeps the dispatch/error contract
-// hermetic.
-vi.mock('../../../../src/allma-admin/services/mcp-connection.service.js', () => ({
-  McpConnectionService: { get: vi.fn() },
+vi.mock('../../../../src/allma-core/config-loader.js', () => ({
+  loadMcpConnection: vi.fn(),
 }));
 vi.mock('../../../../src/allma-core/utils/mcp-client.js', () => ({
   callTool: vi.fn(),
 }));
 
 import { handleMcpCall } from '../../../../src/allma-core/step-handlers/mcp-call-handler.js';
-import { McpConnectionService } from '../../../../src/allma-admin/services/mcp-connection.service.js';
+import { loadMcpConnection } from '../../../../src/allma-core/config-loader.js';
 import { callTool } from '../../../../src/allma-core/utils/mcp-client.js';
 import { makeRuntimeState } from '../../_helpers/fixtures.js';
 
-const mockedGet = vi.mocked((McpConnectionService as unknown as { get: ReturnType<typeof vi.fn> }).get);
+const mockedLoadMcpConnection = vi.mocked(loadMcpConnection);
 const mockedCallTool = vi.mocked(callTool);
 
 const makeStepDef = (overrides: Record<string, unknown> = {}): StepDefinition =>
@@ -29,24 +26,34 @@ const makeStepDef = (overrides: Record<string, unknown> = {}): StepDefinition =>
 
 describe('handleMcpCall', () => {
   beforeEach(() => {
-    mockedGet.mockReset();
+    mockedLoadMcpConnection.mockReset();
     mockedCallTool.mockReset();
   });
 
   it('resolves the connection, calls the tool, and wraps the result', async () => {
-    const connection = { id: 'conn-1', endpoint: 'https://mcp.test' };
-    mockedGet.mockResolvedValue(connection);
+    const connection = {
+      id: 'conn-1',
+      name: 'test-mcp',
+      serverUrl: 'https://mcp.test',
+      authentication: { type: 'NONE' as const },
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+    };
+    mockedLoadMcpConnection.mockResolvedValue(connection);
     mockedCallTool.mockResolvedValue({ hits: 3 });
 
-    const result = await handleMcpCall(makeStepDef(), { query: 'allma' }, makeRuntimeState());
+    const runtimeState = makeRuntimeState({ flowExecutionId: 'exec-123' });
+    const result = await handleMcpCall(makeStepDef(), { query: 'allma' }, runtimeState);
 
     expect(result.outputData).toEqual({ result: { hits: 3 } });
-    expect(mockedGet).toHaveBeenCalledWith('conn-1');
+    expect(mockedLoadMcpConnection).toHaveBeenCalledWith('conn-1', 'exec-123');
     expect(mockedCallTool).toHaveBeenCalledWith(connection, 'search', { query: 'allma' });
   });
 
   it('throws a PermanentStepError when the connection cannot be found', async () => {
-    mockedGet.mockResolvedValue(null);
+    mockedLoadMcpConnection.mockRejectedValue(
+      new PermanentStepError("MCP Connection not found for id: conn-1")
+    );
 
     await expect(handleMcpCall(makeStepDef(), {}, makeRuntimeState())).rejects.toBeInstanceOf(
       PermanentStepError
@@ -55,7 +62,14 @@ describe('handleMcpCall', () => {
   });
 
   it('re-throws a typed error from the MCP client unchanged', async () => {
-    mockedGet.mockResolvedValue({ id: 'conn-1' });
+    mockedLoadMcpConnection.mockResolvedValue({
+      id: 'conn-1',
+      name: 'test-mcp',
+      serverUrl: 'https://mcp.test',
+      authentication: { type: 'NONE' as const },
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+    });
     const transient = new TransientStepError('mcp upstream timeout');
     mockedCallTool.mockRejectedValue(transient);
 
@@ -64,6 +78,6 @@ describe('handleMcpCall', () => {
 
   it('rejects a structurally invalid step definition', async () => {
     await expect(handleMcpCall({ stepType: StepType.MCP_CALL } as never, {}, makeRuntimeState())).rejects.toThrow();
-    expect(mockedGet).not.toHaveBeenCalled();
+    expect(mockedLoadMcpConnection).not.toHaveBeenCalled();
   });
 });

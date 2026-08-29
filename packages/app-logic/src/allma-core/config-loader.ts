@@ -12,6 +12,8 @@ import {
     StepInstance,
     FlowMetadataStorageItem,
     FlowMetadataStorageItemSchema,
+    type McpConnection,
+    McpConnectionSchema,
 } from '@allma/core-types';
 import { log_error, log_info, deepMerge } from '@allma/core-sdk';
 
@@ -196,6 +198,29 @@ export async function loadPromptTemplate(
     } catch (e: any) {
         if (e instanceof PermanentStepError) throw e;
         log_error('Failed to load or parse Prompt Template from DynamoDB', { error: e.message, params: getParams }, correlationId);
+        throw e;
+    }
+}
+
+export async function loadMcpConnection(
+    mcpConnectionId: string,
+    correlationId?: string
+): Promise<McpConnection> {
+    log_info('Loading MCP Connection', { mcpConnectionId, tableName: CONFIG_TABLE_NAME }, correlationId);
+    const getParams = {
+        TableName: CONFIG_TABLE_NAME,
+        Key: { PK: `MCP_CONNECTION#${mcpConnectionId}`, SK: 'METADATA' },
+    };
+
+    try {
+        const { Item } = await ddbDocClient.send(new GetCommand(getParams));
+        if (!Item) {
+            throw new PermanentStepError(`MCP Connection not found for id: ${mcpConnectionId}`);
+        }
+        return McpConnectionSchema.parse(Item);
+    } catch (e: any) {
+        if (e instanceof PermanentStepError) throw e;
+        log_error('Failed to load or parse MCP Connection from DynamoDB', { error: e.message, params: getParams }, correlationId);
         throw e;
     }
 }
