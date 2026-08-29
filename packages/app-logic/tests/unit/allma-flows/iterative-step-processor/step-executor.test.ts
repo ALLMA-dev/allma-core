@@ -6,6 +6,7 @@ import {
   ContentBasedRetryableError,
   RetryableStepError,
   TransientStepError,
+  PermanentStepError,
   SecurityViolationError,
   type StepHandler,
   type StepDefinition,
@@ -177,6 +178,64 @@ describe('executeStandardStep', () => {
       mockedGetStepHandler.mockReturnValue(handler as unknown as StepHandler);
 
       await expect(run(makeStepInstance())).rejects.toThrow('hard failure');
+    });
+
+    it('fails immediately as PermanentStepError without retrying and logs FAILED without RETRYING_SFN', async () => {
+      const handler = vi.fn().mockRejectedValue(
+        new PermanentStepError('ValidationException: Empty GSI sort key', {
+          errorType: 'ValidationException',
+          isRetryable: false,
+        })
+      );
+      mockedGetStepHandler.mockReturnValue(handler as unknown as StepHandler);
+      const step = makeStepInstance({ stepInstanceId: 'persist_supplier' });
+      const runtimeState = makeRuntimeState({ enableExecutionLogs: true });
+
+      await expect(run(step, runtimeState)).rejects.toBeInstanceOf(PermanentStepError);
+
+      // Handler is invoked exactly once (no retry attempts)
+      expect(handler).toHaveBeenCalledTimes(1);
+
+      const loggedStatuses = mockedLogger.logStepExecution.mock.calls.map(c => c[0].status);
+      expect(loggedStatuses).toContain('STARTED');
+      expect(loggedStatuses).toContain('FAILED');
+      expect(loggedStatuses).not.toContain('RETRYING_SFN');
+      expect(loggedStatuses).not.toContain('RETRYING_CONTENT');
+
+      const failedLog = mockedLogger.logStepExecution.mock.calls
+        .map(c => c[0])
+        .find(r => r.status === 'FAILED');
+      expect(failedLog?.errorInfo?.isRetryable).toBe(false);
+      expect(failedLog?.errorInfo?.errorMessage).toBe('ValidationException: Empty GSI sort key');
+    });
+
+    it('logs RETRYING_SFN and sets isRetryable: true when failing with a persistent TransientStepError', async () => {
+      vi.useFakeTimers();
+      try {
+        const handler = vi.fn().mockRejectedValue(new TransientStepError('Throttling: Rate exceeded'));
+        mockedGetStepHandler.mockReturnValue(handler as unknown as StepHandler);
+        const step = makeStepInstance({ stepInstanceId: 'throttled_step' });
+        const runtimeState = makeRuntimeState({ enableExecutionLogs: true });
+
+        const rejectionPromise = expect(run(step, runtimeState)).rejects.toBeInstanceOf(TransientStepError);
+        await vi.runAllTimersAsync();
+        await rejectionPromise;
+
+        // 5 internal retry attempts were made
+        expect(handler).toHaveBeenCalledTimes(5);
+
+        const loggedStatuses = mockedLogger.logStepExecution.mock.calls.map(c => c[0].status);
+        expect(loggedStatuses).toContain('STARTED');
+        expect(loggedStatuses).toContain('RETRYING_SFN');
+        expect(loggedStatuses).not.toContain('FAILED');
+
+        const retryingLog = mockedLogger.logStepExecution.mock.calls
+          .map(c => c[0])
+          .find(r => r.status === 'RETRYING_SFN');
+        expect(retryingLog?.errorInfo?.isRetryable).toBe(true);
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 

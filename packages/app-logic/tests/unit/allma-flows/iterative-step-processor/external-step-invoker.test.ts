@@ -4,6 +4,7 @@ import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
 import {
   StepType,
   PermanentStepError,
+  TransientStepError,
   ITEM_TYPE_ALLMA_EXTERNAL_STEP_REGISTRY,
   type StepInstance,
 } from '@allma/core-types';
@@ -72,24 +73,106 @@ describe('invokeExternalStep', () => {
     await expect(invoke()).rejects.toThrow(/No external step registration/);
   });
 
-  it('surfaces a Lambda FunctionError as a PermanentStepError carrying the error message', async () => {
+  it('surfaces a Lambda FunctionError with ValidationException as PermanentStepError', async () => {
+    lambdaMock.on(InvokeCommand).resolves({
+      FunctionError: 'Unhandled',
+      Payload: encode({
+        errorMessage: 'ValidationException: Invalid query key',
+        errorType: 'ValidationException',
+      }),
+    });
+
+    const promise = invoke();
+    await expect(promise).rejects.toBeInstanceOf(PermanentStepError);
+    await expect(promise).rejects.not.toBeInstanceOf(TransientStepError);
+    await expect(promise).rejects.toThrow(/ValidationException: Invalid query key/);
+  });
+
+  it('surfaces a Lambda FunctionError with isRetryable: false as PermanentStepError', async () => {
+    lambdaMock.on(InvokeCommand).resolves({
+      FunctionError: 'Unhandled',
+      Payload: encode({
+        errorMessage: 'Permanent downstream validation error',
+        isRetryable: false,
+      }),
+    });
+
+    const promise = invoke();
+    await expect(promise).rejects.toBeInstanceOf(PermanentStepError);
+    await expect(promise).rejects.not.toBeInstanceOf(TransientStepError);
+    await expect(promise).rejects.toThrow(/Permanent downstream validation error/);
+  });
+
+  it('surfaces a Lambda FunctionError with isRetryable: true as TransientStepError', async () => {
+    lambdaMock.on(InvokeCommand).resolves({
+      FunctionError: 'Unhandled',
+      Payload: encode({
+        errorMessage: 'Transient downstream timeout',
+        isRetryable: true,
+      }),
+    });
+
+    const promise = invoke();
+    await expect(promise).rejects.toBeInstanceOf(TransientStepError);
+    await expect(promise).rejects.toThrow(/Transient downstream timeout/);
+  });
+
+  it('surfaces a Lambda FunctionError with ThrottlingException as TransientStepError', async () => {
+    lambdaMock.on(InvokeCommand).resolves({
+      FunctionError: 'Unhandled',
+      Payload: encode({
+        errorMessage: 'Rate exceeded',
+        errorType: 'ThrottlingException',
+      }),
+    });
+
+    const promise = invoke();
+    await expect(promise).rejects.toBeInstanceOf(TransientStepError);
+    await expect(promise).rejects.toThrow(/Rate exceeded/);
+  });
+
+  it('surfaces a generic unhandled Lambda FunctionError as TransientStepError', async () => {
     lambdaMock.on(InvokeCommand).resolves({
       FunctionError: 'Unhandled',
       Payload: encode({ errorMessage: 'downstream blew up' }),
     });
 
-    await expect(invoke()).rejects.toThrow(/downstream blew up/);
+    const promise = invoke();
+    await expect(promise).rejects.toBeInstanceOf(TransientStepError);
+    await expect(promise).rejects.toThrow(/downstream blew up/);
   });
 
-  it('throws when the Lambda reports a FunctionError with no payload', async () => {
+  it('surfaces an invocation client ValidationException as PermanentStepError', async () => {
+    lambdaMock.on(InvokeCommand).rejects(
+      Object.assign(new Error('Invalid parameter'), { name: 'ValidationException' })
+    );
+
+    const promise = invoke();
+    await expect(promise).rejects.toBeInstanceOf(PermanentStepError);
+    await expect(promise).rejects.toThrow(/Invalid parameter/);
+  });
+
+  it('surfaces an invocation client TooManyRequestsException as TransientStepError', async () => {
+    lambdaMock.on(InvokeCommand).rejects(
+      Object.assign(new Error('Rate exceeded'), { name: 'TooManyRequestsException' })
+    );
+
+    const promise = invoke();
+    await expect(promise).rejects.toBeInstanceOf(TransientStepError);
+    await expect(promise).rejects.toThrow(/Rate exceeded/);
+  });
+
+  it('throws PermanentStepError when the Lambda reports a FunctionError with no payload', async () => {
     lambdaMock.on(InvokeCommand).resolves({ FunctionError: 'Unhandled' });
 
+    await expect(invoke()).rejects.toBeInstanceOf(PermanentStepError);
     await expect(invoke()).rejects.toThrow(/unknown error/);
   });
 
-  it('throws when a successful invocation returns no payload', async () => {
+  it('throws PermanentStepError when a successful invocation returns no payload', async () => {
     lambdaMock.on(InvokeCommand).resolves({});
 
+    await expect(invoke()).rejects.toBeInstanceOf(PermanentStepError);
     await expect(invoke()).rejects.toThrow(/no payload/);
   });
 });
