@@ -1,12 +1,12 @@
 import { AttributeValue, DynamoDBClient, QueryCommandOutput } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, QueryCommand, QueryCommandInput, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, QueryCommand, QueryCommandInput, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import {
     ENV_VAR_NAMES, FlowExecutionDetails, PaginatedResponse, FlowExecutionSummary, AllmaFlowExecutionRecord,
     AllmaStepExecutionRecord, ITEM_TYPE_ALLMA_FLOW_EXECUTION_RECORD, ITEM_TYPE_ALLMA_STEP_EXECUTION_RECORD,
     StepType, BranchStepsResponse, BranchExecutionGroup,
-    FlowDefinition, ExecutionProgressNode, ExecutionProgressResponse, METADATA_SK_VALUE
+    FlowDefinition, ExecutionProgressNode, ExecutionProgressResponse, METADATA_SK_VALUE, AllmaError
 } from '@allma/core-types';
-import { log_error, log_warn, resolveS3Pointer } from '@allma/core-sdk';
+import { log_error, log_info, log_warn, resolveS3Pointer } from '@allma/core-sdk';
 import { loadFlowDefinition } from '../../allma-core/config-loader.js';
 
 const TERMINAL_FLOW_STATUSES = ['COMPLETED', 'FAILED', 'TIMED_OUT', 'CANCELLED'] as const;
@@ -367,6 +367,62 @@ function consolidateStepEvents(allFullStepEvents: AllmaStepExecutionRecord[]): A
 
 
 export const ExecutionMonitoringService = {
+
+    async getExecutionMetadata(flowExecutionId: string): Promise<AllmaFlowExecutionRecord | null> {
+        return _getMetadataItem(flowExecutionId);
+    },
+
+    async getStepExecutionRecords(flowExecutionId: string): Promise<AllmaStepExecutionRecord[]> {
+        const { Items } = await ddbDocClient.send(new QueryCommand({
+            TableName: EXECUTION_LOG_TABLE_NAME,
+            KeyConditionExpression: 'flowExecutionId = :pk AND begins_with(eventTimestamp_stepInstanceId_attempt, :skPrefix)',
+            ExpressionAttributeValues: { ':pk': flowExecutionId, ':skPrefix': 'STEP#' },
+            ScanIndexForward: true,
+        }));
+        return (Items as AllmaStepExecutionRecord[]) || [];
+    },
+
+    async reconcileExecutionTerminalStatus(params: {
+        flowExecutionId: string;
+        flowDefinitionVersion: number;
+        startTime: string;
+        terminalStatus: AllmaFlowExecutionRecord['status'];
+        endTime: string;
+        errorInfo?: AllmaError;
+        correlationId?: string;
+    }): Promise<void> {
+        const { flowExecutionId, flowDefinitionVersion, startTime, terminalStatus, endTime, errorInfo, correlationId = flowExecutionId } = params;
+        try {
+            await ddbDocClient.send(new UpdateCommand({
+                TableName: EXECUTION_LOG_TABLE_NAME,
+                Key: { flowExecutionId, eventTimestamp_stepInstanceId_attempt: METADATA_SK_VALUE },
+                UpdateExpression: 'SET #status = :status, #overallStatus = :status, #endTime = :endTime, #flowSortKey = :flowSortKey' + (errorInfo ? ', #errorInfo = :errorInfo' : ''),
+                ConditionExpression: '#status = :running OR #status = :init',
+                ExpressionAttributeNames: {
+                    '#status': 'status',
+                    '#overallStatus': 'overallStatus',
+                    '#endTime': 'endTime',
+                    '#flowSortKey': 'flow_sort_key',
+                    ...(errorInfo && { '#errorInfo': 'errorInfo' }),
+                },
+                ExpressionAttributeValues: {
+                    ':status': terminalStatus,
+                    ':endTime': endTime,
+                    ':flowSortKey': `v#${flowDefinitionVersion}#s#${terminalStatus}#t#${startTime}`,
+                    ':running': 'RUNNING',
+                    ':init': 'INITIALIZING',
+                    ...(errorInfo && { ':errorInfo': errorInfo }),
+                },
+            }));
+            log_warn('Reconciled a non-terminal execution to its real terminal status (crash repair).', { flowExecutionId, terminalStatus }, correlationId);
+        } catch (e: any) {
+            if (e.name === 'ConditionalCheckFailedException') {
+                log_info('Execution already terminal (finalize-flow won the race); skipping reconcile write.', { flowExecutionId }, correlationId);
+            } else {
+                throw e;
+            }
+        }
+    },
 
     async getExecutionDetails(flowExecutionId: string, correlationId: string): Promise<FlowExecutionDetails | null> {
         const allItems = await _getExecutionRecords(flowExecutionId);
