@@ -162,9 +162,6 @@ Check here before writing a helper.
 - `packages/core-types/src/admin/utils.ts` exports stub `withAdminAuth`, `AuthContext`,
   `offloadIfLarge` and response builders shadowing the real ones. Import those names from
   `@allma/core-sdk`, never from `@allma/core-types`.
-- `packages/core-types/src/logging/console.ts` exports `log_info`/`log_warn`/`log_error`/`log_debug`
-  as plain `console.*` wrappers, colliding with the structured logger. Import log functions from
-  `@allma/core-sdk` only.
 
 **Frontend route paths are the one uncentralized set** — inline string literals in
 `packages/admin-shell/src/AuthenticatedApp.tsx`, duplicated between the nav-item array and the
