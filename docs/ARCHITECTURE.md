@@ -155,11 +155,6 @@ Check here before writing a helper.
 | Versioned DynamoDB entity access | `packages/app-logic/src/allma-admin/services/versioned-entity.service.ts`, `generic-entity.service.ts` | Extend these before writing new DynamoDB access. `AGENTS.md` makes this explicit. |
 | Test helpers | `packages/app-logic/tests/unit/_helpers/` (`aws-mock.ts`, `fixtures.ts`, `logger.ts`, `vitest.setup.ts`); `packages/admin-shell/tests/_helpers/` and `tests/_setup/` | — |
 
-**Known duplication, do not extend it.**
-
-- `packages/core-sdk/src/cdk-utils.ts` and `packages/cdk-integration-utils/src/cdk-utils.ts` are
-  identical but for a trailing newline. Only the latter is exported; the `core-sdk` copy is dead.
-
 **Frontend route paths are the one uncentralized set** — inline string literals in
 `packages/admin-shell/src/AuthenticatedApp.tsx`, duplicated between the nav-item array and the
 `useRoutes` array. New routes follow that pattern; centralizing them is an improvement, not a
@@ -177,7 +172,7 @@ internal — free to move, rename or delete without a major bump.
 | Package | Public surface (the barrel) | Internal — free to move |
 | --- | --- | --- |
 | `@allma/core-types` | `packages/core-types/src/index.ts` → 13 sub-barrels | — |
-| `@allma/core-sdk` | `packages/core-sdk/src/index.ts` → 11 named modules | `packages/core-sdk/src/cdk-utils.ts` (not in the barrel) |
+| `@allma/core-sdk` | `packages/core-sdk/src/index.ts` → 11 named modules | — |
 | `@allma/admin-shell` | `packages/admin-shell/src/index.ts` — **only** `createAllmaAdminApp` and `./types/plugin` | All of `src/features/`, `src/api/`, `src/components/`, `src/hooks/`, `src/utils/` |
 | `@allma/ui-components` | `packages/ui-components/src/index.ts` — `PageContainer`, `EditableJsonView`, `CopyableText` | — |
 | `@allma/cdk-integration-utils` | `packages/cdk-integration-utils/src/index.ts` → `cdk-utils.ts` | — |
