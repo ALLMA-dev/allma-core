@@ -381,10 +381,10 @@ not typechecked by any command.** A plan claiming "zero type errors" means `npm 
 - **Not worth a test:** CDK wiring already asserted by synth, pure type declarations, barrels
   (`src/**/index.ts`, excluded from coverage in both configs) and the admin-shell harness
   (`src/harness/**`, excluded in `packages/admin-shell/vitest.config.ts`).
-- **What CI actually gates is narrower than the above.** `.github/workflows/ci.yml` runs
-  `npm run lint` and `npm run build`, then `npm run test` **only in `packages/app-logic`**, and only
-  when `TEST_AWS_*` secrets are present. The `admin-shell`, `flow-builder` and `core-types` suites do
-  not run in CI. Run them locally; a green PR is not proof they pass.
+- **CI gates all packages unconditionally.** `.github/workflows/ci.yml` runs `npm run lint`,
+  `npm run build` and `npm run test` (the root `turbo run test` sweep) on every pull request and push.
+  All hermetic package test suites (`app-logic`, `admin-shell`, `flow-builder`, `core-types`) run
+  without requiring AWS credentials; live integration tests remain opt-in behind `RUN_LIVE_AWS=1`.
 
 ---
 
