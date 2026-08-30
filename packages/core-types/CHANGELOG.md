@@ -1,5 +1,12 @@
 # @allma/core-types
 
+## 1.9.1
+
+### Patch Changes
+
+- 3cecdb5: Drop console logging stubs from public barrel to prevent shadowing @allma/core-sdk logger
+- dddce9f: Remove stub auth, response, and offload helpers from admin exports.
+
 ## 1.9.0
 
 ### Minor Changes

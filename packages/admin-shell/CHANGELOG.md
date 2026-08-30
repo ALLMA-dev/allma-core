@@ -1,5 +1,16 @@
 # @allma/admin-shell
 
+## 11.0.2
+
+### Patch Changes
+
+- Updated dependencies [4b1a147]
+- Updated dependencies [3cecdb5]
+- Updated dependencies [dddce9f]
+- Updated dependencies [5737d49]
+  - @allma/core-sdk@1.2.1
+  - @allma/core-types@1.9.1
+
 ## 11.0.1
 
 ### Patch Changes
