@@ -16,9 +16,6 @@ concurrency:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    
-    env:
-      ALL_TEST_SECRETS_PRESENT: ${{ secrets.TEST_AWS_REGION != '' && secrets.TEST_AWS_ACCESS_KEY_ID != '' && secrets.TEST_AWS_SECRET_ACCESS_KEY != '' }}
 
     steps:
       - name: Checkout
@@ -39,16 +36,5 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Run integration tests
-        # This condition now checks the environment variable we defined above.
-        # This syntax is universally understood by linters and the GitHub Actions runtime.
-        if: env.ALL_TEST_SECRETS_PRESENT == 'true'
-        run: |
-          npm run test
-        env:
-          # These secrets are still passed securely to the step's environment.
-          # The job-level env var was only for the conditional check.
-          AWS_REGION: ${{ secrets.TEST_AWS_REGION }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.TEST_AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.TEST_AWS_SECRET_ACCESS_KEY }}
-        working-directory: ./packages/app-logic
+      - name: Test
+        run: npm run test
