@@ -1,5 +1,23 @@
 # @allma/core-cdk
 
+## 1.5.5
+
+### Patch Changes
+
+- 171e615: Enable stage-conditional pointInTimeRecovery (`isProd`) on `AllmaFlowContinuationStateTable`, matching the other DynamoDB tables in `AllmaDataStores`.
+- d953ccf: Import CustomLambdaInvokeStepSchema from @allma/core-types in custom Lambda invoke handler
+- 8675c78: Classify DynamoDB ValidationException and non-retryable client errors as PermanentStepError to prevent spurious retries
+- 85a6bcd: Make IncomingEmailsBucket removalPolicy stage-conditional (RETAIN in prod, DESTROY elsewhere) and keep autoDeleteObjects non-prod only, aligning with the platform's stateful resource lifecycle pattern.
+- eed6cc1: Resolve runtime layer inversion by loading MCP connections in config-loader instead of importing admin service
+- 0c72c5e: Tighten the webhook-signing-secret Secrets Manager grants on the orchestration and lifecycle-dispatcher roles to least privilege: replace the unconditioned `arn:aws:secretsmanager:*:*:secret:*` resource with an account/region-scoped ARN plus a `secretsmanager:ResourceTag/allma-mcp-secret == 'true'` condition, matching the pattern already used elsewhere in the stack. Signing secrets must now live in the same account and region as the stack and be tagged `allma-mcp-secret=true`.
+- c40490a: Update config injector custom-resource Lambda runtime to Node.js 22 (`NODEJS_22_X`), aligning with all other platform Lambdas.
+- Updated dependencies [4b1a147]
+- Updated dependencies [3cecdb5]
+- Updated dependencies [dddce9f]
+- Updated dependencies [5737d49]
+  - @allma/core-sdk@1.2.1
+  - @allma/core-types@1.9.1
+
 ## 1.5.4
 
 ### Patch Changes
