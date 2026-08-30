@@ -1,17 +1,13 @@
 import { Handler } from 'aws-lambda';
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import {
     type AllmaFlowExecutionRecord,
     type AllmaError,
     ENV_VAR_NAMES,
-    METADATA_SK_VALUE,
 } from '@allma/core-types';
 import { log_info, log_warn, log_error } from '@allma/core-sdk';
 import { buildExecutionEvent, emitLifecycleEvent } from '../allma-core/notifications/execution-notifier.js';
+import { ExecutionMonitoringService } from '../allma-admin/services/execution-monitoring.service.js';
 
-const ddbDocClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
-const LOG_TABLE_NAME = process.env[ENV_VAR_NAMES.ALLMA_FLOW_EXECUTION_LOG_TABLE_NAME]!;
 const STATUS_TOPIC_ARN = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_STATUS_TOPIC_ARN];
 
 /** SFN execution status → Allma flow terminal status. */
@@ -88,11 +84,7 @@ export const handler: Handler<{ detail?: SfnStatusChangeDetail }, void> = async 
 
     // Only flow executions carry a METADATA record; branch / polling sub-executions do not, so a
     // miss here is an expected no-op rather than an error.
-    const { Item } = await ddbDocClient.send(new GetCommand({
-        TableName: LOG_TABLE_NAME,
-        Key: { flowExecutionId, eventTimestamp_stepInstanceId_attempt: METADATA_SK_VALUE },
-    }));
-    const metadata = Item as AllmaFlowExecutionRecord | undefined;
+    const metadata = await ExecutionMonitoringService.getExecutionMetadata(flowExecutionId);
     if (!metadata) {
         log_info('No metadata record for this execution; nothing to reconcile or notify.', { flowExecutionId, sfnStatus }, correlationId);
         return;
@@ -103,36 +95,15 @@ export const handler: Handler<{ detail?: SfnStatusChangeDetail }, void> = async 
 
     // 1. Reconcile — only if the record was left non-terminal (i.e. a crash skipped finalize-flow).
     if (NON_TERMINAL.includes(metadata.status)) {
-        try {
-            await ddbDocClient.send(new UpdateCommand({
-                TableName: LOG_TABLE_NAME,
-                Key: { flowExecutionId, eventTimestamp_stepInstanceId_attempt: METADATA_SK_VALUE },
-                UpdateExpression: 'SET #status = :status, #overallStatus = :status, #endTime = :endTime, #flowSortKey = :flowSortKey' + (errorInfo ? ', #errorInfo = :errorInfo' : ''),
-                ConditionExpression: '#status = :running OR #status = :init',
-                ExpressionAttributeNames: {
-                    '#status': 'status',
-                    '#overallStatus': 'overallStatus',
-                    '#endTime': 'endTime',
-                    '#flowSortKey': 'flow_sort_key',
-                    ...(errorInfo && { '#errorInfo': 'errorInfo' }),
-                },
-                ExpressionAttributeValues: {
-                    ':status': terminalStatus,
-                    ':endTime': endTime,
-                    ':flowSortKey': `v#${metadata.flowDefinitionVersion}#s#${terminalStatus}#t#${metadata.startTime}`,
-                    ':running': 'RUNNING',
-                    ':init': 'INITIALIZING',
-                    ...(errorInfo && { ':errorInfo': errorInfo }),
-                },
-            }));
-            log_warn('Reconciled a non-terminal execution to its real terminal status (crash repair).', { flowExecutionId, terminalStatus }, correlationId);
-        } catch (e: any) {
-            if (e.name === 'ConditionalCheckFailedException') {
-                log_info('Execution already terminal (finalize-flow won the race); skipping reconcile write.', { flowExecutionId }, correlationId);
-            } else {
-                throw e;
-            }
-        }
+        await ExecutionMonitoringService.reconcileExecutionTerminalStatus({
+            flowExecutionId,
+            flowDefinitionVersion: metadata.flowDefinitionVersion,
+            startTime: metadata.startTime,
+            terminalStatus,
+            endTime,
+            errorInfo,
+            correlationId,
+        });
     }
 
     // 2 + 3. Notify the caller's sinks (TERMINAL only, per its config) and publish to the topic.

@@ -1,5 +1,5 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { DynamoDBDocumentClient, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, QueryCommand, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { mockClient } from '../_helpers/aws-mock.js';
 
 // The service reads the table name at module load, so set it before importing.
@@ -19,11 +19,139 @@ const flowRecord = (id: string) => ({
   status: 'COMPLETED',
   startTime: '2026-06-22T10:00:00.000Z',
   endTime: '2026-06-22T10:00:05.000Z',
-  eventTimestamp_stepInstanceId_attempt: '__METADATA__',
+  eventTimestamp_stepInstanceId_attempt: 'METADATA',
 });
 
 beforeEach(() => {
   ddbMock.reset();
+});
+
+describe('getExecutionMetadata', () => {
+  it('returns metadata item when found', async () => {
+    ddbMock.on(GetCommand).resolves({ Item: flowRecord('exec-1') });
+
+    const result = await ExecutionMonitoringService.getExecutionMetadata('exec-1');
+
+    expect(result).toEqual(flowRecord('exec-1'));
+    const calls = ddbMock.commandCalls(GetCommand);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].args[0].input).toEqual({
+      TableName: 'test-exec-log-table',
+      Key: {
+        flowExecutionId: 'exec-1',
+        eventTimestamp_stepInstanceId_attempt: 'METADATA',
+      },
+    });
+  });
+
+  it('returns null when item is not found', async () => {
+    ddbMock.on(GetCommand).resolves({ Item: undefined });
+
+    const result = await ExecutionMonitoringService.getExecutionMetadata('exec-none');
+
+    expect(result).toBeNull();
+  });
+});
+
+describe('getStepExecutionRecords', () => {
+  it('queries step records for flow execution ID and returns them', async () => {
+    const stepRecords = [
+      {
+        itemType: 'ALLMA_STEP_EXECUTION_RECORD',
+        flowExecutionId: 'exec-1',
+        stepInstanceId: 'step-1',
+        status: 'STARTED',
+        eventTimestamp: '2026-06-22T10:00:01.000Z',
+        eventTimestamp_stepInstanceId_attempt: 'STEP#2026-06-22T10:00:01.000Z#step-1#1',
+      },
+    ];
+    ddbMock.on(QueryCommand).resolves({ Items: stepRecords });
+
+    const result = await ExecutionMonitoringService.getStepExecutionRecords('exec-1');
+
+    expect(result).toEqual(stepRecords);
+    const calls = ddbMock.commandCalls(QueryCommand);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].args[0].input).toMatchObject({
+      TableName: 'test-exec-log-table',
+      KeyConditionExpression: 'flowExecutionId = :pk AND begins_with(eventTimestamp_stepInstanceId_attempt, :skPrefix)',
+      ExpressionAttributeValues: { ':pk': 'exec-1', ':skPrefix': 'STEP#' },
+      ScanIndexForward: true,
+    });
+  });
+
+  it('returns empty array when no step records found', async () => {
+    ddbMock.on(QueryCommand).resolves({ Items: undefined });
+
+    const result = await ExecutionMonitoringService.getStepExecutionRecords('exec-1');
+
+    expect(result).toEqual([]);
+  });
+});
+
+describe('reconcileExecutionTerminalStatus', () => {
+  it('sends UpdateCommand with terminal status and conditions', async () => {
+    ddbMock.on(UpdateCommand).resolves({});
+
+    await ExecutionMonitoringService.reconcileExecutionTerminalStatus({
+      flowExecutionId: 'exec-1',
+      flowDefinitionVersion: 2,
+      startTime: '2026-06-22T10:00:00.000Z',
+      terminalStatus: 'FAILED',
+      endTime: '2026-06-22T10:05:00.000Z',
+      errorInfo: { errorName: 'StepFailed', errorMessage: 'Execution failed', isRetryable: false },
+      correlationId: 'exec-1',
+    });
+
+    const calls = ddbMock.commandCalls(UpdateCommand);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].args[0].input).toMatchObject({
+      TableName: 'test-exec-log-table',
+      Key: {
+        flowExecutionId: 'exec-1',
+        eventTimestamp_stepInstanceId_attempt: 'METADATA',
+      },
+      ConditionExpression: '#status = :running OR #status = :init',
+      ExpressionAttributeValues: {
+        ':status': 'FAILED',
+        ':endTime': '2026-06-22T10:05:00.000Z',
+        ':flowSortKey': 'v#2#s#FAILED#t#2026-06-22T10:00:00.000Z',
+        ':running': 'RUNNING',
+        ':init': 'INITIALIZING',
+        ':errorInfo': { errorName: 'StepFailed', errorMessage: 'Execution failed', isRetryable: false },
+      },
+    });
+  });
+
+  it('handles ConditionalCheckFailedException gracefully without throwing', async () => {
+    const condError = new Error('Conditional check failed');
+    condError.name = 'ConditionalCheckFailedException';
+    ddbMock.on(UpdateCommand).rejects(condError);
+
+    await expect(
+      ExecutionMonitoringService.reconcileExecutionTerminalStatus({
+        flowExecutionId: 'exec-1',
+        flowDefinitionVersion: 1,
+        startTime: '2026-06-22T10:00:00.000Z',
+        terminalStatus: 'COMPLETED',
+        endTime: '2026-06-22T10:05:00.000Z',
+      })
+    ).resolves.toBeUndefined();
+  });
+
+  it('rethrows unexpected errors', async () => {
+    ddbMock.on(UpdateCommand).rejects(new Error('DynamoDB connection timeout'));
+
+    await expect(
+      ExecutionMonitoringService.reconcileExecutionTerminalStatus({
+        flowExecutionId: 'exec-1',
+        flowDefinitionVersion: 1,
+        startTime: '2026-06-22T10:00:00.000Z',
+        terminalStatus: 'COMPLETED',
+        endTime: '2026-06-22T10:05:00.000Z',
+      })
+    ).rejects.toThrow('DynamoDB connection timeout');
+  });
 });
 
 describe('listExecutions', () => {
@@ -68,7 +196,7 @@ describe('listExecutions', () => {
       flowDefinitionId: 'flow-a',
       flowExecutionId: 'exec-2',
       startTime: '2026-06-22T10:00:00.000Z',
-      eventTimestamp_stepInstanceId_attempt: '__METADATA__',
+      eventTimestamp_stepInstanceId_attempt: 'METADATA',
     });
   });
 });

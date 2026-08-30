@@ -1,4 +1,4 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   SFNClient,
   SendTaskSuccessCommand,
@@ -7,6 +7,7 @@ import {
 import { DynamoDBDocumentClient, DeleteCommand } from '@aws-sdk/lib-dynamodb';
 import type { APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2 } from 'aws-lambda';
 import { mockClient, resetAwsClientMocks } from '../_helpers/aws-mock.js';
+import { ContinuationStateService } from '../../../src/allma-core/continuation-state.service.js';
 
 vi.hoisted(() => {
   process.env.ALLMA_CONTINUATION_TABLE_NAME = 'continuation-table';
@@ -32,11 +33,17 @@ beforeEach(() => {
   sfnMock.on(SendTaskSuccessCommand).resolves({});
 });
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe('resume-flow handler', () => {
-  it('consumes the continuation record and resumes the SFN task (202)', async () => {
+  it('delegates continuation record consumption to ContinuationStateService and resumes the SFN task (202)', async () => {
+    const consumeSpy = vi.spyOn(ContinuationStateService, 'consumeContinuationRecord');
     const result = await invoke({ correlationValue: 'key-1', payload: { reply: 'hi' } });
 
     expect(result.statusCode).toBe(202);
+    expect(consumeSpy).toHaveBeenCalledWith('key-1');
     // The continuation record is atomically deleted to prevent replay.
     expect(ddbMock.commandCalls(DeleteCommand)[0].args[0].input.ReturnValues).toBe('ALL_OLD');
     const sfnInput = sfnMock.commandCalls(SendTaskSuccessCommand)[0].args[0].input;

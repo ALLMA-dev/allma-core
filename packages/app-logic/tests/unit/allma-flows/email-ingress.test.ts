@@ -1,14 +1,20 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
-import { DynamoDBDocumentClient, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 import { mockClient, resetAwsClientMocks } from '../_helpers/aws-mock.js';
 
 vi.hoisted(() => {
-  process.env.EMAIL_TO_FLOW_MAPPING_TABLE_NAME = 'email-map-table';
   process.env.ALLMA_FLOW_START_REQUEST_QUEUE_URL = 'https://sqs.us-east-1.amazonaws.com/123456789012/flow-start';
   process.env.INCOMING_EMAILS_BUCKET_NAME = 'incoming-emails';
 });
+
+const mockGetMappingsForRecipient = vi.fn();
+
+vi.mock('../../../src/allma-admin/services/email-mapping.service.js', () => ({
+  EmailMappingService: {
+    getMappingsForRecipient: (recipient: string) => mockGetMappingsForRecipient(recipient),
+  },
+}));
 
 vi.mock('../../../src/allma-admin/services/flow-activation.service.js', () => ({
   FlowActivationService: { isFlowActive: vi.fn().mockResolvedValue(true) },
@@ -19,7 +25,6 @@ const { FlowActivationService } = await import('../../../src/allma-admin/service
 
 const mockedIsActive = vi.mocked(FlowActivationService.isFlowActive);
 const s3Mock = mockClient(S3Client);
-const ddbMock = mockClient(DynamoDBDocumentClient);
 const sqsMock = mockClient(SQSClient);
 
 const RAW_EMAIL = [
@@ -68,7 +73,8 @@ const invoke = (event: ReturnType<typeof sesEvent>) =>
   (handler as (e: unknown) => Promise<void>)(event);
 
 beforeEach(() => {
-  resetAwsClientMocks(s3Mock, ddbMock, sqsMock);
+  resetAwsClientMocks(s3Mock, sqsMock);
+  mockGetMappingsForRecipient.mockReset();
   s3Mock.on(GetObjectCommand).resolves({ Body: { transformToString: async () => RAW_EMAIL } } as never);
   s3Mock.on(PutObjectCommand).resolves({});
   sqsMock.on(SendMessageCommand).resolves({ MessageId: 'sqs-1' });
@@ -77,10 +83,11 @@ beforeEach(() => {
 
 describe('email-ingress handler', () => {
   it('queues a flow-start request for a matched (default) email mapping', async () => {
-    ddbMock.on(QueryCommand).resolves({ Items: [{ keyword: '#DEFAULT', flowDefinitionId: 'flow-x' }] });
+    mockGetMappingsForRecipient.mockResolvedValue([{ keyword: '#DEFAULT', flowDefinitionId: 'flow-x' }]);
 
     await invoke(sesEvent());
 
+    expect(mockGetMappingsForRecipient).toHaveBeenCalledWith('bot@example.com');
     const body = JSON.parse(sqsMock.commandCalls(SendMessageCommand)[0].args[0].input.MessageBody as string);
     expect(body.flowDefinitionId).toBe('flow-x');
     expect(body.triggerSource).toBe('EmailTrigger:bot@example.com');
@@ -89,12 +96,10 @@ describe('email-ingress handler', () => {
   });
 
   it('prefers a keyword mapping over the default when the body matches', async () => {
-    ddbMock.on(QueryCommand).resolves({
-      Items: [
-        { keyword: 'URGENT', flowDefinitionId: 'flow-urgent' },
-        { keyword: '#DEFAULT', flowDefinitionId: 'flow-default' },
-      ],
-    });
+    mockGetMappingsForRecipient.mockResolvedValue([
+      { keyword: 'URGENT', flowDefinitionId: 'flow-urgent' },
+      { keyword: '#DEFAULT', flowDefinitionId: 'flow-default' },
+    ]);
 
     await invoke(sesEvent());
 
@@ -103,9 +108,9 @@ describe('email-ingress handler', () => {
   });
 
   it('carries a startStepInstanceId override when the mapping defines one', async () => {
-    ddbMock.on(QueryCommand).resolves({
-      Items: [{ keyword: '#DEFAULT', flowDefinitionId: 'flow-x', stepInstanceId: 'step-7' }],
-    });
+    mockGetMappingsForRecipient.mockResolvedValue([
+      { keyword: '#DEFAULT', flowDefinitionId: 'flow-x', stepInstanceId: 'step-7' },
+    ]);
 
     await invoke(sesEvent());
 
@@ -115,7 +120,7 @@ describe('email-ingress handler', () => {
 
   it('uploads attachments to S3 and references them in the flow payload', async () => {
     s3Mock.on(GetObjectCommand).resolves({ Body: { transformToString: async () => RAW_EMAIL_WITH_ATTACHMENT } } as never);
-    ddbMock.on(QueryCommand).resolves({ Items: [{ keyword: '#DEFAULT', flowDefinitionId: 'flow-x' }] });
+    mockGetMappingsForRecipient.mockResolvedValue([{ keyword: '#DEFAULT', flowDefinitionId: 'flow-x' }]);
 
     await invoke(sesEvent());
 
@@ -126,9 +131,9 @@ describe('email-ingress handler', () => {
   });
 
   it('extracts a trigger pattern from the body when the mapping defines one', async () => {
-    ddbMock.on(QueryCommand).resolves({
-      Items: [{ keyword: '#DEFAULT', flowDefinitionId: 'flow-x', triggerMessagePattern: 'handle this (\\w+) request' }],
-    });
+    mockGetMappingsForRecipient.mockResolvedValue([
+      { keyword: '#DEFAULT', flowDefinitionId: 'flow-x', triggerMessagePattern: 'handle this (\\w+) request' },
+    ]);
 
     await invoke(sesEvent());
 
@@ -137,7 +142,7 @@ describe('email-ingress handler', () => {
   });
 
   it('discards the email when no mapping matches the recipient', async () => {
-    ddbMock.on(QueryCommand).resolves({ Items: [] });
+    mockGetMappingsForRecipient.mockResolvedValue([]);
 
     await invoke(sesEvent());
 
@@ -145,7 +150,7 @@ describe('email-ingress handler', () => {
   });
 
   it('discards the email when the matched flow is inactive', async () => {
-    ddbMock.on(QueryCommand).resolves({ Items: [{ keyword: '#DEFAULT', flowDefinitionId: 'flow-x' }] });
+    mockGetMappingsForRecipient.mockResolvedValue([{ keyword: '#DEFAULT', flowDefinitionId: 'flow-x' }]);
     mockedIsActive.mockResolvedValue(false);
 
     await invoke(sesEvent());
@@ -154,7 +159,7 @@ describe('email-ingress handler', () => {
   });
 
   it('throws when the email object cannot be read from S3', async () => {
-    ddbMock.on(QueryCommand).resolves({ Items: [{ keyword: '#DEFAULT', flowDefinitionId: 'flow-x' }] });
+    mockGetMappingsForRecipient.mockResolvedValue([{ keyword: '#DEFAULT', flowDefinitionId: 'flow-x' }]);
     s3Mock.on(GetObjectCommand).resolves({ Body: undefined } as never);
 
     await expect(invoke(sesEvent())).rejects.toThrow();
