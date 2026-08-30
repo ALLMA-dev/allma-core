@@ -9,9 +9,9 @@ import {
   ENV_VAR_NAMES,
   TemplateContextMappingItem,
   StepInstance,
+  CustomLambdaInvokeStepSchema,
 } from '@allma/core-types';
 import { log_error, log_info, offloadIfLarge } from '@allma/core-sdk';
-import { z } from 'zod';
 import { TemplateService } from '../template-service.js';
 import { classifyStepError } from '../utils/error-classifier.js';
 
@@ -20,20 +20,6 @@ const lambdaClient = new LambdaClient({ maxAttempts: 10, retryMode: 'adaptive' }
 
 // Get the bucket name from environment variables
 const EXECUTION_TRACES_BUCKET_NAME = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME];
-
-// Zod schema for this step's configuration.
-const CustomLambdaInvokeStepSchema = z.object({
-  stepType: z.literal('CUSTOM_LAMBDA_INVOKE'),
-  lambdaFunctionArnTemplate: z.string(),
-  moduleIdentifier: z.string().optional(),
-  payloadTemplate: z.record(z.string()).optional(),
-  customConfig: z
-    .object({
-      hydrateInputFromS3: z.boolean().optional(),
-    })
-    .passthrough()
-    .optional(),
-});
 
 export const handleCustomLambdaInvoke: StepHandler = async (
   stepDefinition: StepDefinition,
