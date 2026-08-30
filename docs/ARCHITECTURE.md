@@ -306,9 +306,7 @@ subtask. `package-lock.json` is the same hazard for any two subtasks adding depe
 - Where a wildcard resource is unavoidable, condition it — the pattern is a resource-tag
   condition (`secretsmanager:ResourceTag/allma-mcp-secret`) in
   `packages/core-cdk/lib/constructs/compute.ts` and `api.construct.ts`.
-- Lambda runtime is `NODEJS_22_X` for every platform Lambda; the one exception is the
-  config-injector custom resource at `packages/core-cdk/lib/constructs/web-app-deployment.ts:155`,
-  still on `NODEJS_20_X`. Tooling targets Node >= 24 (root `package.json` `engines`).
+- Lambda runtime is `NODEJS_22_X` for every platform Lambda. Tooling targets Node >= 24 (root `package.json` `engines`).
 
 ---
 

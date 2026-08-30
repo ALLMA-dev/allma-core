@@ -152,7 +152,7 @@ export class WebAppDeployment extends Construct {
     const configInjectorLambda = new lambdaNodejs.NodejsFunction(this, `${props.deploymentId}ConfigInjectorLambda`, {
       entry: path.resolve(__dirname, '..', '..', '..', 'lib', 'lambda-handlers', 'config-injector.ts'),
       handler: 'handler',
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       role: configInjectorRole,
       timeout: cdk.Duration.minutes(1),
       bundling: {
