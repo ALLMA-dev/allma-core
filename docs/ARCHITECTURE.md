@@ -289,8 +289,7 @@ subtask. `package-lock.json` is the same hazard for any two subtasks adding depe
   are `isProd ? RETAIN : DESTROY` (`packages/core-cdk/lib/constructs/data-stores.ts`); the Cognito
   user pool (`admin-authentication.ts`), the SFN log group (`orchestration.ts`) and the inbound-email
   bucket (`email-integration.ts`) match, and new stateful resources must too. `pointInTimeRecovery: isProd`
-  covers three of the four tables — `AllmaFlowContinuationStateTable` (`data-stores.ts:189`) has none,
-  a gap rather than the pattern. The `web-app-deployment.ts` bucket is unconditionally `DESTROY` and
+  covers all four DynamoDB tables. The `web-app-deployment.ts` bucket is unconditionally `DESTROY` and
   holds only rebuildable assets.
 - **Deploy the platform stack from this repository's CI.** `.github/workflows/ci.yml` never deploys.
   `.github/workflows/ci-websites.yml` deploys exactly one thing on push to `main`: the documentation
