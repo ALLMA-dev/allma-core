@@ -159,9 +159,6 @@ Check here before writing a helper.
 
 - `packages/core-sdk/src/cdk-utils.ts` and `packages/cdk-integration-utils/src/cdk-utils.ts` are
   identical but for a trailing newline. Only the latter is exported; the `core-sdk` copy is dead.
-- `packages/core-types/src/logging/console.ts` exports `log_info`/`log_warn`/`log_error`/`log_debug`
-  as plain `console.*` wrappers, colliding with the structured logger. Import log functions from
-  `@allma/core-sdk` only.
 
 **Frontend route paths are the one uncentralized set** — inline string literals in
 `packages/admin-shell/src/AuthenticatedApp.tsx`, duplicated between the nav-item array and the
