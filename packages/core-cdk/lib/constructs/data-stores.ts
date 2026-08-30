@@ -192,6 +192,7 @@ export class AllmaDataStores extends Construct {
       partitionKey: { name: 'correlationKey', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy,
+      pointInTimeRecovery: isProd,
       // A TTL is CRITICAL to clean up abandoned flows.
       // e.g., if a user never replies, the token will be deleted after N days.
       timeToLiveAttribute: 'ttl',
