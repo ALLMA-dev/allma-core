@@ -50,20 +50,39 @@ describe('handleCustomLambdaInvoke', () => {
     });
   });
 
-  it('builds the default payload (moduleIdentifier + stepInput + correlationId) when no template is given', async () => {
+  it('builds the default payload (stepInput + correlationId) when no template is given', async () => {
     lambdaMock.on(InvokeCommand).resolves({ Payload: encode({ ok: true }) });
 
     await handleCustomLambdaInvoke(
-      makeStepDef({ moduleIdentifier: 'system/custom' }),
+      makeStepDef(),
       { a: 1 },
       makeRuntimeState({ flowExecutionId: 'exec-7', currentContextData: { fn: 'f' } })
     );
 
     const sent = lambdaMock.commandCalls(InvokeCommand)[0].args[0].input;
     expect(JSON.parse(sent.Payload as string)).toEqual({
-      moduleIdentifier: 'system/custom',
       stepInput: { a: 1 },
       correlationId: 'exec-7',
+    });
+  });
+
+  it('constructs custom payload from payloadTemplate when provided', async () => {
+    lambdaMock.on(InvokeCommand).resolves({ Payload: encode({ ok: true }) });
+
+    await handleCustomLambdaInvoke(
+      makeStepDef({
+        payloadTemplate: {
+          customField: '$.val',
+        },
+      }),
+      { val: 'mapped-value' },
+      makeRuntimeState({ flowExecutionId: 'exec-8', currentContextData: { fn: 'f' } })
+    );
+
+    const sent = lambdaMock.commandCalls(InvokeCommand)[0].args[0].input;
+    expect(JSON.parse(sent.Payload as string)).toEqual({
+      correlationId: 'exec-8',
+      customField: 'mapped-value',
     });
   });
 
@@ -199,6 +218,14 @@ describe('handleCustomLambdaInvoke', () => {
   it('rejects a structurally invalid step definition', async () => {
     await expect(
       handleCustomLambdaInvoke({ stepType: StepType.CUSTOM_LAMBDA_INVOKE } as never, {}, makeRuntimeState())
+    ).rejects.toThrow('Invalid StepDefinition for CUSTOM_LAMBDA_INVOKE');
+
+    await expect(
+      handleCustomLambdaInvoke(makeStepDef({ lambdaFunctionArnTemplate: '' }), {}, makeRuntimeState())
+    ).rejects.toThrow('Invalid StepDefinition for CUSTOM_LAMBDA_INVOKE');
+
+    await expect(
+      handleCustomLambdaInvoke(makeStepDef({ moduleIdentifier: 'unexpected-module' }), {}, makeRuntimeState())
     ).rejects.toThrow('Invalid StepDefinition for CUSTOM_LAMBDA_INVOKE');
   });
 
