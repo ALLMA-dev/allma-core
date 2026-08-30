@@ -215,6 +215,7 @@ allma-core/
 │   ├── core-cdk/               # @allma/core-cdk — core AWS CDK constructs for the platform
 │   ├── core-sdk/               # @allma/core-sdk — shared Lambda utilities (logger, S3, auth…)
 │   ├── core-types/             # @allma/core-types — shared types, enums, constants, Zod schemas
+│   ├── flow-builder/           # @allma/flow-builder — build-time flows-as-code DSL + allma-flows CLI
 │   └── app-logic/              # allma-app-logic (PRIVATE) — Lambda business logic, bundled by CDK
 ├── examples/                   # GITIGNORED. Independent consumer apps in their own repos.
 │   └── basic-deployment/       # The generic demo deployment (see its own AGENTS.md)
@@ -235,6 +236,7 @@ allma-core/
 | `@allma/core-sdk`                | Yes        | Reusable, non-domain Lambda utilities (logger, S3 utils, auth middleware).      |
 | `@allma/admin-shell`             | Yes        | React shell/framework for composing the Admin Panel from plugins.               |
 | `@allma/ui-components`           | Yes        | Shared Mantine-based React UI components.                                        |
+| `@allma/flow-builder`            | Yes        | Build-time flows-as-code DSL and allma-flows CLI.                               |
 | `allma-app-logic`                | No (private) | Lambda business logic; never published — bundled into CDK deployment assets.  |
 
 ### Key Configuration Notes
