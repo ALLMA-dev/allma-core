@@ -82,6 +82,17 @@ describe('execution-lifecycle-dispatcher', () => {
         expect(mockedEmit.mock.calls[0][0].event.status).toBe('COMPLETED');
     });
 
+    it('handles ConditionalCheckFailedException during reconcile when finalize-flow wins race', async () => {
+        ddbMock.on(GetCommand).resolves({ Item: meta({ status: 'RUNNING' }) });
+        const condErr = new Error('ConditionalCheckFailedException');
+        condErr.name = 'ConditionalCheckFailedException';
+        ddbMock.on(UpdateCommand).rejects(condErr);
+
+        await invoke({ executionArn: EXEC_ARN, status: 'FAILED' });
+        expect(mockedEmit).toHaveBeenCalledOnce();
+        expect(mockedEmit.mock.calls[0][0].event.status).toBe('FAILED');
+    });
+
     it('is a no-op when no metadata record exists (branch / polling sub-execution)', async () => {
         ddbMock.on(GetCommand).resolves({ Item: undefined });
         await invoke({ executionArn: EXEC_ARN, status: 'SUCCEEDED' });

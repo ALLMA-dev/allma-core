@@ -1,15 +1,13 @@
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
 import { SFNClient, StartExecutionCommand } from '@aws-sdk/client-sfn';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, GetCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 import {
     ENV_VAR_NAMES, AdminPermission,
     StatefulRedriveInputSchema,
     SandboxStepInputSchema,
     FlowRuntimeState, ProcessorInput, SfnActionType, StartFlowExecutionInput,
-    ITEM_TYPE_ALLMA_FLOW_EXECUTION_RECORD, METADATA_SK_VALUE,
+    ITEM_TYPE_ALLMA_FLOW_EXECUTION_RECORD,
     StepExecutionResult, ProcessorOutput, AllmaStepExecutionRecord, AllmaFlowExecutionRecordSchema, RedriveFlowApiOutput, LogStepExecutionRecord
 } from '@allma/core-types';
 
@@ -17,12 +15,11 @@ import {
     withAdminAuth, AuthContext, createApiGatewayResponse, buildSuccessResponse, buildErrorResponse, log_error, log_info, log_warn, resolveS3Pointer, hydrateInputFromS3Pointers, log_debug,
 } from '@allma/core-sdk';
 import { ApiRouter } from './utils/api-router.js';
+import { ExecutionMonitoringService } from './services/execution-monitoring.service.js';
 
 const sfnClient = new SFNClient({});
 const lambdaClient = new LambdaClient({});
-const ddbDocClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
-const LOG_TABLE_NAME = process.env[ENV_VAR_NAMES.ALLMA_FLOW_EXECUTION_LOG_TABLE_NAME]!;
 const STATE_MACHINE_ARN = process.env[ENV_VAR_NAMES.ALLMA_STATE_MACHINE_ARN]!;
 const ISP_LAMBDA_ARN = process.env[ENV_VAR_NAMES.ITERATIVE_STEP_PROCESSOR_LAMBDA_ARN]!;
 const router = new ApiRouter();
@@ -37,14 +34,10 @@ const handleSimpleRedrive = async (event: APIGatewayProxyEventV2, authContext: A
     log_info(`[${authContext.username}] Attempting to redrive flow execution: ${flowExecutionIdToRedrive}`, {}, correlationId);
   
     try {
-      const getParams = {
-        TableName: LOG_TABLE_NAME,
-        Key: { flowExecutionId: flowExecutionIdToRedrive, eventTimestamp_stepInstanceId_attempt: METADATA_SK_VALUE },
-      };
-      const { Item } = await ddbDocClient.send(new GetCommand(getParams));
+      const Item = await ExecutionMonitoringService.getExecutionMetadata(flowExecutionIdToRedrive);
   
       if (!Item || Item.itemType !== ITEM_TYPE_ALLMA_FLOW_EXECUTION_RECORD) {
-        log_warn(`Original flow execution record not found: ${flowExecutionIdToRedrive}`, { getParams }, correlationId);
+        log_warn(`Original flow execution record not found: ${flowExecutionIdToRedrive}`, { flowExecutionId: flowExecutionIdToRedrive }, correlationId);
         return createApiGatewayResponse(404, buildErrorResponse(`Flow execution record ${flowExecutionIdToRedrive} not found.`, 'NOT_FOUND'), correlationId);
       }
       
@@ -98,10 +91,7 @@ const handleStatefulRedrive = async (event: APIGatewayProxyEventV2, authContext:
     const { startFromStepInstanceId, modifiedContextData } = validation.data;
 
     try {
-        const { Item: metadata } = await ddbDocClient.send(new GetCommand({
-            TableName: LOG_TABLE_NAME,
-            Key: { flowExecutionId, eventTimestamp_stepInstanceId_attempt: METADATA_SK_VALUE }
-        }));
+        const metadata = await ExecutionMonitoringService.getExecutionMetadata(flowExecutionId);
         if (!metadata || metadata.itemType !== ITEM_TYPE_ALLMA_FLOW_EXECUTION_RECORD) {
             return createApiGatewayResponse(404, buildErrorResponse('Original flow execution not found.', 'NOT_FOUND'), correlationId);
         }
@@ -110,15 +100,10 @@ const handleStatefulRedrive = async (event: APIGatewayProxyEventV2, authContext:
         
         if (!contextToUse) {
             log_info(`modifiedContextData not provided. Attempting to fetch historical context for step '${startFromStepInstanceId}'.`, {}, correlationId);
-            const queryResponse = await ddbDocClient.send(new QueryCommand({
-                TableName: LOG_TABLE_NAME,
-                KeyConditionExpression: 'flowExecutionId = :pk AND begins_with(eventTimestamp_stepInstanceId_attempt, :skPrefix)',
-                ExpressionAttributeValues: { ':pk': flowExecutionId, ':skPrefix': `STEP#` },
-                ScanIndexForward: true,
-            }));
-            const targetStepRecord = queryResponse.Items?.find(
+            const stepRecords = await ExecutionMonitoringService.getStepExecutionRecords(flowExecutionId);
+            const targetStepRecord = stepRecords.find(
                 (item) => item.stepInstanceId === startFromStepInstanceId && item.status === 'STARTED'
-            ) as AllmaStepExecutionRecord | undefined;
+            );
 
             if (!targetStepRecord || !targetStepRecord.fullRecordS3Pointer) {
                 return createApiGatewayResponse(404, buildErrorResponse(`Could not find a 'STARTED' record with S3 pointer for step '${startFromStepInstanceId}' in the execution log.`, 'NOT_FOUND'), correlationId);

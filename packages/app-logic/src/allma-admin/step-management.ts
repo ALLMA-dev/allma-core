@@ -4,19 +4,10 @@ import {
     CreateStepDefinitionInputSchema, 
     UpdateStepDefinitionInputSchema,
     SYSTEM_STEP_DEFINITIONS,
-    ExternalStepRegistryItem,
-    ITEM_TYPE_ALLMA_EXTERNAL_STEP_REGISTRY,
     StepDefinition,
-    ENV_VAR_NAMES,
 } from '@allma/core-types';
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { StepDefinitionService } from './services/step-definition.service.js';
 import { createCrudHandler } from './utils/create-crud-handler.js';
-
-const ddbClient = new DynamoDBClient({});
-const ddbDocClient = DynamoDBDocumentClient.from(ddbClient);
-const ALLMA_CONFIG_TABLE_NAME = process.env[ENV_VAR_NAMES.ALLMA_CONFIG_TABLE_NAME];
 
 // A unified type for the UI to consume
 type UnifiedStepDefinition = StepDefinition & { 
@@ -31,10 +22,6 @@ type UnifiedStepDefinition = StepDefinition & {
  * 3. Static system step definitions.
  */
 const listAggregatedStepDefinitions = async (event?: APIGatewayProxyEventV2): Promise<UnifiedStepDefinition[]> => {
-    if (!ALLMA_CONFIG_TABLE_NAME) {
-        throw new Error(`Missing required environment variable: ${ENV_VAR_NAMES.ALLMA_CONFIG_TABLE_NAME}`);
-    }
-
     const requestedSources = event?.queryStringParameters?.source?.split(',') || ['user', 'external', 'system'];
     const allSteps: UnifiedStepDefinition[] = [];
 
@@ -47,15 +34,7 @@ const listAggregatedStepDefinitions = async (event?: APIGatewayProxyEventV2): Pr
 
     // 2. Fetch external steps from the registry if requested
     if (requestedSources.includes('external')) {
-        const query = new QueryCommand({
-            TableName: ALLMA_CONFIG_TABLE_NAME,
-            IndexName: 'GSI_ItemType_Id',
-            KeyConditionExpression: 'itemType = :itemType',
-            ExpressionAttributeValues: {
-                ':itemType': ITEM_TYPE_ALLMA_EXTERNAL_STEP_REGISTRY,
-            },
-        });
-        const externalStepItems = (await ddbDocClient.send(query)).Items as ExternalStepRegistryItem[] | undefined;
+        const externalStepItems = await StepDefinitionService.listExternalSteps();
         
         const externalSteps = (externalStepItems || []).map(item => ({
             id: item.moduleIdentifier,
@@ -95,12 +74,11 @@ const listAggregatedStepDefinitions = async (event?: APIGatewayProxyEventV2): Pr
 export const handler = createCrudHandler({
     isVersioned: false,
     service: {
-        // Override the list method with our aggregated function
         list: listAggregatedStepDefinitions,
-        get: StepDefinitionService.get,
-        create: StepDefinitionService.create,
-        update: StepDefinitionService.update,
-        delete: StepDefinitionService.delete,
+        get: (id) => StepDefinitionService.get(id),
+        create: (data) => StepDefinitionService.create(data),
+        update: (id, data) => StepDefinitionService.update(id, data),
+        delete: (id) => StepDefinitionService.delete(id),
     },
     schemas: {
         create: CreateStepDefinitionInputSchema,

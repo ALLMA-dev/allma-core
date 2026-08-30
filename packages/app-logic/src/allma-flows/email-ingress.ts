@@ -1,18 +1,15 @@
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 import PostalMime from 'postal-mime';
 import { v4 as uuidv4 } from 'uuid';
 import { log_info, log_error, log_warn } from '@allma/core-sdk';
 import { ENV_VAR_NAMES, StartFlowExecutionInput, EmailAttachment, TriggeringEmailContext } from '@allma/core-types';
 import { FlowActivationService } from '../allma-admin/services/flow-activation.service.js';
+import { EmailMappingService } from '../allma-admin/services/email-mapping.service.js';
 
 const s3Client = new S3Client({});
-const ddbDocClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const sqsClient = new SQSClient({});
 
-const EMAIL_MAPPING_TABLE_NAME = process.env[ENV_VAR_NAMES.EMAIL_TO_FLOW_MAPPING_TABLE_NAME]!;
 const FLOW_START_QUEUE_URL = process.env[ENV_VAR_NAMES.ALLMA_FLOW_START_REQUEST_QUEUE_URL]!;
 const INCOMING_EMAILS_BUCKET_NAME = process.env.INCOMING_EMAILS_BUCKET_NAME!;
 
@@ -109,15 +106,7 @@ export const handler = async (event: { Records: SesEventRecord[] }): Promise<voi
             }
 
             // 2. Find matching flow
-            const queryCommand = new QueryCommand({
-                TableName: EMAIL_MAPPING_TABLE_NAME,
-                KeyConditionExpression: 'emailAddress = :recipient',
-                ExpressionAttributeValues: {
-                    ':recipient': recipient,
-                },
-            });
-
-            const { Items: mappings } = await ddbDocClient.send(queryCommand);
+            const mappings = await EmailMappingService.getMappingsForRecipient(recipient);
 
             if (!mappings || mappings.length === 0) {
                 log_warn(`No flow mapping found for recipient email. Discarding email.`, { recipient }, correlationId);

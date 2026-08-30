@@ -266,12 +266,10 @@ subtask. `package-lock.json` is the same hazard for any two subtasks adding depe
 
 **At runtime (inside a Lambda):**
 
-- Read and write the four DynamoDB tables. Admin CRUD goes through the service classes in
-  `packages/app-logic/src/allma-admin/services/`; the `DATA_LOAD`/`DATA_SAVE` step family
-  (`allma-core/data-loaders/`, `data-savers/`) talks to DynamoDB directly by design. **Drift:** six
-  L1 entry points (`allma-admin/dashboard-stats.ts`, `step-management.ts`, `flow-control.ts`,
-  `allma-flows/email-ingress.ts`, `resume-flow.ts`, `execution-lifecycle-dispatcher.ts`) each build
-  their own `ddbDocClient` instead. Do not add a seventh; moving one into a service is an improvement.
+- Read and write the four DynamoDB tables. All L1 entry points delegate table access to service
+  classes (under `packages/app-logic/src/allma-admin/services/` and `src/allma-core/`), holding no
+  `ddbDocClient` instances directly. The `DATA_LOAD`/`DATA_SAVE` step family
+  (`allma-core/data-loaders/`, `data-savers/`) talks to DynamoDB directly by design.
 - Read and write objects in the execution-traces bucket, through `packages/core-sdk/src/s3Utils.ts`
   and `packages/app-logic/src/allma-core/data-loaders/` / `data-savers/`.
 - Send and receive SQS messages, publish to SNS, start and resume Step Functions executions, invoke
