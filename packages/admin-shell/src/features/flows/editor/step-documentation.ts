@@ -107,6 +107,7 @@ This object defines the step's error handling strategy.
 - **retryOnContentError**: Configures retries specifically for errors caused by **invalid content**, such as an LLM returning malformed JSON when JSON output was expected. This is handled by Allma's internal logic.
   - \`count\`: Number of retries (1-5).
 - **fallbackStepInstanceId**: If the step fails permanently (after all retries), the flow will jump to this step instead of failing completely. This allows for graceful failure paths (e.g., sending an error notification).
+- **logLevel**: (\`'ERROR'\` | \`'WARN'\`) The log level the engine logs at when this step's fallback actually fires. Defaults to \`'WARN'\` (swallowed warning). Set to \`'ERROR'\` to emit a structured ERROR log and a CloudWatch EMF metric (\`FlowFallbackFired\`) on fallback transition.
 - **continueOnFailure**: If \`true\`, the flow will ignore the error and proceed to the \`defaultNextStepInstanceId\` as if the step succeeded. The step's output will be empty. Use with caution.
 `,
             },
