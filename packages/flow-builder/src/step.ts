@@ -19,6 +19,7 @@ export interface OnErrorInput {
   retries?: StepErrorHandler['retries'];
   retryOnContentError?: StepErrorHandler['retryOnContentError'];
   fallback?: StepRef;
+  logLevel?: StepErrorHandler['logLevel'];
   continueOnFailure?: boolean;
 }
 

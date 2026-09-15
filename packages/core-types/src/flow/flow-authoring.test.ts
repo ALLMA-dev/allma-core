@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { StepType } from '../common/enums.js';
+import { StepErrorHandlerSchema } from '../steps/common.js';
 import {
   FlowDefinitionSchema,
   FlowAuthoringSchema,
@@ -120,5 +121,42 @@ describe('applyFlowImportDefaults', () => {
     const input = authoringFlow();
     applyFlowImportDefaults(input, now);
     expect('createdAt' in input).toBe(false);
+  });
+});
+
+describe('StepErrorHandlerSchema logLevel', () => {
+  it('accepts ERROR and WARN', () => {
+    expect(StepErrorHandlerSchema.parse({ logLevel: 'ERROR' }).logLevel).toBe('ERROR');
+    expect(StepErrorHandlerSchema.parse({ logLevel: 'WARN' }).logLevel).toBe('WARN');
+  });
+
+  it('allows logLevel to be omitted', () => {
+    expect(StepErrorHandlerSchema.parse({}).logLevel).toBeUndefined();
+  });
+
+  it('rejects invalid logLevel values', () => {
+    expect(StepErrorHandlerSchema.safeParse({ logLevel: 'INFO' }).success).toBe(false);
+    expect(StepErrorHandlerSchema.safeParse({ logLevel: 'DEBUG' }).success).toBe(false);
+  });
+
+  it('accepts onError.logLevel in full flow authoring definition', () => {
+    const flow = {
+      ...authoringFlow(),
+      steps: {
+        start: {
+          stepInstanceId: 'start',
+          stepType: StepType.NO_OP,
+          onError: {
+            fallbackStepInstanceId: 'recover',
+            logLevel: 'ERROR',
+          },
+        },
+        recover: {
+          stepInstanceId: 'recover',
+          stepType: StepType.NO_OP,
+        },
+      },
+    };
+    expect(FlowAuthoringSchema.safeParse(flow).success).toBe(true);
   });
 });

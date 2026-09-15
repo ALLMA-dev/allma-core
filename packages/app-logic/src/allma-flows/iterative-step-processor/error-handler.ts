@@ -42,7 +42,44 @@ export const handleTerminalError = async (
     runtimeState.errorInfo = errorInfo;
 
     if (stepInstanceConfig.onError?.fallbackStepInstanceId) {
-        log_warn(`Step '${currentStepInstanceId}' failed. Transitioning to fallback step '${stepInstanceConfig.onError.fallbackStepInstanceId}'.`, { error: error.message }, correlationId);
+        if (stepInstanceConfig.onError.logLevel === 'ERROR') {
+            const configuredRetries = stepInstanceConfig.onError.retries?.count
+                ?? stepInstanceConfig.onError.retryOnContentError?.count
+                ?? 0;
+            const attempts = runtimeState.stepRetryAttempts?.[currentStepInstanceId] ?? 0;
+            const retriesExhausted = attempts >= configuredRetries;
+            const errorClass = error?.constructor?.name || (error instanceof Error ? 'Error' : typeof error);
+            const errorName = error?.name || 'StepProcessingError';
+            const errorMessage = error?.message ?? (typeof error === 'string' ? error : 'Unknown error');
+
+            log_error(
+                `Step '${currentStepInstanceId}' failed. Transitioning to fallback step '${stepInstanceConfig.onError.fallbackStepInstanceId}'.`,
+                {
+                    flowId: runtimeState.flowDefinitionId,
+                    flowExecutionId: correlationId,
+                    stepInstanceId: currentStepInstanceId,
+                    fallbackStepInstanceId: stepInstanceConfig.onError.fallbackStepInstanceId,
+                    errorClass,
+                    errorName,
+                    errorMessage,
+                    retriesExhausted,
+                    FlowFallbackFired: 1,
+                    _aws: {
+                        Timestamp: Date.now(),
+                        CloudWatchMetrics: [
+                            {
+                                Namespace: 'Allma',
+                                Dimensions: [['flowId', 'stepInstanceId']],
+                                Metrics: [{ Name: 'FlowFallbackFired' }],
+                            },
+                        ],
+                    },
+                },
+                correlationId,
+            );
+        } else {
+            log_warn(`Step '${currentStepInstanceId}' failed. Transitioning to fallback step '${stepInstanceConfig.onError.fallbackStepInstanceId}'.`, { error: error.message }, correlationId);
+        }
         runtimeState.currentStepInstanceId = stepInstanceConfig.onError.fallbackStepInstanceId;
         runtimeState.status = 'RUNNING'; // Still running if there's a fallback
         delete runtimeState.errorInfo; // Clear flow-level error if we have a fallback

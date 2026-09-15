@@ -46,6 +46,7 @@ export const StepErrorHandlerSchema = z.object({
     backoffRate: z.number().min(1.0).max(5.0).default(2.0),
   }).optional(),
   fallbackStepInstanceId: z.string().min(1).optional(),
+  logLevel: z.enum(['ERROR', 'WARN']).optional(),
   continueOnFailure: z.boolean().optional().default(false),
 });
 export type StepErrorHandler = z.infer<typeof StepErrorHandlerSchema>;
