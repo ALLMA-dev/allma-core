@@ -47,7 +47,8 @@ The `FlowDefinition` is the core JSON object that declaratively defines an entir
       "onError": {
         "retries": { "...": "..." },
         "retryOnContentError": { "...": "..." },
-        "fallbackStepInstanceId": "string"
+        "fallbackStepInstanceId": "string",
+        "logLevel": "ERROR | WARN (optional)"
       },
       "...": "step-specific properties"
     }
@@ -103,6 +104,7 @@ These properties are available on almost every step type.
 | `retries`                | `object`  | Configures retries for transient errors (e.g., network issues). Contains `count`, `intervalSeconds`, `backoffRate`.                                  |
 | `retryOnContentError`    | `object`  | Configures fast, internal retries for content errors (e.g., malformed JSON from an LLM). Contains `count`.                                          |
 | `fallbackStepInstanceId` | `string`  | The `stepInstanceId` to jump to if the step fails permanently after all retries. The flow continues instead of failing.                              |
+| `logLevel`               | `string`  | Optional log level (`'ERROR'` or `'WARN'`) when transitioning to `fallbackStepInstanceId`. If `'ERROR'`, emits a structured ERROR log and a `FlowFallbackFired` CloudWatch EMF metric. Defaults to `'WARN'`. |
 | `continueOnFailure`      | `boolean` | If `true`, ignores the error and proceeds to the `defaultNextStepInstanceId`. The step's output will be empty. **Use with caution.**                  |
 
 ### The `checkpoint` Object

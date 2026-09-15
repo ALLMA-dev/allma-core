@@ -92,9 +92,20 @@ What happens after all retries are exhausted? Instead of letting the entire flow
         "intervalSeconds": 5,
         "backoffRate": 2.0
       },
-      "fallbackStepInstanceId": "Notify Failure"
+      "fallbackStepInstanceId": "Notify Failure",
+      "logLevel": "ERROR"
     }
     ```
+
+### Surfacing Fallback Failures Loudly (`logLevel`)
+
+By default, the engine logs a `WARN` when transitioning to a fallback step. For permanent failures (such as invalid query syntax or schema violations), this can cause the flow to report success while silently taking the fallback path.
+
+Setting `"logLevel": "ERROR"` instructs the engine to emit:
+- A structured `ERROR` log containing `flowId`, `flowExecutionId`, `stepInstanceId`, `fallbackStepInstanceId`, `errorClass`, `errorName`, `errorMessage`, and `retriesExhausted`.
+- An embedded CloudWatch EMF metric (`FlowFallbackFired` with dimensions `flowId` and `stepInstanceId`), allowing CloudWatch alarms or E2E tests to trigger on fallbacks with zero per-step boilerplate.
+
+If `logLevel` is omitted or set to `"WARN"`, the engine preserves the default quiet warning behavior.
 
 **Execution Path:**
 

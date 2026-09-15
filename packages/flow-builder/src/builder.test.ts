@@ -172,3 +172,18 @@ describe('cycles / back-edges wire with refs (no string refs)', () => {
     expect(b.defaultNextStepInstanceId).toBe('done');
   });
 });
+
+describe('onError logLevel', () => {
+  it('wires logLevel on onError when specified', () => {
+    const flow = defineFlow({ id: 'error-log-level-test' });
+    const s = flow.steps({ a: noOp(), recover: noOp() });
+    s.a.onError({ fallback: s.recover, logLevel: 'ERROR' });
+    flow.start(s.a);
+    const built = flow.build();
+    const a = built.steps.a as Record<string, unknown>;
+    expect(a.onError).toEqual({
+      fallbackStepInstanceId: 'recover',
+      logLevel: 'ERROR',
+    });
+  });
+});
