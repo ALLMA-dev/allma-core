@@ -187,3 +187,21 @@ describe('onError logLevel', () => {
     });
   });
 });
+
+describe('onError retries', () => {
+  it('wires retries on onError when specified', () => {
+    const flow = defineFlow({ id: 'error-retries-test' });
+    const s = flow.steps({ a: noOp(), recover: noOp() });
+    s.a.onError({
+      retries: { count: 3, intervalSeconds: 2, backoffRate: 1.5, errorEquals: ['TimeoutError'] },
+      fallback: s.recover,
+    });
+    flow.start(s.a);
+    const built = flow.build();
+    const a = built.steps.a as Record<string, unknown>;
+    expect(a.onError).toEqual({
+      retries: { count: 3, intervalSeconds: 2, backoffRate: 1.5, errorEquals: ['TimeoutError'] },
+      fallbackStepInstanceId: 'recover',
+    });
+  });
+});

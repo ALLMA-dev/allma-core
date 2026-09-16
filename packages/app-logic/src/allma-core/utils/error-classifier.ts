@@ -115,7 +115,7 @@ const extractExplicitIsRetryable = (err: any): boolean | undefined => {
   return undefined;
 };
 
-const extractErrorNames = (err: any): string[] => {
+export const extractErrorNames = (err: any): string[] => {
   if (!err) return [];
   const names: string[] = [];
 
