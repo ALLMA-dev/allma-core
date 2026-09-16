@@ -22,6 +22,7 @@ import { executionLoggerClient } from '../../allma-core/execution-logger-client.
 import { resolveNextStep } from './transition-resolver.js';
 import { renderNestedTemplates } from '../../allma-core/utils/template-renderer.js';
 import { enforceTransitionLimits } from './transition-limits.js';
+import { isRetryableError, extractErrorNames } from '../../allma-core/utils/error-classifier.js';
 
 const EXECUTION_TRACES_BUCKET_NAME = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME]!;
 // The actual SFN limit is 256KB, so let's warn above a safe threshold like 240KB.
@@ -79,8 +80,14 @@ export const executeStandardStep = async (
 
   runtimeState.stepRetryAttempts = runtimeState.stepRetryAttempts || {};
   const currentStepInstanceId = stepInstanceConfig.stepInstanceId;
-  const currentAttempt = (runtimeState.stepRetryAttempts[currentStepInstanceId] || 0) + 1;
-  runtimeState.stepRetryAttempts[currentStepInstanceId] = currentAttempt;
+  let currentAttempt: number;
+  if (stepInstanceConfig.onError?.retries) {
+    currentAttempt = 1;
+    runtimeState.stepRetryAttempts[currentStepInstanceId] = 0;
+  } else {
+    currentAttempt = (runtimeState.stepRetryAttempts[currentStepInstanceId] || 0) + 1;
+    runtimeState.stepRetryAttempts[currentStepInstanceId] = currentAttempt;
+  }
 
   log_debug(
     `Executing step '${currentStepInstanceId}' of type '${stepDef.stepType}'. Input is already prepared.`,
@@ -140,45 +147,122 @@ export const executeStandardStep = async (
     let stepHandlerResult;
     let lastTransientError: TransientStepError | null = null;
 
-    // --- GENERIC RETRY LOOP FOR TRANSIENT ERRORS ---
-    for (let attempt = 1; attempt <= MAX_INTERNAL_RETRIES; attempt++) {
-      try {
-        if (
-          finalStepDefForHandler.moduleIdentifier &&
-          typeof finalStepDefForHandler.moduleIdentifier === 'string' &&
-          !hasInternalModuleHandler(finalStepDefForHandler.moduleIdentifier)
-        ) {
-          stepHandlerResult = await invokeExternalStep(finalStepDefForHandler.moduleIdentifier, stepInstanceConfig, finalStepInput, runtimeState);
-        } else {
-          log_info(`Invoking internal step handler for step type: ${finalStepDefForHandler.stepType}, attempt ${attempt}`, {}, correlationId);
-          const handler = getStepHandler(finalStepDefForHandler.stepType);
-          stepHandlerResult = await handler(finalStepDefForHandler, finalStepInput, runtimeState);
+    const invokeHandler = async (attempt: number) => {
+      if (
+        finalStepDefForHandler.moduleIdentifier &&
+        typeof finalStepDefForHandler.moduleIdentifier === 'string' &&
+        !hasInternalModuleHandler(finalStepDefForHandler.moduleIdentifier)
+      ) {
+        return await invokeExternalStep(finalStepDefForHandler.moduleIdentifier, stepInstanceConfig, finalStepInput, runtimeState);
+      } else {
+        log_info(`Invoking internal step handler for step type: ${finalStepDefForHandler.stepType}, attempt ${attempt}`, {}, correlationId);
+        const handler = getStepHandler(finalStepDefForHandler.stepType);
+        return await handler(finalStepDefForHandler, finalStepInput, runtimeState);
+      }
+    };
+
+    if (stepInstanceConfig.onError?.retries) {
+      const retriesConfig = stepInstanceConfig.onError.retries;
+      const maxRetries = retriesConfig.count ?? 0;
+      const intervalSeconds = retriesConfig.intervalSeconds ?? 5;
+      const backoffRate = retriesConfig.backoffRate ?? 2.0;
+      const errorEquals = retriesConfig.errorEquals;
+
+      const isMatchingError = (err: unknown): boolean => {
+        if (errorEquals && errorEquals.length > 0) {
+          const names = extractErrorNames(err);
+          if (err instanceof Error && err.name && !names.includes(err.name)) {
+            names.push(err.name);
+          }
+          if (
+            err &&
+            typeof err === 'object' &&
+            (err as any).constructor?.name &&
+            (err as any).constructor.name !== 'Object' &&
+            !names.includes((err as any).constructor.name)
+          ) {
+            names.push((err as any).constructor.name);
+          }
+          return errorEquals.some(target => target === 'States.ALL' || names.includes(target));
         }
-        lastTransientError = null; 
-        break; 
-      } catch (error: any) {
-        if (error instanceof TransientStepError) {
-          lastTransientError = error;
-          if (attempt < MAX_INTERNAL_RETRIES) {
-            const delay = Math.pow(2, attempt) * INITIAL_BACKOFF_MS + Math.random() * 50; 
-            log_warn(
-              `Step handler caught a transient error. Retrying in ${delay.toFixed(2)}ms... (Attempt ${attempt}/${MAX_INTERNAL_RETRIES})`,
-              { error: error.message, step: currentStepInstanceId },
-              correlationId,
-            );
-            await new Promise(res => setTimeout(res, delay));
-            continue; 
+        return isRetryableError(err);
+      };
+
+      let lastError: any = null;
+      let retryIndex = 0;
+
+      try {
+        stepHandlerResult = await invokeHandler(1);
+      } catch (err: any) {
+        lastError = err;
+        if (!isMatchingError(err)) {
+          throw err;
+        }
+
+        while (retryIndex < maxRetries) {
+          const delayMs = intervalSeconds * 1000 * Math.pow(backoffRate, retryIndex);
+          log_warn(
+            `Step '${currentStepInstanceId}' caught a retryable error. Retrying in ${delayMs}ms... (Retry ${retryIndex + 1}/${maxRetries})`,
+            { error: lastError?.message, step: currentStepInstanceId },
+            correlationId,
+          );
+          await new Promise(res => setTimeout(res, delayMs));
+
+          retryIndex++;
+          runtimeState.stepRetryAttempts[currentStepInstanceId] = retryIndex;
+
+          try {
+            stepHandlerResult = await invokeHandler(retryIndex + 1);
+            lastError = null;
+            break;
+          } catch (retryErr: any) {
+            lastError = retryErr;
+            if (!isMatchingError(retryErr)) {
+              throw retryErr;
+            }
           }
         }
-        throw error;
-      }
-    }
 
-    if (lastTransientError) {
-      log_error(`Step handler failed after ${MAX_INTERNAL_RETRIES} attempts due to a persistent transient error.`, { error: lastTransientError.message }, correlationId);
-      throw lastTransientError; 
+        if (lastError) {
+          log_error(
+            `Step '${currentStepInstanceId}' failed after ${maxRetries} retries due to: ${lastError.message}`,
+            { error: lastError.message, step: currentStepInstanceId },
+            correlationId,
+          );
+          throw lastError;
+        }
+      }
+    } else {
+      // --- GENERIC RETRY LOOP FOR TRANSIENT ERRORS ---
+      for (let attempt = 1; attempt <= MAX_INTERNAL_RETRIES; attempt++) {
+        try {
+          stepHandlerResult = await invokeHandler(attempt);
+          lastTransientError = null; 
+          break; 
+        } catch (error: any) {
+          if (error instanceof TransientStepError) {
+            lastTransientError = error;
+            if (attempt < MAX_INTERNAL_RETRIES) {
+              const delay = Math.pow(2, attempt) * INITIAL_BACKOFF_MS + Math.random() * 50; 
+              log_warn(
+                `Step handler caught a transient error. Retrying in ${delay.toFixed(2)}ms... (Attempt ${attempt}/${MAX_INTERNAL_RETRIES})`,
+                { error: error.message, step: currentStepInstanceId },
+                correlationId,
+              );
+              await new Promise(res => setTimeout(res, delay));
+              continue; 
+            }
+          }
+          throw error;
+        }
+      }
+
+      if (lastTransientError) {
+        log_error(`Step handler failed after ${MAX_INTERNAL_RETRIES} attempts due to a persistent transient error.`, { error: lastTransientError.message }, correlationId);
+        throw lastTransientError; 
+      }
+      // --- END: GENERIC RETRY LOOP ---
     }
-    // --- END: GENERIC RETRY LOOP ---
 
     if (runtimeState._internal) {
       runtimeState._internal.currentStepHandlerResult = stepHandlerResult;
@@ -295,11 +379,16 @@ export const executeStandardStep = async (
 
     } else {
       // 3. Fallback: Log and Re-throw for standard failure handling
-      const isRetryableBySfn = error instanceof RetryableStepError || error instanceof ContentBasedRetryableError || error instanceof TransientStepError;
+      const isConfiguredRetries = Boolean(stepInstanceConfig.onError?.retries);
+      const isRetryableBySfn = !isConfiguredRetries && (
+        error instanceof RetryableStepError || error instanceof ContentBasedRetryableError || error instanceof TransientStepError
+      );
 
       let logStatus: 'RETRYING_SFN' | 'RETRYING_CONTENT' | 'FAILED' = 'FAILED';
-      if (error instanceof RetryableStepError || error instanceof TransientStepError) logStatus = 'RETRYING_SFN';
-      else if (error instanceof ContentBasedRetryableError) logStatus = 'RETRYING_CONTENT';
+      if (!isConfiguredRetries) {
+        if (error instanceof RetryableStepError || error instanceof TransientStepError) logStatus = 'RETRYING_SFN';
+        else if (error instanceof ContentBasedRetryableError) logStatus = 'RETRYING_CONTENT';
+      }
 
       const errorInfo: AllmaError = {
         errorName: error.name || 'StepExecutionError',
@@ -323,6 +412,9 @@ export const executeStandardStep = async (
       if (runtimeState.enableExecutionLogs) {
         await executionLoggerClient.logStepExecution({
           ...baseRecord,
+          ...(isConfiguredRetries && {
+            attemptNumber: (runtimeState.stepRetryAttempts?.[currentStepInstanceId] || 0) + 1,
+          }),
           status: logStatus,
           eventTimestamp: stepEndTime,
           endTime: stepEndTime,

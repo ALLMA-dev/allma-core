@@ -28,8 +28,13 @@ vi.mock('../../../../src/allma-core/execution-logger-client.js', () => ({
   executionLoggerClient: { logStepExecution: vi.fn().mockResolvedValue(undefined) },
 }));
 
+import * as coreSdk from '@allma/core-sdk';
+
 const { executeStandardStep } = await import(
   '../../../../src/allma-flows/iterative-step-processor/step-executor.js'
+);
+const { handleTerminalError } = await import(
+  '../../../../src/allma-flows/iterative-step-processor/error-handler.js'
 );
 const { getStepHandler } = await import(
   '../../../../src/allma-core/step-handlers/handler-registry.js'
@@ -257,6 +262,287 @@ describe('executeStandardStep', () => {
       } finally {
         vi.useRealTimers();
       }
+    });
+  });
+
+  describe('onError.retries configured retry loop', () => {
+    it('drives retries with count, intervalSeconds, and backoffRate and succeeds on final retry', async () => {
+      vi.useFakeTimers();
+      try {
+        const handler = vi
+          .fn()
+          .mockRejectedValueOnce(new TransientStepError('fail 1'))
+          .mockRejectedValueOnce(new TransientStepError('fail 2'))
+          .mockRejectedValueOnce(new TransientStepError('fail 3'))
+          .mockResolvedValueOnce({ outputData: { success: true } });
+        mockedGetStepHandler.mockReturnValue(handler as unknown as StepHandler);
+
+        const step = makeStepInstance({
+          stepInstanceId: 'api_step',
+          onError: {
+            retries: { count: 3, intervalSeconds: 2, backoffRate: 2.0 },
+          },
+        });
+        const runtimeState = makeRuntimeState();
+
+        const promise = run(step, runtimeState);
+
+        expect(handler).toHaveBeenCalledTimes(1);
+        expect(runtimeState.stepRetryAttempts?.api_step).toBe(0);
+
+        await vi.advanceTimersByTimeAsync(1999);
+        expect(handler).toHaveBeenCalledTimes(1);
+
+        await vi.advanceTimersByTimeAsync(1);
+        expect(handler).toHaveBeenCalledTimes(2);
+        expect(runtimeState.stepRetryAttempts?.api_step).toBe(1);
+
+        await vi.advanceTimersByTimeAsync(3999);
+        expect(handler).toHaveBeenCalledTimes(2);
+
+        await vi.advanceTimersByTimeAsync(1);
+        expect(handler).toHaveBeenCalledTimes(3);
+        expect(runtimeState.stepRetryAttempts?.api_step).toBe(2);
+
+        await vi.advanceTimersByTimeAsync(7999);
+        expect(handler).toHaveBeenCalledTimes(3);
+
+        await vi.advanceTimersByTimeAsync(1);
+        expect(handler).toHaveBeenCalledTimes(4);
+        expect(runtimeState.stepRetryAttempts?.api_step).toBe(3);
+
+        const result = await promise;
+        expect(result.updatedRuntimeState.currentContextData.steps_output['api_step']).toEqual({ success: true });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('exhausts retries, updates stepRetryAttempts to count, logs FAILED, and rethrows', async () => {
+      vi.useFakeTimers();
+      try {
+        const handler = vi.fn().mockRejectedValue(new TransientStepError('persistent failure'));
+        mockedGetStepHandler.mockReturnValue(handler as unknown as StepHandler);
+
+        const step = makeStepInstance({
+          stepInstanceId: 'exhaust_step',
+          onError: {
+            retries: { count: 2, intervalSeconds: 1, backoffRate: 2.0 },
+          },
+        });
+        const runtimeState = makeRuntimeState({ enableExecutionLogs: true });
+
+        const rejectionPromise = expect(run(step, runtimeState)).rejects.toThrow('persistent failure');
+        await vi.runAllTimersAsync();
+        await rejectionPromise;
+
+        expect(handler).toHaveBeenCalledTimes(3);
+        expect(runtimeState.stepRetryAttempts?.exhaust_step).toBe(2);
+
+        const loggedStatuses = mockedLogger.logStepExecution.mock.calls.map(c => c[0].status);
+        expect(loggedStatuses).toContain('STARTED');
+        expect(loggedStatuses).toContain('FAILED');
+        expect(loggedStatuses).not.toContain('RETRYING_SFN');
+
+        const failedLog = mockedLogger.logStepExecution.mock.calls
+          .map(c => c[0])
+          .find(r => r.status === 'FAILED');
+        expect(failedLog?.errorInfo?.isRetryable).toBe(false);
+        expect(failedLog?.attemptNumber).toBe(3);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('fails immediately without retrying when count: 0', async () => {
+      const handler = vi.fn().mockRejectedValue(new TransientStepError('immediate failure'));
+      mockedGetStepHandler.mockReturnValue(handler as unknown as StepHandler);
+
+      const step = makeStepInstance({
+        stepInstanceId: 'zero_retries_step',
+        onError: {
+          retries: { count: 0, intervalSeconds: 5, backoffRate: 2.0 },
+        },
+      });
+      const runtimeState = makeRuntimeState({ enableExecutionLogs: true });
+
+      await expect(run(step, runtimeState)).rejects.toThrow('immediate failure');
+
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(runtimeState.stepRetryAttempts?.zero_retries_step).toBe(0);
+
+      const failedLog = mockedLogger.logStepExecution.mock.calls
+        .map(c => c[0])
+        .find(r => r.status === 'FAILED');
+      expect(failedLog?.errorInfo?.isRetryable).toBe(false);
+    });
+
+    it('retries only errors matching errorEquals and succeeds on retry', async () => {
+      vi.useFakeTimers();
+      try {
+        const error = Object.assign(new Error('timeout on socket'), { name: 'CustomTimeout' });
+        const handler = vi
+          .fn()
+          .mockRejectedValueOnce(error)
+          .mockResolvedValueOnce({ outputData: { recovered: true } });
+        mockedGetStepHandler.mockReturnValue(handler as unknown as StepHandler);
+
+        const step = makeStepInstance({
+          stepInstanceId: 'custom_err_step',
+          onError: {
+            retries: { count: 2, intervalSeconds: 1, backoffRate: 1.0, errorEquals: ['CustomTimeout', 'Throttling'] },
+          },
+        });
+        const runtimeState = makeRuntimeState();
+
+        const promise = run(step, runtimeState);
+        await vi.runAllTimersAsync();
+        const result = await promise;
+
+        expect(handler).toHaveBeenCalledTimes(2);
+        expect(runtimeState.stepRetryAttempts?.custom_err_step).toBe(1);
+        expect(result.updatedRuntimeState.currentContextData.steps_output['custom_err_step']).toEqual({ recovered: true });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('fails immediately without retrying when error does not match errorEquals', async () => {
+      const error = Object.assign(new Error('unmatched error'), { name: 'ValidationException' });
+      const handler = vi.fn().mockRejectedValue(error);
+      mockedGetStepHandler.mockReturnValue(handler as unknown as StepHandler);
+
+      const step = makeStepInstance({
+        stepInstanceId: 'unmatched_step',
+        onError: {
+          retries: { count: 3, intervalSeconds: 1, backoffRate: 2.0, errorEquals: ['CustomTimeout'] },
+        },
+      });
+      const runtimeState = makeRuntimeState({ enableExecutionLogs: true });
+
+      await expect(run(step, runtimeState)).rejects.toThrow('unmatched error');
+
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(runtimeState.stepRetryAttempts?.unmatched_step).toBe(0);
+
+      const failedLog = mockedLogger.logStepExecution.mock.calls
+        .map(c => c[0])
+        .find(r => r.status === 'FAILED');
+      expect(failedLog?.errorInfo?.isRetryable).toBe(false);
+    });
+
+    it('uses isRetryableError when errorEquals is omitted, rejecting permanent errors immediately', async () => {
+      const handler = vi.fn().mockRejectedValue(new PermanentStepError('fatal database error'));
+      mockedGetStepHandler.mockReturnValue(handler as unknown as StepHandler);
+
+      const step = makeStepInstance({
+        stepInstanceId: 'perm_err_step',
+        onError: {
+          retries: { count: 3, intervalSeconds: 1, backoffRate: 1.0 },
+        },
+      });
+      const runtimeState = makeRuntimeState();
+
+      await expect(run(step, runtimeState)).rejects.toBeInstanceOf(PermanentStepError);
+
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(runtimeState.stepRetryAttempts?.perm_err_step).toBe(0);
+    });
+
+    it('signals retriesExhausted: true to handleTerminalError when retries are exhausted on a step with fallback', async () => {
+      vi.useFakeTimers();
+      try {
+        const errorSpy = vi.spyOn(coreSdk, 'log_error').mockImplementation(() => {});
+        vi.spyOn(coreSdk, 'log_warn').mockImplementation(() => {});
+
+        const handler = vi.fn().mockRejectedValue(new TransientStepError('network drop'));
+        mockedGetStepHandler.mockReturnValue(handler as unknown as StepHandler);
+
+        const step = makeStepInstance({
+          stepInstanceId: 'step_with_fb',
+          onError: {
+            retries: { count: 2, intervalSeconds: 1, backoffRate: 1.0 },
+            fallbackStepInstanceId: 'recover_step',
+            logLevel: 'ERROR',
+          },
+        });
+        const runtimeState = makeRuntimeState({
+          currentStepInstanceId: 'step_with_fb',
+          flowDefinitionId: 'flow-test',
+          enableExecutionLogs: true,
+        });
+
+        let thrownError: unknown;
+        const promise = run(step, runtimeState).catch(err => {
+          thrownError = err;
+        });
+        await vi.runAllTimersAsync();
+        await promise;
+
+        expect(thrownError).toBeInstanceOf(TransientStepError);
+        expect(runtimeState.stepRetryAttempts?.step_with_fb).toBe(2);
+
+        const terminalResult = await handleTerminalError(thrownError, step, runtimeState);
+
+        expect(terminalResult.currentStepInstanceId).toBe('recover_step');
+        expect(terminalResult.status).toBe('RUNNING');
+        expect(errorSpy).toHaveBeenCalledWith(
+          "Step 'step_with_fb' failed. Transitioning to fallback step 'recover_step'.",
+          expect.objectContaining({
+            retriesExhausted: true,
+            FlowFallbackFired: 1,
+            fallbackStepInstanceId: 'recover_step',
+          }),
+          runtimeState.flowExecutionId,
+        );
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('signals retriesExhausted: false to handleTerminalError when non-matching error fails before retries are exhausted', async () => {
+      const errorSpy = vi.spyOn(coreSdk, 'log_error').mockImplementation(() => {});
+      vi.spyOn(coreSdk, 'log_warn').mockImplementation(() => {});
+
+      const error = Object.assign(new Error('bad config'), { name: 'ConfigurationError' });
+      const handler = vi.fn().mockRejectedValue(error);
+      mockedGetStepHandler.mockReturnValue(handler as unknown as StepHandler);
+
+      const step = makeStepInstance({
+        stepInstanceId: 'step_with_fb_unmatched',
+        onError: {
+          retries: { count: 3, intervalSeconds: 1, backoffRate: 1.0, errorEquals: ['TimeoutError'] },
+          fallbackStepInstanceId: 'recover_step',
+          logLevel: 'ERROR',
+        },
+      });
+      const runtimeState = makeRuntimeState({
+        currentStepInstanceId: 'step_with_fb_unmatched',
+        flowDefinitionId: 'flow-test',
+        enableExecutionLogs: true,
+      });
+
+      let thrownError: unknown;
+      try {
+        await run(step, runtimeState);
+      } catch (err) {
+        thrownError = err;
+      }
+
+      expect(thrownError).toBe(error);
+      expect(runtimeState.stepRetryAttempts?.step_with_fb_unmatched).toBe(0);
+
+      const terminalResult = await handleTerminalError(thrownError, step, runtimeState);
+
+      expect(terminalResult.currentStepInstanceId).toBe('recover_step');
+      expect(errorSpy).toHaveBeenCalledWith(
+        "Step 'step_with_fb_unmatched' failed. Transitioning to fallback step 'recover_step'.",
+        expect.objectContaining({
+          retriesExhausted: false,
+          fallbackStepInstanceId: 'recover_step',
+        }),
+        runtimeState.flowExecutionId,
+      );
     });
   });
 

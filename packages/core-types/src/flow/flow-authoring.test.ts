@@ -160,3 +160,61 @@ describe('StepErrorHandlerSchema logLevel', () => {
     expect(FlowAuthoringSchema.safeParse(flow).success).toBe(true);
   });
 });
+
+describe('StepErrorHandlerSchema retries', () => {
+  it('parses retries with schema defaults when empty object provided', () => {
+    const parsed = StepErrorHandlerSchema.parse({ retries: {} });
+    expect(parsed.retries).toEqual({
+      count: 0,
+      intervalSeconds: 5,
+      backoffRate: 2.0,
+    });
+  });
+
+  it('parses custom retries configuration including errorEquals', () => {
+    const parsed = StepErrorHandlerSchema.parse({
+      retries: {
+        count: 3,
+        intervalSeconds: 10,
+        backoffRate: 1.5,
+        errorEquals: ['TimeoutError', 'ThrottlingException'],
+      },
+    });
+    expect(parsed.retries).toEqual({
+      count: 3,
+      intervalSeconds: 10,
+      backoffRate: 1.5,
+      errorEquals: ['TimeoutError', 'ThrottlingException'],
+    });
+  });
+
+  it('rejects retries with out-of-range values', () => {
+    expect(StepErrorHandlerSchema.safeParse({ retries: { count: -1 } }).success).toBe(false);
+    expect(StepErrorHandlerSchema.safeParse({ retries: { count: 6 } }).success).toBe(false);
+    expect(StepErrorHandlerSchema.safeParse({ retries: { intervalSeconds: 0 } }).success).toBe(false);
+    expect(StepErrorHandlerSchema.safeParse({ retries: { intervalSeconds: 301 } }).success).toBe(false);
+    expect(StepErrorHandlerSchema.safeParse({ retries: { backoffRate: 0.5 } }).success).toBe(false);
+    expect(StepErrorHandlerSchema.safeParse({ retries: { backoffRate: 5.5 } }).success).toBe(false);
+  });
+
+  it('accepts onError.retries in full flow authoring definition', () => {
+    const flow = {
+      ...authoringFlow(),
+      steps: {
+        start: {
+          stepInstanceId: 'start',
+          stepType: StepType.NO_OP,
+          onError: {
+            retries: { count: 3, intervalSeconds: 2, backoffRate: 2.0 },
+            fallbackStepInstanceId: 'recover',
+          },
+        },
+        recover: {
+          stepInstanceId: 'recover',
+          stepType: StepType.NO_OP,
+        },
+      },
+    };
+    expect(FlowAuthoringSchema.safeParse(flow).success).toBe(true);
+  });
+});
