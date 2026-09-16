@@ -1,6 +1,6 @@
 {
   "name": "@allma/admin-shell",
-  "version": "11.0.1",
+  "version": "11.0.2",
   "description": "The web-based administration panel for the Allma platform.",
   "type": "module",
   "main": "./dist/index.js",
@@ -55,8 +55,8 @@
     "uuid": "^11.1.0"
   },
   "peerDependencies": {
-    "@allma/core-sdk": "^1.2.0",
-    "@allma/core-types": "1.9.0",
+    "@allma/core-sdk": "^1.2.1",
+    "@allma/core-types": "1.9.1",
     "@allma/ui-components": "^1.1.0",
     "@aws-amplify/ui-react": "^6.13.0",
     "@emotion/react": "^11.14.0",
@@ -86,7 +86,7 @@
     "zustand": "^5.0.5"
   },
   "devDependencies": {
-    "@allma/core-types": "1.9.0",
+    "@allma/core-types": "1.9.1",
     "@allma/ui-components": "^1.1.0",
     "@tanstack/react-query-devtools": "^5.75.7",
     "@testing-library/dom": "^10.4.0",
