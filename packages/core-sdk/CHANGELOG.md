@@ -1,5 +1,16 @@
 # @allma/core-sdk
 
+## 1.2.1
+
+### Patch Changes
+
+- 4b1a147: Remove duplicate `objectUtils` re-export from the entry barrel.
+- 5737d49: Delete unused internal `cdk-utils.ts` duplicate in favor of `@allma/cdk-integration-utils`.
+- Updated dependencies [3cecdb5]
+- Updated dependencies [dddce9f]
+- Updated dependencies [62c2f20]
+  - @allma/core-types@1.9.1
+
 ## 1.2.0
 
 ### Minor Changes

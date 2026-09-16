@@ -1,6 +1,6 @@
 {
   "name": "@allma/core-cdk",
-  "version": "1.5.4",
+  "version": "1.5.5",
   "description": "Core AWS CDK constructs for deploying the Allma serverless AI orchestration platform.",
   "main": "dist/lib/allma-stack.js",
   "types": "dist/lib/allma-stack.d.ts",
@@ -39,8 +39,8 @@
     "access": "public"
   },
   "dependencies": {
-    "@allma/core-sdk": "^1.2.0",
-    "@allma/core-types": "^1.8.0",
+    "@allma/core-sdk": "^1.2.1",
+    "@allma/core-types": "^1.9.1",
     "@cfworker/json-schema": "^4.1.1",
     "@google/genai": "^1.28.0",
     "@langchain/google-vertexai": "^2.2.0",
