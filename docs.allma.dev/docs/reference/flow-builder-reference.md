@@ -141,9 +141,9 @@ TypeScript loader (e.g. `tsx`). Auth for `--remote`/`deploy` is a bearer token i
 
 `deploy` merges artifacts into one `AllmaExportFormat` and `POST`s it to
 `/v1/allma/import` — the same importer `cdk deploy` uses. Therefore: a **new** flow
-id is created at its declared version; an **existing** flow id only *updates* a
-version slot that already exists. Bumping an existing flow to a not-yet-existing
-version requires the admin version-management API first. `--publish` then publishes
+id is created at its declared version. For an **existing** flow id, a version slot
+that already exists is overwritten, and a new version number creates that version
+(published if `isPublished` is true). `--publish` then publishes
 each imported flow version. The importer's per-item errors are surfaced, not masked.
 
 ## Coexistence & ownership
