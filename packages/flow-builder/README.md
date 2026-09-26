@@ -215,11 +215,10 @@ an `ALLMA_ADMIN_TOKEN` bearer token), `check` also fails if a code-owned flow's
 `POST`s it to the admin **`/v1/allma/import`** route (`ALLMA_ADMIN_TOKEN` bearer),
 so CI can ship a flow/prompt/step/MCP change without a CDK redeploy. It uses the
 same importer as `cdk deploy`, so the same **version-slot contract** applies: a
-brand-new flow id is created; an existing flow id only *updates* a version slot
-that already exists ("creating new versions for existing flows on import is not
-supported"). Bumping an existing flow to a not-yet-existing version is an admin
-version-management step first; `deploy` surfaces the importer's per-item errors
-rather than masking them. `--publish` then publishes each imported flow version.
+brand-new flow id is created; for an existing flow id, an existing version slot
+is overwritten and a new version number is created, and published when
+`isPublished` is true. `deploy` surfaces the importer's per-item errors rather
+than masking them. `--publish` then publishes each imported flow version.
 The network/auth lives behind a thin adapter, so `planDeploy`/`executeDeploy` are
 pure and unit-tested with a stubbed adapter.
 

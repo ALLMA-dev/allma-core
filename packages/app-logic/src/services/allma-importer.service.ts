@@ -69,16 +69,14 @@ export class AllmaImporterService {
 
                 const existingVersion = await PromptTemplateService.getVersion(prompt.id, prompt.version);
                 if (existingVersion) {
-                  // Update the Version record (content, etc.)
                   await PromptTemplateService.updateVersion(prompt.id, prompt.version, prompt, { ignorePublishedStatus: true });
-                  
-                  if (prompt.isPublished) {
-                      await PromptTemplateService.publishVersion(prompt.id, prompt.version);
-                  }
-                  result.updated.prompts++;
                 } else {
-                  result.errors.push({ id: prompt.id, type: 'prompt', message: `Cannot overwrite prompt: version ${prompt.version} does not exist. Creating new versions for existing prompts on import is not supported.` });
+                  await PromptTemplateService.createVersionFromImport(prompt.id, prompt);
                 }
+                if (prompt.isPublished) {
+                    await PromptTemplateService.publishVersion(prompt.id, prompt.version);
+                }
+                result.updated.prompts++;
               } else {
                 result.skipped.prompts++;
               }
@@ -138,13 +136,13 @@ export class AllmaImporterService {
                 if (existingVersion) {
                   // The updateVersion service handles hydration, validation, and persistence.
                   await FlowDefinitionService.updateVersion(parsedFlow.id, parsedFlow.version, parsedFlow, { ignorePublishedStatus: true });
-                  if (parsedFlow.isPublished) {
-                      await FlowDefinitionService.publishVersion(parsedFlow.id, parsedFlow.version);
-                  }
-                  result.updated.flows++;
                 } else {
-                  result.errors.push({ id: parsedFlow.id, type: 'flow', message: `Cannot overwrite flow: version ${parsedFlow.version} does not exist. Creating new versions for existing flows on import is not supported.` });
+                  await FlowDefinitionService.createVersionFromImport(parsedFlow);
                 }
+                if (parsedFlow.isPublished) {
+                    await FlowDefinitionService.publishVersion(parsedFlow.id, parsedFlow.version);
+                }
+                result.updated.flows++;
               } else {
                 result.skipped.flows++;
               }

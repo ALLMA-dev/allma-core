@@ -20,4 +20,12 @@ Every Flow and Prompt Template in Allma has versions. You can never modify the "
 - You can have multiple `Draft` versions of a Flow, allowing different team members to work on different features simultaneously.
 - The Admin Panel provides a clear view of all versions, with the ability to visually **diff** the changes between any two versions.
 
+### Importing New Versions via CDK Deploy / Import
+
+The importer (used by `cdk deploy` and `POST /v1/allma/import`) applies one rule to Flows and Prompt Templates whose id already exists:
+
+- If the version number in the imported JSON already exists, that version is overwritten.
+- If it does not exist, that version is created. If the imported item has `isPublished: true`, it is then published and the previously published version is unpublished, exactly as when publishing from the Admin Panel.
+- The latest version only moves forward: importing a version lower than the current latest fills that slot and leaves the latest version unchanged.
+
 This `Draft` -> `Published` lifecycle provides critical governance and safety, preventing accidental changes to production workflows and ensuring a complete, auditable history of every change made to your business processes.

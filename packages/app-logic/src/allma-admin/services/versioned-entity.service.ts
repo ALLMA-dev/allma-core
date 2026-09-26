@@ -54,6 +54,10 @@ export class VersionedEntityManager<TMaster extends MasterItem, TVersion extends
         };
     }
 
+    private resolveCreatedAt(createdAt: string | undefined, now: string): string {
+        return createdAt && !isNaN(new Date(createdAt).getTime()) ? createdAt : now;
+    }
+
     async listMasters(filters?: { tag?: string; searchText?: string }): Promise<TMaster[]> {
         if (filters?.searchText) {
             // Use Scan when searching by text because 'name' can be a key attribute on the GSI
@@ -212,7 +216,7 @@ export class VersionedEntityManager<TMaster extends MasterItem, TVersion extends
             ? {
                 ...initialVersionOverride,
                 id: id,
-                createdAt: initialVersionOverride.createdAt && !isNaN(new Date(initialVersionOverride.createdAt).getTime()) ? initialVersionOverride.createdAt : now,
+                createdAt: this.resolveCreatedAt(initialVersionOverride.createdAt, now),
                 updatedAt: now,
             }
             : this.config.initialVersionFactory(id, now, createInput);
@@ -342,6 +346,42 @@ export class VersionedEntityManager<TMaster extends MasterItem, TVersion extends
             ]
         }));
         return validatedNewVersion;
+    }
+
+    async createVersionFromImport(id: string, data: TVersion): Promise<TVersion> {
+        const metadata = await this.getMaster(id);
+        if (!metadata) throw new Error(`${this.config.entityName} with id ${id} not found.`);
+
+        const now = new Date().toISOString();
+        const { pk, metadataKey } = this.getKeys(id);
+        const validatedVersion = this.config.versionSchema.parse({
+            ...data,
+            id,
+            isPublished: false,
+            publishedAt: null,
+            createdAt: this.resolveCreatedAt(data.createdAt, now),
+            updatedAt: now,
+        });
+        const versionItem = { ...validatedVersion, PK: pk, SK: `VERSION#${validatedVersion.version}`, itemType: this.config.itemType };
+
+        // The latestVersion condition makes a concurrent version change fail the import instead of moving latestVersion backwards.
+        await ddbDocClient.send(new TransactWriteCommand({
+            TransactItems: [
+                { Put: { TableName: CONFIG_TABLE_NAME, Item: versionItem as Record<string, any>, ConditionExpression: 'attribute_not_exists(PK)' } },
+                { Update: {
+                    TableName: CONFIG_TABLE_NAME,
+                    Key: metadataKey,
+                    UpdateExpression: 'SET latestVersion = :latest, updatedAt = :now',
+                    ConditionExpression: 'latestVersion = :expected',
+                    ExpressionAttributeValues: {
+                        ':latest': Math.max(metadata.latestVersion, validatedVersion.version),
+                        ':now': now,
+                        ':expected': metadata.latestVersion,
+                    },
+                }},
+            ]
+        }));
+        return fromStorageItem<any, TVersion>(versionItem);
     }
 
     async updateVersion(
@@ -490,6 +530,9 @@ export class VersionedEntityManager<TMaster extends MasterItem, TVersion extends
         if (metadata.latestVersion === 1) throw new Error('Cannot delete the only version.');
 
         if (metadata.latestVersion === version) {
+            // Imported versions can leave gaps, so the new latest is the highest remaining version, not version - 1.
+            const remaining = (await this.listVersions(id)).map(v => v.version ?? 0).filter(v => v !== version);
+            if (remaining.length === 0) throw new Error('Cannot delete the only version.');
             await ddbDocClient.send(new TransactWriteCommand({ TransactItems: [
                 { Delete: {
                     TableName: CONFIG_TABLE_NAME, Key: this.getKeys(id, version).versionKey!,
@@ -497,9 +540,9 @@ export class VersionedEntityManager<TMaster extends MasterItem, TVersion extends
                 }},
                 { Update: {
                     TableName: CONFIG_TABLE_NAME, Key: this.getKeys(id).metadataKey,
-                    UpdateExpression: 'SET latestVersion = latestVersion - :decr, updatedAt = :now',
+                    UpdateExpression: 'SET latestVersion = :latest, updatedAt = :now',
                     ConditionExpression: 'latestVersion = :currentVersion',
-                    ExpressionAttributeValues: { ':decr': 1, ':now': new Date().toISOString(), ':currentVersion': version }
+                    ExpressionAttributeValues: { ':latest': Math.max(...remaining), ':now': new Date().toISOString(), ':currentVersion': version }
                 }}
             ]}));
         } else {
