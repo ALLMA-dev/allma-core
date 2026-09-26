@@ -159,7 +159,8 @@ ALLMA_ADMIN_TOKEN=… npx ... allma-flows.js deploy "config/flows/*.json" \
 ```
 
 `deploy` honors the importer's version-slot contract: a brand-new flow id is
-created; an existing flow id only *updates* a version slot that already exists.
+created; for an existing flow id, an existing version slot is overwritten and a
+new version number is created (and published if `isPublished` is true).
 See the [Versioning & Publishing](../getting-started/key-concepts/versioning-publishing.md)
 concept and the [Flow Builder Reference](../reference/flow-builder-reference.md)
 for the exact rules.

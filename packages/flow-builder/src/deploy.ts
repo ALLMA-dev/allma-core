@@ -17,12 +17,10 @@ import { STABLE_EXPORTED_AT } from './define-flow.js';
  *
  * ## Version-slot contract (honored, not worked around)
  * The importer (`allma-importer.service.ts`) **creates** a brand-new flow id at
- * the version in the envelope, but for an **existing** flow id it only *updates*
- * a version slot that already exists — "Creating new versions for existing flows
- * on import is not supported". `deploy` therefore matches `cdk deploy`: bumping an
- * existing flow to a not-yet-existing version must be done via the admin
- * version-management API first. `deploy` surfaces the importer's per-item errors
- * rather than masking them.
+ * the version in the envelope. For an **existing** flow id it overwrites a version
+ * slot that already exists, and creates a version that does not exist yet
+ * (publishing it when `isPublished` is true). `deploy` therefore matches
+ * `cdk deploy`, and surfaces the importer's per-item errors rather than masking them.
  *
  * The module is pure: all network/auth lives behind the injected
  * {@link DeployAdapter} (mirrors `detectDrift`'s `fetchDeployed`), so the planning

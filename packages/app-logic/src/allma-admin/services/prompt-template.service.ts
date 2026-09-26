@@ -39,6 +39,7 @@ export const PromptTemplateService = {
     getVersion: entityManager.getVersion.bind(entityManager),
     createVersion: entityManager.createVersion.bind(entityManager),
     updateVersion: entityManager.updateVersion.bind(entityManager),
+    createVersionFromImport: entityManager.createVersionFromImport.bind(entityManager),
     publishVersion: entityManager.publishVersion.bind(entityManager),
     unpublishVersion: entityManager.unpublishVersion.bind(entityManager),
     deleteVersion: entityManager.deleteVersion.bind(entityManager),

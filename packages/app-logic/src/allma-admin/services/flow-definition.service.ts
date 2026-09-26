@@ -259,6 +259,15 @@ export const FlowDefinitionService = {
     updateVersion: customUpdateVersion,
 
     /**
+     * Stores an imported flow as a new, unpublished version. Like `createVersion`, a draft does not
+     * sync email mappings or schedules; publishing the version does.
+     */
+    async createVersionFromImport(flow: FlowDefinition): Promise<FlowDefinition> {
+        FlowDefinitionSchema.parse(await hydrateFlow(flow));
+        return entityManager.createVersionFromImport(flow.id, flow);
+    },
+
+    /**
      * Updates the master (metadata) record of a flow.
      */
     async updateMaster(id: string, data: Partial<Omit<FlowMetadataStorageItem, 'PK' | 'SK' | 'itemType' | 'id' | 'createdAt' | 'updatedAt' | 'latestVersion' | 'publishedVersion'>>): Promise<FlowMetadataStorageItem> {
