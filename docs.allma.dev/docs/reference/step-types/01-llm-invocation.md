@@ -162,7 +162,11 @@ Built-in tools are executed natively server-side by the provider during generati
 
 - **`google_search`**: (Gemini) Performs live Google Search grounding.
 - **`code_execution`**: (Gemini) Executes generated Python code in a sandboxed environment during generation.
-- **`web_search`**: (Bedrock / Anthropic / OpenAI) Enables provider-managed web search.
+- **`web_search`**: Provider-managed web search. No provider currently wired into Allma supports it.
+
+:::warning Built-in tools on AWS Bedrock
+`AWS_BEDROCK` supports only `function` tools. Declaring any built-in tool on a Bedrock model fails the model call with an explicit error naming the tool type. Nothing is sent to the model.
+:::
 
 When search grounding is active, search citations, queries, and metadata are returned in `_meta.groundingMetadata`.
 
