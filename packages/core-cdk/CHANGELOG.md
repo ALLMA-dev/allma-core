@@ -1,5 +1,34 @@
 # @allma/core-cdk
 
+## 1.6.0
+
+### Minor Changes
+
+- ed70564: Import (CDK deploy and `POST /v1/allma/import`) now creates a new version of an existing flow or prompt when the imported version number does not exist yet, and publishes it when `isPublished` is true. Previously this failed the import.
+- 0c72c5e: **Upgrade note:** webhook signing secrets must now be in the same AWS account and region as the Allma stack and carry the tag `allma-mcp-secret=true`. Tag existing signing secrets before you deploy this version; otherwise webhook signing fails with access denied at runtime.
+
+  The orchestration and lifecycle-dispatcher roles no longer get Secrets Manager access to `arn:aws:secretsmanager:*:*:secret:*`. They get an account/region-scoped ARN with a `secretsmanager:ResourceTag/allma-mcp-secret == 'true'` condition, the same least-privilege pattern the rest of the stack uses.
+
+### Patch Changes
+
+- b6f1ef3: Bedrock adapter now rejects built-in tools (`google_search`, `code_execution`, `web_search`) with an explicit error on every Bedrock model family. Before, Anthropic models got them as broken custom tools, and Amazon and OpenAI models dropped them silently.
+- 171e615: Enable stage-conditional pointInTimeRecovery (`isProd`) on `AllmaFlowContinuationStateTable`, matching the other DynamoDB tables in `AllmaDataStores`.
+- d953ccf: Import CustomLambdaInvokeStepSchema from @allma/core-types in custom Lambda invoke handler
+- 8675c78: Classify DynamoDB ValidationException and non-retryable client errors as PermanentStepError to prevent spurious retries
+- 85a6bcd: Make IncomingEmailsBucket removalPolicy stage-conditional (RETAIN in prod, DESTROY elsewhere) and keep autoDeleteObjects non-prod only, aligning with the platform's stateful resource lifecycle pattern.
+- eed6cc1: Resolve runtime layer inversion by loading MCP connections in config-loader instead of importing admin service
+- d8bbd02: Honour per-step onError.retries in step-executor with configurable count, intervalSeconds, backoffRate, and errorEquals.
+- c9c0d0a: Route DynamoDB access in six admin and flow Lambda handlers (dashboard stats, flow control, step management, email ingress, execution-lifecycle dispatcher, resume flow) through service classes instead of per-handler `ddbDocClient` calls. No behaviour change.
+- 62c2f20: Support onError.logLevel to surface fallback failures loudly as structured ERROR logs and CloudWatch EMF metrics
+- c40490a: Update config injector custom-resource Lambda runtime to Node.js 22 (`NODEJS_22_X`), aligning with all other platform Lambdas.
+- Updated dependencies [4b1a147]
+- Updated dependencies [3cecdb5]
+- Updated dependencies [dddce9f]
+- Updated dependencies [5737d49]
+- Updated dependencies [62c2f20]
+  - @allma/core-sdk@1.2.1
+  - @allma/core-types@2.0.0
+
 ## 1.5.4
 
 ### Patch Changes
