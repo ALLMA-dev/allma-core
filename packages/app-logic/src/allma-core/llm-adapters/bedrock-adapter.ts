@@ -133,20 +133,11 @@ export class BedrockAdapter implements LlmProviderAdapter {
         if (sampling.topP !== undefined) payload.top_p = sampling.topP;
 
         if (request.tools && request.tools.length > 0) {
-            payload.tools = request.tools.map((tool: any) => {
-                if (tool.type === 'function') {
-                    return {
-                        name: tool.name,
-                        description: tool.description,
-                        input_schema: tool.parameters,
-                    };
-                }
-                return {
-                    name: tool.name || tool.type,
-                    description: tool.description || `Built-in ${tool.type} tool`,
-                    input_schema: tool.parameters || tool.config || { type: 'object', properties: {} },
-                };
-            });
+            payload.tools = request.tools.map((tool: any) => ({
+                name: tool.name,
+                description: tool.description,
+                input_schema: tool.parameters,
+            }));
         }
 
         if (request.toolChoice) {
@@ -286,6 +277,17 @@ export class BedrockAdapter implements LlmProviderAdapter {
     }
 
 
+    // No Bedrock model family is wired for provider-side tools, and the Amazon/OpenAI builders ignore
+    // request.tools entirely, so a built-in tool must fail here or it silently does nothing.
+    private assertNoBuiltInTools(request: LlmGenerationRequest): void {
+        const builtInTypes = (request.tools ?? []).filter((tool) => tool.type !== 'function').map((tool) => `'${tool.type}'`);
+        if (builtInTypes.length > 0) {
+            throw new PermanentStepError(
+                `Built-in tool type(s) ${builtInTypes.join(', ')} are not supported by the ${LLMProviderType.AWS_BEDROCK} provider (model '${request.modelId}'); only 'function' tools are supported.`
+            );
+        }
+    }
+
     /**
      * Generates content using a Bedrock model, adhering to the standardized LlmProviderAdapter interface.
      * @param request - The standardized LlmGenerationRequest object.
@@ -308,6 +310,7 @@ export class BedrockAdapter implements LlmProviderAdapter {
         };
 
         try {
+            this.assertNoBuiltInTools(request);
             switch (provider) {
                 case 'anthropic':
                     body = this.buildAnthropicPayload(request);

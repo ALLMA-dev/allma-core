@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
-import { LLMProviderType, LlmMediaKind, PermanentStepError, TransientStepError, type LlmGenerationRequest } from '@allma/core-types';
+import { LLMProviderType, LlmBuiltInToolType, LlmMediaKind, PermanentStepError, TransientStepError, type LlmGenerationRequest } from '@allma/core-types';
 import { mockClient, resetAwsClientMocks } from '../../_helpers/aws-mock.js';
 import { BedrockAdapter } from '../../../../src/allma-core/llm-adapters/bedrock-adapter.js';
 
@@ -212,5 +212,49 @@ describe('BedrockAdapter.generateContent', () => {
         args: { expr: '2+2' },
       },
     ]);
+  });
+
+  const functionTool = {
+    type: 'function' as const,
+    name: 'calculator',
+    description: 'Calculate expression',
+    parameters: { type: 'object', properties: {} },
+  };
+
+  const expectRejected = (result: Awaited<ReturnType<BedrockAdapter['generateContent']>>, type: string) => {
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toContain(`'${type}'`);
+    expect(result.errorMessage).toContain('AWS_BEDROCK');
+    expect(bedrockMock.commandCalls(InvokeModelCommand)).toHaveLength(0);
+  };
+
+  it.each(Object.values(LlmBuiltInToolType))(
+    'rejects built-in tool %s on an Anthropic model without calling Bedrock',
+    async (type) => {
+      bedrockMock.on(InvokeModelCommand).resolves({ body: encode({ content: [{ text: 'ok' }], usage: {} }) });
+
+      expectRejected(await adapter.generateContent(makeRequest({ tools: [{ type }] })), type);
+    }
+  );
+
+  it.each(['amazon.nova-pro-v1:0', 'openai.gpt-oss-120b-1:0'])(
+    'rejects a built-in tool on %s instead of dropping it',
+    async (modelId) => {
+      bedrockMock.on(InvokeModelCommand).resolves({ body: encode({}) });
+
+      expectRejected(
+        await adapter.generateContent(makeRequest({ modelId, tools: [{ type: LlmBuiltInToolType.WEB_SEARCH }] })),
+        LlmBuiltInToolType.WEB_SEARCH
+      );
+    }
+  );
+
+  it('rejects a built-in tool mixed with function tools', async () => {
+    bedrockMock.on(InvokeModelCommand).resolves({ body: encode({ content: [{ text: 'ok' }], usage: {} }) });
+
+    expectRejected(
+      await adapter.generateContent(makeRequest({ tools: [functionTool, { type: LlmBuiltInToolType.CODE_EXECUTION }] })),
+      LlmBuiltInToolType.CODE_EXECUTION
+    );
   });
 });
