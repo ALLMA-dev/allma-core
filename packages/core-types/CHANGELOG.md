@@ -1,5 +1,16 @@
 # @allma/core-types
 
+## 2.0.0
+
+### Major Changes
+
+- 3cecdb5: **Breaking:** remove the `log_info`, `log_warn`, `log_error` and `log_debug` exports. They were plain `console` wrappers that shadowed the structured logger. Use the same-named functions from `@allma/core-sdk`, which take `(message, details?, correlationId?)`.
+- dddce9f: **Breaking:** remove the stub helpers `withAdminAuth`, `AuthContext`, `createApiGatewayResponse`, `buildSuccessResponse`, `buildErrorResponse`, `offloadIfLarge` and `getAdminApiDomain`. They did nothing real — `withAdminAuth` passed every request through unchecked. Import `withAdminAuth`, the response builders and `offloadIfLarge` from `@allma/core-sdk`. `AuthContext` is now the core-sdk interface of the same name (a type, not a class), filled by `getAuthContext`. `getAdminApiDomain` has no replacement; it returned a placeholder `example.com` domain.
+
+### Patch Changes
+
+- 62c2f20: Support onError.logLevel to surface fallback failures loudly as structured ERROR logs and CloudWatch EMF metrics
+
 ## 1.9.0
 
 ### Minor Changes

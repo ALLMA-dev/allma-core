@@ -1,5 +1,19 @@
 # @allma/flow-builder
 
+## 0.3.1
+
+### Patch Changes
+
+- ed70564: Import (CDK deploy and `POST /v1/allma/import`) now creates a new version of an existing flow or prompt when the imported version number does not exist yet, and publishes it when `isPublished` is true. Previously this failed the import.
+- 62c2f20: Support onError.logLevel to surface fallback failures loudly as structured ERROR logs and CloudWatch EMF metrics
+- Updated dependencies [4b1a147]
+- Updated dependencies [3cecdb5]
+- Updated dependencies [dddce9f]
+- Updated dependencies [5737d49]
+- Updated dependencies [62c2f20]
+  - @allma/core-sdk@1.2.1
+  - @allma/core-types@2.0.0
+
 ## 0.3.0
 
 ### Minor Changes
