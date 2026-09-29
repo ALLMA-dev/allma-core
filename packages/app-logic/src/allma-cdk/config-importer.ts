@@ -1,7 +1,7 @@
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { AllmaImporterService } from '../services/allma-importer.service.js';
 import { AllmaExportFormat, StepDefinition, FlowDefinition, PromptTemplate, McpConnection, Agent } from '@allma/core-types';
-import { sendCloudFormationResponse, CloudFormationEvent } from '@allma/core-sdk';
+import { sendCloudFormationResponse, CloudFormationEvent, log_info, log_error } from '@allma/core-sdk';
 import fs from 'fs';
 import path from 'path';
 import AdmZip from 'adm-zip';
@@ -185,7 +185,7 @@ export async function handler(event: CloudFormationEvent): Promise<void> {
       const importer = new AllmaImporterService();
       const result = await importer.import(finalConfig, { overwrite: true });
 
-      console.log('Import summary:', JSON.stringify(result, null, 2));
+      log_info('Import summary', { result });
 
       if (result.errors.length > 0) {
         const errorSummary = result.errors.map(e => `[${e.type}:${e.id}] ${e.message}`).join('; ');
@@ -197,8 +197,9 @@ export async function handler(event: CloudFormationEvent): Promise<void> {
     }
 
     await sendCloudFormationResponse(event, 'SUCCESS');
-  } catch (error: any) {
-    console.error('Failed to process CDK configuration import:', error);
-    await sendCloudFormationResponse(event, 'FAILED', { Error: error.message });
+  } catch (error: unknown) {
+    const details = error instanceof Error ? { error: error.message, stack: error.stack } : { error: String(error) };
+    log_error('Failed to process CDK configuration import', details);
+    await sendCloudFormationResponse(event, 'FAILED', { Error: details.error });
   }
 }

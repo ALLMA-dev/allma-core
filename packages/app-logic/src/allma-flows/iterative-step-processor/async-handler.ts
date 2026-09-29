@@ -9,6 +9,7 @@ import {
     FlowDefinition,
 } from '@allma/core-types';
 import {
+    log_debug,
     log_info,
     log_warn,
     log_error,
@@ -103,7 +104,7 @@ export const handleWaitForEvent = async (
     const currentStepInstanceId = runtimeState.currentStepInstanceId!;
     log_info(`Pausing flow to wait for event for step: ${currentStepInstanceId}`, { taskTokenRedacted: taskToken.substring(0, 20) + "..." }, correlationId);
 
-    console.log(JSON.stringify(runtimeState.currentContextData));
+    log_debug('Wait-for-event context', { currentContextData: runtimeState.currentContextData }, correlationId);
     
     const parsedWaitStepDef = WaitForExternalEventStepSchema.parse(stepDef);
 
