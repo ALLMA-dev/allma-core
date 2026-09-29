@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
 import { ENV_VAR_NAMES } from '@allma/core-types';
 import { LambdaArchitectureType, StageConfig } from '../config/stack-config.js';
+import { logRedactionEnv } from './log-redaction-env.js';
 
 const __filename_compute = fileURLToPath(import.meta.url);
 const __dirname_compute = dirname(__filename_compute);
@@ -392,7 +393,7 @@ export class AllmaCompute extends Construct {
       role,
       timeout,
       memorySize,
-      environment,
+      environment: { ...environment, ...logRedactionEnv(this.stageConfig) },
       ...(reservedConcurrentExecutions !== undefined && { reservedConcurrentExecutions }),
       ...(layers && { layers }),
       bundling: {
