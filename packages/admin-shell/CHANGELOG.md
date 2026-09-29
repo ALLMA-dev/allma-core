@@ -1,5 +1,13 @@
 # @allma/admin-shell
 
+## 13.0.0
+
+### Patch Changes
+
+- Updated dependencies [fdaa526]
+  - @allma/core-types@2.1.0
+  - @allma/core-sdk@1.3.0
+
 ## 12.0.0
 
 ### Patch Changes
