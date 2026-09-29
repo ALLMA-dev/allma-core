@@ -54,6 +54,25 @@ export const handler: Handler = async (event, context) => {
 };
 ```
 
+## Redacting log output
+
+Register one redactor and every `log_*` call passes through it. It runs on the `details` object (it must return a plain object) and on the `message` string (it must return a string). If it throws or returns the wrong type, the line is written with `message` and `details` set to `'[REDACTION_FAILED]'`. The raw values are never written.
+
+```typescript
+import { createKeyPatternRedactor, setLogRedactor } from '@allma/core-sdk';
+
+setLogRedactor(createKeyPatternRedactor({
+  keys: ['email', 'phone'],           // case-insensitive key names; their values are replaced
+  patterns: ['[^@\\s]+@[^@\\s]+'],    // regexes (flags "gi") replaced inside every string and the message
+  replacement: '[PII]',               // optional, defaults to '[REDACTED]'
+}));
+
+// Or pass your own function: setLogRedactor((value) => myRedact(value));
+// setLogRedactor(undefined) removes it.
+```
+
+The redactor is process-wide and is shared by every copy of `@allma/core-sdk` in the bundle. If the `LOG_REDACTION_CONFIG` environment variable holds a JSON `{ keys, patterns, replacement? }` object, the logger registers `createKeyPatternRedactor` with it when it loads, unless a redactor is already registered. If that config is invalid, every line is masked and one warning is logged.
+
 ## Contributing
 
 This package is part of the `allma-core` monorepo. We welcome contributions! Please see our main [repository](https://github.com/ALLMA-dev/allma-core) and [contribution guide](https://docs.allma.dev/docs/community/contribution-guide) for more details.

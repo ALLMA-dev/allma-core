@@ -1,4 +1,4 @@
-import { LogLevel, Stage as AppStage } from '@allma/core-types';
+import { LogLevel, Stage as AppStage, type LogRedactionConfig } from '@allma/core-types';
 
 /**
  * Defines the CPU architecture for Lambda functions.
@@ -245,7 +245,14 @@ export interface StageConfig {
       traces: number;
       executionLogs: number;
       sfn: number;
-    }
+    };
+
+    /**
+     * Optional redaction rules applied to every log line written by every platform Lambda. Absent
+     * means off, and log output is unchanged. A redactor registered in code with `setLogRedactor`
+     * from `@allma/core-sdk` takes precedence over these rules.
+     */
+    redaction?: LogRedactionConfig;
   };
 
   /**

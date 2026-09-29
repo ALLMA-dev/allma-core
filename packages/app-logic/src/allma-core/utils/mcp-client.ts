@@ -1,5 +1,6 @@
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import { McpConnection, McpAuthentication, PermanentStepError, TransientStepError } from '@allma/core-types';
+import { log_debug } from '@allma/core-sdk';
 import axios from 'axios';
 
 const secretsManager = new SecretsManagerClient({});
@@ -107,7 +108,7 @@ export async function discoverTools(connection: McpConnection): Promise<any> {
       if (error.response) {
         // The server responded with a non-2xx status code.
         const { status, data } = error.response;
-        console.log(`[DEBUG] MCP server responded with error status ${status}. Raw response data:`, data);
+        log_debug('MCP server responded with error status', { status, data });
         if (status >= 500) {
           // 5xx errors are server-side and may be temporary.
           throw new TransientStepError(`MCP server returned a server error (HTTP ${status}) during tool discovery.`);

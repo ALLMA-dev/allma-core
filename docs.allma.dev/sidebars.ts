@@ -55,6 +55,7 @@ const sidebars: SidebarsConfig = {
         'reference/flow-definition-reference',
         'reference/flow-builder-reference',
         'reference/execution-status-notifications',
+        'reference/logging-and-redaction',
         {
           type: 'category',
           label: 'Admin API Reference',

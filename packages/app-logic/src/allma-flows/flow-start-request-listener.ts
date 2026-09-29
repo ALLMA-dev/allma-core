@@ -2,7 +2,7 @@
 import { SQSEvent, SQSHandler } from 'aws-lambda';
 import { SFNClient, StartExecutionCommand } from '@aws-sdk/client-sfn';
 import { StartFlowExecutionInput, StartFlowExecutionInputSchema, ENV_VAR_NAMES } from '@allma/core-types';
-import { log_error, log_info } from '@allma/core-sdk';
+import { log_debug, log_error, log_info } from '@allma/core-sdk';
 import { v4 as uuidv4 } from 'uuid';
 
 const sfnClient = new SFNClient({});
@@ -22,7 +22,7 @@ export const handler: SQSHandler = async (event: SQSEvent) => {
     log_info('Processing SQS record to start flow', { messageId: record.messageId }, correlationId);
 
     try {
-      console.log('Received SQS record:', JSON.stringify(record.body));
+      log_debug('Received SQS record', { messageId: record.messageId, body: record.body }, correlationId);
       const body = JSON.parse(record.body);
       const parsedInput = StartFlowExecutionInputSchema.safeParse(body);
 

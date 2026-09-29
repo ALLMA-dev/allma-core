@@ -40,6 +40,7 @@ export const ENV_VAR_NAMES = {
     // General Configuration
     STAGE_NAME: "STAGE_NAME",
     LOG_LEVEL: "LOG_LEVEL",
+    LOG_REDACTION_CONFIG: "LOG_REDACTION_CONFIG",
 
     // Secrets and Credentials
     AI_API_KEY_SECRET_ARN: "AI_API_KEY_SECRET_ARN",

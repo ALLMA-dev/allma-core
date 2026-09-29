@@ -128,14 +128,14 @@ async function stampProgress(
  * It orchestrates step execution by delegating to specialized modules.
  */
 export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (event, context) => {
-    console.log("IterativeStepProcessor RAW_EVENT:", JSON.stringify(event, null, 2));
+    const correlationId = event.runtimeState?.flowExecutionId;
+    log_debug('IterativeStepProcessor RAW_EVENT', { event }, correlationId);
 
     const originalEvent = event;
     let runtimeState: FlowRuntimeState = event.runtimeState;
     const isBranchExecution = !!runtimeState.branchId;
 
     const { taskToken, parallelAggregateInput, resumePayload, pollingResult, syncFlowResult } = originalEvent;
-    const correlationId = runtimeState.flowExecutionId;
 
     let flowDef: FlowDefinition | undefined;
     let stepInstance: StepInstance | undefined;

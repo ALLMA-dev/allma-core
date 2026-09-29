@@ -1,3 +1,5 @@
+import { log_error, log_info } from './logger.js';
+
 export interface CloudFormationEvent {
   RequestType: 'Create' | 'Update' | 'Delete';
   ServiceToken: string;
@@ -37,8 +39,8 @@ export async function sendCloudFormationResponse(
 
   try {
     const response = await fetch(event.ResponseURL, responseOptions);
-    console.log('CloudFormation response status:', response.status);
+    log_info('CloudFormation response sent', { status: response.status }, event.RequestId);
   } catch (error) {
-    console.error('Failed to send CloudFormation response:', error);
+    log_error('Failed to send CloudFormation response', { error: error instanceof Error ? error.message : String(error) }, event.RequestId);
   }
 }
