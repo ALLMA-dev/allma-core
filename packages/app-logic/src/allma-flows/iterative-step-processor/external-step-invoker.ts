@@ -11,6 +11,7 @@ import {
   ExternalStepRegistryItemSchema,
   ENV_VAR_NAMES,
 } from '@allma/core-types';
+import { log_warn } from '@allma/core-sdk';
 import { classifyStepError } from '../../allma-core/utils/error-classifier.js';
 
 const ALLMA_CONFIG_TABLE_NAME = process.env[ENV_VAR_NAMES.ALLMA_CONFIG_TABLE_NAME];
@@ -121,8 +122,7 @@ async function getExternalStepRegistryItem(moduleIdentifier: string): Promise<Ex
 
   const parsed = ExternalStepRegistryItemSchema.safeParse(result.Item);
   if (!parsed.success) {
-    // Log a warning, but don't fail the execution
-    console.warn(`Invalid external step registry item found for ${moduleIdentifier}:`, parsed.error);
+    log_warn('Invalid external step registry item', { moduleIdentifier, errors: parsed.error.format() });
     return null;
   }
 
