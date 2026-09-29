@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
 import { ENV_VAR_NAMES, ALLMA_ADMIN_API_ROUTES } from '@allma/core-types';
 import { LambdaArchitectureType, StageConfig } from '../config/stack-config.js';
+import { logRedactionEnv } from './log-redaction-env.js';
 
 const __filename_email = fileURLToPath(import.meta.url);
 const __dirname_email = dirname(__filename_email);
@@ -87,6 +88,7 @@ export class EmailIntegration extends Construct {
             environment: {
                 [ENV_VAR_NAMES.STAGE_NAME]: stageConfig.stage,
                 [ENV_VAR_NAMES.LOG_LEVEL]: stageConfig.logging.logLevel,
+                ...logRedactionEnv(stageConfig),
                 // MODIFIED: Add the missing ALLMA_CONFIG_TABLE_NAME environment variable
                 [ENV_VAR_NAMES.ALLMA_CONFIG_TABLE_NAME]: configTable.tableName,
                 [ENV_VAR_NAMES.ALLMA_FLOW_START_REQUEST_QUEUE_URL]: flowStartQueue.queueUrl,

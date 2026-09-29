@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
 import { ENV_VAR_NAMES } from '@allma/core-types';
 import { LambdaArchitectureType, StageConfig } from '../config/stack-config.js';
+import { logRedactionEnv } from './log-redaction-env.js';
 
 const __filename_notifications = fileURLToPath(import.meta.url);
 const __dirname_notifications = dirname(__filename_notifications);
@@ -104,6 +105,7 @@ export class AllmaNotifications extends Construct {
       environment: {
         [ENV_VAR_NAMES.STAGE_NAME]: stageConfig.stage,
         [ENV_VAR_NAMES.LOG_LEVEL]: stageConfig.logging.logLevel,
+        ...logRedactionEnv(stageConfig),
         [ENV_VAR_NAMES.ALLMA_FLOW_EXECUTION_LOG_TABLE_NAME]: flowExecutionLogTable.tableName,
         [ENV_VAR_NAMES.ALLMA_EXECUTION_STATUS_TOPIC_ARN]: this.executionStatusTopic.topicArn,
         AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
