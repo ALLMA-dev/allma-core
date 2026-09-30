@@ -1,5 +1,11 @@
 # @allma/core-cdk
 
+## 1.7.1
+
+### Patch Changes
+
+- 6913539: adm-zip upgraded to 0.6.1, clearing its high-severity advisories.
+
 ## 1.7.0
 
 ### Minor Changes
