@@ -44,7 +44,7 @@
     "@cfworker/json-schema": "^4.1.1",
     "@google/genai": "^1.28.0",
     "@langchain/google-vertexai": "^2.2.0",
-    "adm-zip": "^0.5.16",
+    "adm-zip": "^0.6.1",
     "aws-cdk-lib": "^2.263.0",
     "axios": "^1.7.2",
     "constructs": "^10.3.0",
@@ -65,7 +65,6 @@
     "zod-to-json-schema": "^3.25.2"
   },
   "devDependencies": {
-    "@types/adm-zip": "^0.5.7",
     "aws-cdk": "^2.1134.0",
     "eslint": "^9.8.0",
     "ts-node": "^10.9.2",

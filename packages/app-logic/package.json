@@ -35,7 +35,7 @@
     "@google/genai": "^1.47.0",
     "@langchain/core": "^1.2.4",
     "@langchain/google-vertexai": "^2.2.0",
-    "adm-zip": "^0.5.10",
+    "adm-zip": "^0.6.1",
     "axios": "^1.7.2",
     "date-fns": "^4.1.0",
     "fast-xml-parser": "^5.0.0",
@@ -46,7 +46,6 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
-    "@types/adm-zip": "^0.5.5",
     "@types/aws-lambda": "^8.10.142",
     "@types/chai": "^4.3.5",
     "@types/estree": "^1.0.5",
