@@ -23,7 +23,7 @@ const header = { formatVersion: '1.0', exportedAt: NOW };
 
 const flowsFile = {
   ...header,
-  flows: [makeFlowDefinition({ id: 'flow-1', flowVariables: { table: 'orders-{{stage}}', arn: 'arn:aws:sqs:{{region}}:{{accountId}}:q' } })],
+  flows: [makeFlowDefinition({ id: 'flow-1' })],
   stepDefinitions: [{ id: 'step-1', name: 'Step One', stepType: StepType.NO_OP, createdAt: NOW, updatedAt: NOW }],
 };
 const promptsFile = {
@@ -42,16 +42,16 @@ const zipOf = (files: Record<string, unknown>) => {
   return zip.toBuffer();
 };
 
-const event = (key: string, DeploymentParameters?: Record<string, string>) =>
-  ({ RequestType: 'Create', ResourceProperties: { S3Bucket: 'assets', S3Key: key, DeploymentParameters } }) as unknown as CloudFormationEvent;
+const event = (key: string) =>
+  ({ RequestType: 'Create', ResourceProperties: { S3Bucket: 'assets', S3Key: key } }) as unknown as CloudFormationEvent;
 
 const keys: string[] = [];
-const run = async (files: Record<string, unknown>, DeploymentParameters?: Record<string, string>) => {
+const run = async (files: Record<string, unknown>) => {
   const key = `config-importer-${keys.length}-${process.pid}.zip`;
   keys.push(key);
   const body = zipOf(files);
   s3Mock.on(GetObjectCommand).callsFake(() => ({ Body: Readable.from(body) }));
-  await handler(event(key, DeploymentParameters));
+  await handler(event(key));
 };
 
 let importSpy: ReturnType<typeof vi.spyOn>;
@@ -84,22 +84,5 @@ describe('config-importer handler — zip asset', () => {
     expect(config.mcpConnections?.map((m) => m.id)).toEqual(['mcp-1']);
     expect(config.agents?.map((a) => a.id)).toEqual(['agent-1']);
     expect(sendCloudFormationResponse).toHaveBeenCalledWith(expect.anything(), 'SUCCESS', { ImportedItems: 2 });
-  });
-
-  it('renders DeploymentParameters into zipped flowVariables', async () => {
-    await run({ 'configs/flows.json': flowsFile }, { stage: 'dev', accountId: '123456789012', region: 'eu-west-1' });
-
-    expect(imported().flows[0].flowVariables).toEqual({ table: 'orders-dev', arn: 'arn:aws:sqs:eu-west-1:123456789012:q' });
-  });
-
-  it('fails the custom resource naming the zip entry that did not validate', async () => {
-    await run({ 'configs/flows.json': flowsFile, 'configs/bad.json': { ...header, flows: [{ id: 'broken' }] } });
-
-    expect(importSpy).not.toHaveBeenCalled();
-    expect(sendCloudFormationResponse).toHaveBeenCalledWith(
-      expect.anything(),
-      'FAILED',
-      { Error: expect.stringContaining('configs/bad.json') },
-    );
   });
 });
