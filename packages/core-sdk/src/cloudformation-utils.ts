@@ -33,13 +33,17 @@ export async function sendCloudFormationResponse(
     body: responseBody,
     headers: {
       'content-type': '',
-      'content-length': responseBody.length.toString(),
+      'content-length': Buffer.byteLength(responseBody).toString(),
     },
   };
 
   try {
     const response = await fetch(event.ResponseURL, responseOptions);
-    log_info('CloudFormation response sent', { status: response.status }, event.RequestId);
+    if (!response.ok) {
+      log_error('CloudFormation response rejected', { status: response.status, statusText: response.statusText }, event.RequestId);
+    } else {
+      log_info('CloudFormation response sent', { status: response.status }, event.RequestId);
+    }
   } catch (error) {
     log_error('Failed to send CloudFormation response', { error: error instanceof Error ? error.message : String(error) }, event.RequestId);
   }

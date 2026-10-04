@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, onTestFinished } from 'vitest';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { StepType, AllmaExportFormat } from '@allma/core-types';
 import type { CloudFormationEvent } from '@allma/core-sdk';
@@ -7,6 +7,11 @@ import fs from 'fs';
 import { Readable } from 'stream';
 import { mockClient } from '../_helpers/aws-mock.js';
 import { makeFlowDefinition } from '../_helpers/fixtures.js';
+import { captureLogs } from '../_helpers/logger.js';
+
+vi.hoisted(() => {
+  process.env.LOG_LEVEL = 'ERROR';
+});
 
 vi.mock('@allma/core-sdk', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@allma/core-sdk')>()),
@@ -42,16 +47,16 @@ const zipOf = (files: Record<string, unknown>) => {
   return zip.toBuffer();
 };
 
-const event = (key: string) =>
-  ({ RequestType: 'Create', ResourceProperties: { S3Bucket: 'assets', S3Key: key } }) as unknown as CloudFormationEvent;
+const event = (key: string, RequestType: CloudFormationEvent['RequestType']) =>
+  ({ RequestType, ResourceProperties: { S3Bucket: 'assets', S3Key: key } }) as unknown as CloudFormationEvent;
 
 const keys: string[] = [];
-const run = async (files: Record<string, unknown>) => {
+const run = async (files: Record<string, unknown>, requestType: CloudFormationEvent['RequestType'] = 'Create') => {
   const key = `config-importer-${keys.length}-${process.pid}.zip`;
   keys.push(key);
   const body = zipOf(files);
   s3Mock.on(GetObjectCommand).callsFake(() => ({ Body: Readable.from(body) }));
-  await handler(event(key));
+  await handler(event(key, requestType));
 };
 
 let importSpy: ReturnType<typeof vi.spyOn>;
@@ -84,5 +89,67 @@ describe('config-importer handler — zip asset', () => {
     expect(config.mcpConnections?.map((m) => m.id)).toEqual(['mcp-1']);
     expect(config.agents?.map((a) => a.id)).toEqual(['agent-1']);
     expect(sendCloudFormationResponse).toHaveBeenCalledWith(expect.anything(), 'SUCCESS', { ImportedItems: 2 });
+  });
+});
+
+describe('config-importer handler — import errors', () => {
+  it.each(['Create', 'Update'] as const)('replies FAILED, never SUCCESS, on %s when the import reports errors', async (requestType) => {
+    onTestFinished(captureLogs().restore);
+    importSpy.mockResolvedValueOnce({
+      created: { flows: 0, steps: 0, prompts: 0, mcpConnections: 0, agents: 0 },
+      updated: { flows: 0, steps: 0, prompts: 0, mcpConnections: 0, agents: 0 },
+      skipped: { flows: 0, steps: 0, prompts: 0, mcpConnections: 0, agents: 0 },
+      errors: [{ type: 'flow', id: 'flow-1', message: 'boom' }],
+    });
+
+    await run({ 'configs/flows.json': flowsFile }, requestType);
+
+    expect(sendCloudFormationResponse).toHaveBeenCalledWith(expect.anything(), 'FAILED', {
+      Error: expect.stringContaining('[flow:flow-1] boom'),
+    });
+    expect(sendCloudFormationResponse).not.toHaveBeenCalledWith(expect.anything(), 'SUCCESS', expect.anything());
+  });
+});
+
+describe('sendCloudFormationResponse', () => {
+  const cfEvent = {
+    RequestType: 'Create',
+    ResponseURL: 'https://cfn-response.example.com/presigned',
+    StackId: 'stack-1',
+    RequestId: 'req-1',
+    LogicalResourceId: 'Importer',
+    ResourceType: 'Custom::AllmaConfigImporter',
+    ServiceToken: 'token',
+    ResourceProperties: {},
+  } as CloudFormationEvent;
+  const fetchMock = vi.fn();
+  const realSender = async () =>
+    (await vi.importActual<typeof import('@allma/core-sdk')>('@allma/core-sdk')).sendCloudFormationResponse;
+
+  beforeEach(() => vi.stubGlobal('fetch', fetchMock));
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('declares the UTF-8 byte length of a non-ASCII FAILED body', async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 200 });
+
+    await (await realSender())(cfEvent, 'FAILED', { Error: 'flow ‘x’ — invalid' });
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(cfEvent.ResponseURL);
+    expect(init.method).toBe('PUT');
+    expect(init.headers['content-length']).toBe(Buffer.byteLength(init.body).toString());
+    expect(JSON.parse(init.body)).toMatchObject({ Status: 'FAILED', Data: { Error: 'flow ‘x’ — invalid' } });
+  });
+
+  it('resolves and logs an error when CloudFormation rejects the reply', async () => {
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 403, statusText: 'Forbidden' });
+    const logs = captureLogs();
+    onTestFinished(logs.restore);
+
+    await expect((await realSender())(cfEvent, 'FAILED', { Error: 'boom' })).resolves.toBeUndefined();
+
+    expect(logs.withMessage('CloudFormation response rejected')).toEqual([
+      expect.objectContaining({ level: 'ERROR', status: 403, correlationId: 'req-1' }),
+    ]);
   });
 });
