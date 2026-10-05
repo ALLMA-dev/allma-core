@@ -23,9 +23,9 @@ function configFile(name: string, content: string): string {
   return file;
 }
 
-function synth(code: lambda.Code, config: string) {
+function synth(code: lambda.Code, config: string, synthesizer?: cdk.IStackSynthesizer) {
   const app = new cdk.App();
-  const stack = new cdk.Stack(app, 'TestStack', { env: { account: '123456789012', region: 'us-east-1' } });
+  const stack = new cdk.Stack(app, 'TestStack', { env: { account: '123456789012', region: 'us-east-1' }, synthesizer });
   const importerFunction = new lambda.Function(stack, 'Importer', {
     code,
     runtime: lambda.Runtime.NODEJS_22_X,
@@ -78,6 +78,15 @@ describe('createConfigImporterResource', () => {
     const a = synth(lambda.Code.fromAsset(codeA), config1).properties;
     const b = synth(lambda.Code.fromAsset(codeA), config1).properties;
     expect(b).toEqual(a);
+  });
+
+  it('keys on the importer code under the legacy synthesizer, where the code key is an intrinsic', () => {
+    const a = synth(lambda.Code.fromAsset(codeA), config1, new cdk.LegacyStackSynthesizer());
+    const b = synth(lambda.Code.fromAsset(codeB), config1, new cdk.LegacyStackSynthesizer());
+    expect(typeof a.functionCode.S3Key).toBe('object');
+    expect(a.properties.ImporterCodeKey).toEqual(a.functionCode.S3Key);
+    expect(b.properties.S3Key).toEqual(a.properties.S3Key);
+    expect(b.properties.ImporterCodeKey).not.toEqual(a.properties.ImporterCodeKey);
   });
 
   it('throws when the importer code is not an asset', () => {

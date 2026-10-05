@@ -14,7 +14,7 @@ export function createConfigImporterResource(
 ): cdk.CustomResource {
   const { importerFunction, configAsset, deploymentParameters } = props;
   const importerCodeKey = cdk.Stack.of(importerFunction).resolve((importerFunction.node.defaultChild as lambda.CfnFunction).code)?.s3Key;
-  if (typeof importerCodeKey !== 'string') {
+  if (importerCodeKey == null) {
     throw new Error(`Config importer function '${importerFunction.node.path}' has no asset code key to key the config import on.`);
   }
   return new cdk.CustomResource(scope, id, {
