@@ -14,7 +14,6 @@
     "lint": "turbo run lint",
     "test": "turbo run test",
     "clean": "npm run clean -ws --if-present && rm -rf node_modules package-lock.json",
-    "deploy:dev": "npm run build && npx cdk deploy --all -c stage=dev -c deployAdminShell=true -c deployDocs=true --require-approval never",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "npm run build && changeset publish"
