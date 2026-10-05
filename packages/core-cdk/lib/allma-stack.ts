@@ -15,6 +15,7 @@ import { PollingOrchestrator } from './constructs/polling-orchestrator.js';
 import { EmailIntegration } from './constructs/email-integration.js';
 import { AllmaMonitoring } from './constructs/monitoring.js';
 import { AllmaNotifications } from './constructs/notifications.js';
+import { createConfigImporterResource } from './constructs/config-importer-resource.js';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import * as iam from 'aws-cdk-lib/aws-iam';
@@ -306,18 +307,10 @@ export class AllmaStack extends cdk.Stack {
 
       configAsset.grantRead(compute.configImporterLambda);
 
-      const customResource = new cdk.CustomResource(this, 'AllmaConfigImporterResource', {
-        serviceToken: compute.configImporterLambda.functionArn,
-        properties: {
-          S3Bucket: configAsset.s3BucketName,
-          S3Key: configAsset.s3ObjectKey,
-          DeploymentParameters: {
-            stage: stageConfig.stage,
-            accountId: this.account,
-            region: this.region,
-          }
-        },
-        resourceType: 'Custom::AllmaConfigImporter',
+      const customResource = createConfigImporterResource(this, 'AllmaConfigImporterResource', {
+        importerFunction: compute.configImporterLambda,
+        configAsset,
+        deploymentParameters: { stage: stageConfig.stage, accountId: this.account, region: this.region },
       });
 
       customResource.node.addDependency(dataStores.allmaConfigTable);
