@@ -33,6 +33,10 @@ It also supports **multimodal (vision) input**: you can attach images and PDFs t
 | `securityValidatorConfig`   | `object`                           |    No    | An integrated check to prevent prompt leaking or harmful content. Can check for `forbiddenStrings`.                                                                                                  |
 | `outputValidation`          | `object`                           |    No    | Validates the structure of the LLM's JSON output. `requiredFields` is an array of JSONPaths that must exist in the output. If any check fails, it can trigger `retryOnContentError`.                   |
 
+#### Fallbacks and Model Health
+
+A model that fails repeatedly with invocation errors (throttling, 5xx responses, timeouts) is skipped for a few minutes by every flow that runs in the same warm Lambda instance, and the step moves straight to its next fallback. Configuration errors (for example a built-in tool declared on `AWS_BEDROCK`, or an unsupported Bedrock model provider), permission errors and safety blocks still fail the attempt and move to the next fallback, but they do not count toward the model's health, so one misconfigured flow cannot take a model out of service for other flows. If every model fails, the step fails with the last error. Configuration and permission errors are permanent, so `onError.retries` does not retry them.
+
 ---
 
 ### Templated Model Selection \{#templated-model-selection}

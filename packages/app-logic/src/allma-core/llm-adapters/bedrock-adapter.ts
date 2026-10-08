@@ -337,10 +337,7 @@ export class BedrockAdapter implements LlmProviderAdapter {
             }
         } catch (error: any) {
             log_error('Failed to build payload for Bedrock model.', { error: error.message }, correlationId);
-            return {
-                success: false, provider: LLMProviderType.AWS_BEDROCK, modelUsed: modelId, responseText: null,
-                errorMessage: `Payload construction error: ${error.message}`,
-            };
+            throw new PermanentStepError(`Payload construction error: ${error.message}`, undefined, error);
         }
 
         const command = new InvokeModelCommand({
