@@ -25,6 +25,7 @@ import { loadPromptTemplate } from '../config-loader.js';
 import { getMediaAttachmentsConfig, resolveLlmMedia } from './llm/media-resolver.js';
 import { getToolsConfig, getToolChoiceConfig } from './llm/tool-resolver.js';
 import { renderNestedTemplates } from '../utils/template-renderer.js';
+import { isRetryableError } from '../utils/error-classifier.js';
 
 const EXECUTION_TRACES_BUCKET_NAME = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME]!;
 
@@ -347,7 +348,7 @@ export const handleLlmInvocation: StepHandler = async (
           errorMessage: response.errorMessage, errorDetails: response.errorDetails,
           safetyDetails: response.safetyDetails, provider: model.provider
         }, correlationId);
-        recordModelFailure(model.provider, model.modelId);
+        if (response.safetyFlagged !== true) recordModelFailure(model.provider, model.modelId);
         lastError = new Error(response.errorMessage || `LLM Invocation failed for ${model.modelId} without a specific error message.`);
         continue;
       }
@@ -397,7 +398,7 @@ export const handleLlmInvocation: StepHandler = async (
         errorDetails: error.details || error.cause,
         provider: model.provider
       }, correlationId);
-      recordModelFailure(model.provider, model.modelId);
+      if (isRetryableError(error)) recordModelFailure(model.provider, model.modelId);
       lastError = error;
       continue;
     }

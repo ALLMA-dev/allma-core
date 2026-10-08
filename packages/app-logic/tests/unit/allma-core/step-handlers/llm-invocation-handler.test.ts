@@ -3,6 +3,8 @@ import {
   LLMProviderType,
   StepType,
   ContentBasedRetryableError,
+  PermanentStepError,
+  TransientStepError,
   type StepDefinition,
   type LlmGenerationResponse,
   type PromptTemplate,
@@ -412,6 +414,75 @@ describe('handleLlmInvocation', () => {
           toolCalls,
         }),
       });
+    });
+  });
+
+  describe('model health circuit breaker', () => {
+    const EXCLUSION_THRESHOLD = 5;
+    const bedrockStep = (modelId: string) => makeLlmStepDef({ llmProvider: LLMProviderType.AWS_BEDROCK, modelId } as Partial<StepDefinition>);
+    const invoke = (modelId: string) => handleLlmInvocation(bedrockStep(modelId), { name: 'w', secret_code: 'c' }, makeRuntimeState());
+
+    const failRepeatedly = async (modelId: string, generateContent: ReturnType<typeof vi.fn>, expected: string) => {
+      mockedGetLlmAdapter.mockReturnValue({ generateContent } as never);
+      for (let i = 0; i < EXCLUSION_THRESHOLD; i++) {
+        await expect(invoke(modelId)).rejects.toThrow(expected);
+      }
+    };
+
+    it('does not exclude a model after repeated payload-construction errors', async () => {
+      const modelId = 'anthropic.breaker-payload';
+      const failing = vi.fn().mockRejectedValue(new PermanentStepError('Payload construction error: bad tool'));
+      mockedGetLlmAdapter.mockReturnValue({ generateContent: failing } as never);
+      for (let i = 0; i < EXCLUSION_THRESHOLD; i++) {
+        const error = await invoke(modelId).catch((e: unknown) => e);
+        expect(error).toBeInstanceOf(PermanentStepError);
+        expect((error as Error).message).toBe('Payload construction error: bad tool');
+      }
+
+      const generateContent = stubAdapter({ responseText: 'ok' });
+      const result = await invoke(modelId);
+
+      expect(generateContent).toHaveBeenCalledTimes(1);
+      expect(result.outputData).toMatchObject({ llm_response: 'ok' });
+    });
+
+    it('does not exclude a model after repeated safety blocks', async () => {
+      const modelId = 'anthropic.breaker-safety';
+      await failRepeatedly(
+        modelId,
+        vi.fn().mockResolvedValue({ success: false, safetyFlagged: true, errorMessage: 'blocked by safety', provider: LLMProviderType.AWS_BEDROCK, modelUsed: modelId }),
+        'blocked by safety'
+      );
+
+      const generateContent = stubAdapter({ responseText: 'ok' });
+      const result = await invoke(modelId);
+
+      expect(generateContent).toHaveBeenCalledTimes(1);
+      expect(result.outputData).toMatchObject({ llm_response: 'ok' });
+    });
+
+    it('excludes a model after repeated transient invocation errors', async () => {
+      const modelId = 'anthropic.breaker-transient';
+      await failRepeatedly(modelId, vi.fn().mockRejectedValue(new TransientStepError('Bedrock service error: throttled')), 'throttled');
+
+      const generateContent = stubAdapter({ responseText: 'ok' });
+
+      await expect(invoke(modelId)).rejects.toThrow('temporarily excluded');
+      expect(generateContent).not.toHaveBeenCalled();
+    });
+
+    it('excludes a model after repeated non-safety adapter failures', async () => {
+      const modelId = 'anthropic.breaker-503';
+      await failRepeatedly(
+        modelId,
+        vi.fn().mockResolvedValue({ success: false, errorMessage: 'upstream 503', provider: LLMProviderType.AWS_BEDROCK, modelUsed: modelId }),
+        'upstream 503'
+      );
+
+      const generateContent = stubAdapter({ responseText: 'ok' });
+
+      await expect(invoke(modelId)).rejects.toThrow('temporarily excluded');
+      expect(generateContent).not.toHaveBeenCalled();
     });
   });
 });

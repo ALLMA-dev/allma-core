@@ -119,11 +119,11 @@ describe('BedrockAdapter.generateContent', () => {
     expect(result.tokenUsage).toEqual({ inputTokens: 5, outputTokens: 6 });
   });
 
-  it('returns a payload-construction failure for an unsupported model provider', async () => {
-    const result = await adapter.generateContent(makeRequest({ modelId: 'cohere.command-r' }));
+  it('rejects an unsupported model provider with a payload-construction PermanentStepError', async () => {
+    const result = adapter.generateContent(makeRequest({ modelId: 'cohere.command-r' }));
 
-    expect(result.success).toBe(false);
-    expect(result.errorMessage).toContain('Payload construction error');
+    await expect(result).rejects.toBeInstanceOf(PermanentStepError);
+    await expect(result).rejects.toThrow('Payload construction error');
     expect(bedrockMock).toHaveReceivedCommandTimes(InvokeModelCommand, 0);
   });
 
@@ -221,10 +221,12 @@ describe('BedrockAdapter.generateContent', () => {
     parameters: { type: 'object', properties: {} },
   };
 
-  const expectRejected = (result: Awaited<ReturnType<BedrockAdapter['generateContent']>>, type: string) => {
-    expect(result.success).toBe(false);
-    expect(result.errorMessage).toContain(`'${type}'`);
-    expect(result.errorMessage).toContain('AWS_BEDROCK');
+  const expectRejected = async (result: ReturnType<BedrockAdapter['generateContent']>, type: string) => {
+    const error = await result.then(() => undefined, (e: unknown) => e);
+    expect(error).toBeInstanceOf(PermanentStepError);
+    expect((error as Error).message).toContain('Payload construction error');
+    expect((error as Error).message).toContain(`'${type}'`);
+    expect((error as Error).message).toContain('AWS_BEDROCK');
     expect(bedrockMock.commandCalls(InvokeModelCommand)).toHaveLength(0);
   };
 
@@ -233,7 +235,7 @@ describe('BedrockAdapter.generateContent', () => {
     async (type) => {
       bedrockMock.on(InvokeModelCommand).resolves({ body: encode({ content: [{ text: 'ok' }], usage: {} }) });
 
-      expectRejected(await adapter.generateContent(makeRequest({ tools: [{ type }] })), type);
+      await expectRejected(adapter.generateContent(makeRequest({ tools: [{ type }] })), type);
     }
   );
 
@@ -242,8 +244,8 @@ describe('BedrockAdapter.generateContent', () => {
     async (modelId) => {
       bedrockMock.on(InvokeModelCommand).resolves({ body: encode({}) });
 
-      expectRejected(
-        await adapter.generateContent(makeRequest({ modelId, tools: [{ type: LlmBuiltInToolType.WEB_SEARCH }] })),
+      await expectRejected(
+        adapter.generateContent(makeRequest({ modelId, tools: [{ type: LlmBuiltInToolType.WEB_SEARCH }] })),
         LlmBuiltInToolType.WEB_SEARCH
       );
     }
@@ -252,8 +254,8 @@ describe('BedrockAdapter.generateContent', () => {
   it('rejects a built-in tool mixed with function tools', async () => {
     bedrockMock.on(InvokeModelCommand).resolves({ body: encode({ content: [{ text: 'ok' }], usage: {} }) });
 
-    expectRejected(
-      await adapter.generateContent(makeRequest({ tools: [functionTool, { type: LlmBuiltInToolType.CODE_EXECUTION }] })),
+    await expectRejected(
+      adapter.generateContent(makeRequest({ tools: [functionTool, { type: LlmBuiltInToolType.CODE_EXECUTION }] })),
       LlmBuiltInToolType.CODE_EXECUTION
     );
   });
