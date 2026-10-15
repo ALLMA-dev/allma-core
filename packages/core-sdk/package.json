@@ -45,7 +45,6 @@
     "@aws-sdk/lib-dynamodb": "^3.1101.0",
     "@aws-sdk/s3-request-presigner": "^3.1101.0",
     "js-tiktoken": "^1.0.12",
-    "jsonpath-plus": "^9.0.0",
     "jsonrepair": "^3.8.0"
   },
   "devDependencies": {
