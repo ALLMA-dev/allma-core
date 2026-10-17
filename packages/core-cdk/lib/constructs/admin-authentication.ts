@@ -4,8 +4,14 @@ import * as cognito from 'aws-cdk-lib/aws-cognito';
 import { RemovalPolicy, CfnOutput, Duration } from 'aws-cdk-lib';
 import { StageConfig } from '../config/stack-config.js';
 
-interface AdminAuthenticationProps {
+export interface AdminAuthenticationProps {
   stageConfig: StageConfig;
+  mfa?: cognito.Mfa;
+  mfaSecondFactor?: cognito.MfaSecondFactor;
+  advancedSecurityMode?: cognito.AdvancedSecurityMode;
+  passwordMinLength?: number;
+  passwordPolicy?: cognito.PasswordPolicy;
+  deletionProtection?: boolean;
 }
 
 /**
@@ -20,6 +26,32 @@ export class AdminAuthentication extends Construct {
     super(scope, id);
 
     const isProd = props.stageConfig.stage === 'prod';
+    const cognitoConfig = props.stageConfig.cognito;
+
+    const mfa = props.mfa ?? cognitoConfig.mfa ?? cognito.Mfa.REQUIRED;
+    const mfaSecondFactor = props.mfaSecondFactor ?? cognitoConfig.mfaSecondFactor ?? {
+      sms: false,
+      otp: true,
+    };
+    const advancedSecurityMode =
+      props.advancedSecurityMode ?? cognitoConfig.advancedSecurityMode ?? cognito.AdvancedSecurityMode.ENFORCED;
+    const minLength =
+      props.passwordMinLength ??
+      props.passwordPolicy?.minLength ??
+      cognitoConfig.passwordMinLength ??
+      cognitoConfig.passwordPolicy?.minLength ??
+      12;
+    const passwordPolicy: cognito.PasswordPolicy = {
+      requireLowercase: true,
+      requireDigits: true,
+      requireSymbols: true,
+      requireUppercase: true,
+      tempPasswordValidity: Duration.days(7),
+      ...cognitoConfig.passwordPolicy,
+      ...props.passwordPolicy,
+      minLength,
+    };
+    const deletionProtection = props.deletionProtection ?? cognitoConfig.deletionProtection ?? true;
 
     this.userPool = new cognito.UserPool(this, 'AdminUserPool', {
       userPoolName: `${props.stageConfig.cognito.userPoolName}`,
@@ -40,14 +72,11 @@ export class AdminAuthentication extends Construct {
       customAttributes: {
         admin_roles: new cognito.StringAttribute({ mutable: true }),
       },
-      passwordPolicy: {
-        minLength: 8,
-        requireLowercase: true,
-        requireDigits: true,
-        requireSymbols: true,
-        requireUppercase: true,
-        tempPasswordValidity: Duration.days(7), 
-      },
+      mfa,
+      mfaSecondFactor,
+      advancedSecurityMode,
+      passwordPolicy,
+      deletionProtection,
       accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
       removalPolicy: isProd ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY,
     });

@@ -1,3 +1,4 @@
+import * as cognito from 'aws-cdk-lib/aws-cognito';
 import { LogLevel, Stage as AppStage, type LogRedactionConfig } from '@allma/core-types';
 
 /**
@@ -150,6 +151,41 @@ export interface StageConfig {
      * @example 'allma-admins'
      */
     adminGroupName: string;
+
+    /**
+     * Multi-factor authentication enforcement mode for the User Pool.
+     * @default cognito.Mfa.REQUIRED
+     */
+    mfa?: cognito.Mfa;
+
+    /**
+     * Enabled second-factor authentication methods.
+     * @default { sms: false, otp: true }
+     */
+    mfaSecondFactor?: cognito.MfaSecondFactor;
+
+    /**
+     * Cognito threat protection / advanced security mode.
+     * @default cognito.AdvancedSecurityMode.ENFORCED
+     */
+    advancedSecurityMode?: cognito.AdvancedSecurityMode;
+
+    /**
+     * Minimum password length for the User Pool password policy.
+     * @default 12
+     */
+    passwordMinLength?: number;
+
+    /**
+     * Password policy for the User Pool.
+     */
+    passwordPolicy?: cognito.PasswordPolicy;
+
+    /**
+     * Whether deletion protection is active on the User Pool.
+     * @default true
+     */
+    deletionProtection?: boolean;
   };
 
   /**
