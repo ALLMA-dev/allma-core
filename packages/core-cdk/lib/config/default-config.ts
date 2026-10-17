@@ -1,3 +1,4 @@
+import * as cognito from 'aws-cdk-lib/aws-cognito';
 import { Stage, LogLevel } from '@allma/core-types';
 import { LambdaArchitectureType, StageConfig } from './stack-config.js';
 
@@ -33,6 +34,20 @@ export const defaultConfig: StageConfig = {
   cognito: {
     userPoolName: 'AllmaAdminUserPool',
     adminGroupName: 'Admins',
+    mfa: cognito.Mfa.REQUIRED,
+    mfaSecondFactor: {
+      sms: false,
+      otp: true,
+    },
+    advancedSecurityMode: cognito.AdvancedSecurityMode.ENFORCED,
+    passwordPolicy: {
+      minLength: 12,
+      requireLowercase: true,
+      requireDigits: true,
+      requireSymbols: true,
+      requireUppercase: true,
+    },
+    deletionProtection: true,
   },
 
   // --- Lambda Resource Settings ---
