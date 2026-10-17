@@ -1,5 +1,11 @@
 # @allma/admin-shell
 
+## 13.0.1
+
+### Patch Changes
+
+- 4fdaa50: The `@allma/core-types` peer now accepts any 2.x >= 2.1.0, so a core-types minor no longer forces an admin-shell major.
+
 ## 13.0.0
 
 ### Patch Changes
