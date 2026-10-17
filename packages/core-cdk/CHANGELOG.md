@@ -1,5 +1,21 @@
 # @allma/core-cdk
 
+## 1.8.0
+
+### Minor Changes
+
+- cd4c369: Harden AdminAuthentication Cognito User Pool defaults (MFA required with TOTP, threat protection enforced, 12-character minimum password length, and active deletion protection) and expose configuration options on `StageConfig.cognito` and `AdminAuthenticationProps`.
+
+### Patch Changes
+
+- d218641: The importer's FAILED reply now reaches CloudFormation when an import error message contains non-ASCII text.
+- db23aac: The config import now re-runs when the importer Lambda code changes, not only when the flow config changes.
+- 9c9c7df: LLM_INVOCATION model health now counts only invocation failures; flow configuration errors, permission errors and safety blocks no longer mark a model unhealthy for other flows.
+- 8ef5946: Remove dead cdk.json entrypoint from @allma/core-cdk and non-functional deploy:dev script from root package.json
+- Updated dependencies [d218641]
+- Updated dependencies [ad4b8e3]
+  - @allma/core-sdk@1.3.1
+
 ## 1.7.1
 
 ### Patch Changes
