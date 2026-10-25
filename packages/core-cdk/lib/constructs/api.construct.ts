@@ -18,6 +18,7 @@ import { AdminAuthentication } from './admin-authentication.js';
 import { AllmaAdminApi } from './admin-api.js';
 import { LambdaArchitectureType, StageConfig } from '../config/stack-config.js';
 import { logRedactionEnv } from './log-redaction-env.js';
+import { defaultLambdaLogRetention } from './log-retention.js';
 
 const __filename_api = fileURLToPath(import.meta.url);
 const __dirname_api = dirname(__filename_api);
@@ -267,6 +268,7 @@ export class ApiConstruct extends Construct {
             timeout,
             memorySize,
             environment: { ...environment, ...logRedactionEnv(this.stageConfig) },
+            logRetention: defaultLambdaLogRetention(this.stageConfig),
             ...(reservedConcurrentExecutions !== undefined && { reservedConcurrentExecutions }),
             bundling: {
                 minify: true,

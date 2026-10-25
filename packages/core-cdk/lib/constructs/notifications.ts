@@ -12,6 +12,7 @@ import { dirname } from 'node:path';
 import { ENV_VAR_NAMES } from '@allma/core-types';
 import { LambdaArchitectureType, StageConfig } from '../config/stack-config.js';
 import { logRedactionEnv } from './log-redaction-env.js';
+import { defaultLambdaLogRetention } from './log-retention.js';
 
 const __filename_notifications = fileURLToPath(import.meta.url);
 const __dirname_notifications = dirname(__filename_notifications);
@@ -99,6 +100,7 @@ export class AllmaNotifications extends Construct {
       role: dispatcherRole,
       timeout: cdk.Duration.seconds(30),
       memorySize: 256,
+      logRetention: defaultLambdaLogRetention(stageConfig),
       // EventBridge invokes the dispatcher asynchronously; retry then DLQ on persistent failure.
       retryAttempts: 2,
       deadLetterQueue: this.dispatcherDlq,

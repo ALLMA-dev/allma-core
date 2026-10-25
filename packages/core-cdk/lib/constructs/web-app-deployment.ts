@@ -13,6 +13,7 @@ import * as route53Targets from 'aws-cdk-lib/aws-route53-targets';
 import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as lambdaNodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as logs from 'aws-cdk-lib/aws-logs';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -55,6 +56,12 @@ export interface WebAppDeploymentProps {
    * @default - No custom domain is configured.
    */
   hostedZoneId?: string;
+
+  /**
+   * CloudWatch log retention for the deployment's custom-resource Lambdas.
+   * @default logs.RetentionDays.ONE_WEEK
+   */
+  logRetention?: logs.RetentionDays;
 }
 
 /**
@@ -72,6 +79,7 @@ export class WebAppDeployment extends Construct {
 
   constructor(scope: Construct, id: string, props: WebAppDeploymentProps) {
     super(scope, id);
+    const logRetention = props.logRetention ?? logs.RetentionDays.ONE_WEEK;
 
     // 1. Create the S3 bucket for the web app's static assets
     const assetsBucket = new s3.Bucket(this, `${props.deploymentId}AssetsBucket`, {
@@ -155,6 +163,7 @@ export class WebAppDeployment extends Construct {
       runtime: lambda.Runtime.NODEJS_22_X,
       role: configInjectorRole,
       timeout: cdk.Duration.minutes(1),
+      logRetention,
       bundling: {
         minify: true,
         sourceMap: true,
@@ -181,6 +190,7 @@ export class WebAppDeployment extends Construct {
       distribution: this.distribution,
       distributionPaths: ['/*'],
       exclude: ['index.html'], // Exclude index.html as it's handled by the custom resource
+      logRetention,
     });
 
     // Ensure the bucket exists before the custom resource tries to write to it.
