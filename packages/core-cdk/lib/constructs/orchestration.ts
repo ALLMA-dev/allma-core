@@ -8,6 +8,7 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import { RETRYABLE_STEP_ERROR_NAME, CONTENT_BASED_RETRYABLE_ERROR_NAME, TRANSIENT_STEP_ERROR_NAME, SfnActionType } from '@allma/core-types';
 import { StageConfig } from '../config/stack-config.js';
+import { resolveLogRetentionDays } from './log-retention.js';
 
 interface AllmaOrchestrationProps {
   stageConfig: StageConfig;
@@ -448,7 +449,7 @@ export class AllmaOrchestration extends Construct {
     const logGroup = new logs.LogGroup(this, 'AllmaStateMachineLogGroup', {
       logGroupName: `/aws/stepfunctions/AllmaFlowOrchestrator-${stageConfig.stage}`,
       removalPolicy: stageConfig.stage === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
-      retention: logs.RetentionDays[Object.keys(logs.RetentionDays).find(k => logs.RetentionDays[k as keyof typeof logs.RetentionDays] === stageConfig.logging.retentionDays.sfn) as keyof typeof logs.RetentionDays] || logs.RetentionDays.ONE_WEEK,
+      retention: resolveLogRetentionDays(stageConfig.logging.retentionDays.sfn),
     });
 
     this.flowOrchestratorStateMachine = new sfn.StateMachine(this, 'AllmaFlowOrchestrator', {

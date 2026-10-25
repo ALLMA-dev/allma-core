@@ -88,6 +88,17 @@ If the env var is set on a Lambda but is not valid, the logger writes one warnin
 every line, as described in [Failure behaviour](#failure-behaviour). It never falls back to raw
 output.
 
+## Log retention
+
+Every CloudWatch log group in `AllmaStack` gets a finite retention. `logging.retentionDays.default`
+sets it for every platform Lambda and for the Lambdas CDK creates for custom resources (bucket
+deployment, auto-delete objects, admin shell config injection). `logging.retentionDays.sfn` sets
+it for the orchestrator state machine log group. The default for both is 7 days.
+
+CloudWatch accepts only fixed retention periods. A value that is not one of them rounds up to the
+next valid period, for example 10 becomes 14. A value above 3653 becomes 3653 (ten years). A
+missing value, or a value of 0 or less, becomes 7.
+
 ## Precedence
 
 A redactor you register with `setLogRedactor` wins. The logger uses `LOG_REDACTION_CONFIG` only if

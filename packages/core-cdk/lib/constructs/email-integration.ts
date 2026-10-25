@@ -15,6 +15,7 @@ import { dirname } from 'node:path';
 import { ENV_VAR_NAMES, ALLMA_ADMIN_API_ROUTES } from '@allma/core-types';
 import { LambdaArchitectureType, StageConfig } from '../config/stack-config.js';
 import { logRedactionEnv } from './log-redaction-env.js';
+import { defaultLambdaLogRetention } from './log-retention.js';
 
 const __filename_email = fileURLToPath(import.meta.url);
 const __dirname_email = dirname(__filename_email);
@@ -85,6 +86,7 @@ export class EmailIntegration extends Construct {
             role: emailIngressRole,
             timeout: cdk.Duration.seconds(30),
             memorySize: 256,
+            logRetention: defaultLambdaLogRetention(stageConfig),
             environment: {
                 [ENV_VAR_NAMES.STAGE_NAME]: stageConfig.stage,
                 [ENV_VAR_NAMES.LOG_LEVEL]: stageConfig.logging.logLevel,
