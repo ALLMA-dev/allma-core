@@ -10,6 +10,8 @@ import {
   StepType,
   DelayOptions,
   TransientStepError,
+  OutputValidationField,
+  OutputValidationFieldType,
 } from '@allma/core-types';
 import { log_info, log_debug, offloadIfLarge, log_warn, log_error, isObject } from '@allma/core-sdk';
 import { JSONPath } from 'jsonpath-plus';
@@ -29,6 +31,21 @@ const EXECUTION_TRACES_BUCKET_NAME = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_T
 const SFN_PAYLOAD_WARN_THRESHOLD_BYTES = 240 * 1024;
 const MAX_INTERNAL_RETRIES = 5; // Max retries for transient errors
 const INITIAL_BACKOFF_MS = 250; // Initial backoff for retries
+
+const matchesExpectedFieldType = (val: unknown, expectedType: OutputValidationFieldType): boolean => {
+  switch (expectedType) {
+    case 'array':
+      return Array.isArray(val);
+    case 'object':
+      return isObject(val);
+    case 'string':
+      return typeof val === 'string';
+    case 'number':
+      return typeof val === 'number' && !Number.isNaN(val);
+    case 'boolean':
+      return typeof val === 'boolean';
+  }
+};
 
 /**
  * Executes a configured delay.
@@ -300,17 +317,38 @@ export const executeStandardStep = async (
     outputDataForMapping = stepHandlerResult!.outputData || {};
 
     // --- GENERIC OUTPUT VALIDATION LOGIC ---
-    if ((stepInstanceConfig as any).outputValidation?.requiredFields && outputDataForMapping) {
+    const outputValidation = stepInstanceConfig.outputValidation;
+    if (
+      outputDataForMapping &&
+      outputValidation &&
+      ((outputValidation.requiredFields && outputValidation.requiredFields.length > 0) ||
+        (outputValidation.typeChecks && outputValidation.typeChecks.length > 0))
+    ) {
       log_info(
         'Performing generic output validation.',
-        { requiredFields: (stepInstanceConfig as any).outputValidation.requiredFields },
+        {
+          requiredFields: outputValidation.requiredFields,
+          typeChecks: outputValidation.typeChecks,
+        },
         correlationId,
       );
-      for (const fieldPath of (stepInstanceConfig as any).outputValidation.requiredFields) {
+      const validationEntries: OutputValidationField[] = [
+        ...(outputValidation.requiredFields ?? []),
+        ...(outputValidation.typeChecks ?? []),
+      ];
+      for (const entry of validationEntries) {
+        const fieldPath = typeof entry === 'string' ? entry : entry.path;
+        const expectedType = typeof entry === 'string' ? undefined : entry.type;
         const matches = JSONPath({ path: fieldPath, json: outputDataForMapping, wrap: true });
         if (matches.length === 0 || matches[0] === null || matches[0] === undefined) {
           const errorMessage = `Required output field validation failed. Path '${fieldPath}' was missing or null/undefined in the step output.`;
           log_warn(errorMessage, { output: outputDataForMapping }, correlationId);
+          throw new ContentBasedRetryableError(errorMessage);
+        }
+        if (expectedType !== undefined && !matchesExpectedFieldType(matches[0], expectedType)) {
+          const actualType = Array.isArray(matches[0]) ? 'array' : typeof matches[0];
+          const errorMessage = `Output field type validation failed. Path '${fieldPath}' expected type '${expectedType}', got '${actualType}'.`;
+          log_warn(errorMessage, { output: outputDataForMapping, path: fieldPath, expectedType, actualType }, correlationId);
           throw new ContentBasedRetryableError(errorMessage);
         }
       }

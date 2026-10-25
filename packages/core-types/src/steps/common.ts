@@ -50,3 +50,27 @@ export const StepErrorHandlerSchema = z.object({
   continueOnFailure: z.boolean().optional().default(false),
 });
 export type StepErrorHandler = z.infer<typeof StepErrorHandlerSchema>;
+
+export const OutputValidationFieldTypeSchema = z.enum(['array', 'object', 'string', 'number', 'boolean']);
+export type OutputValidationFieldType = z.infer<typeof OutputValidationFieldTypeSchema>;
+
+export const OutputValidationTypeCheckSchema = z.object({
+  path: JsonPathStringSchema,
+  type: OutputValidationFieldTypeSchema,
+}).strict();
+export type OutputValidationTypeCheck = z.infer<typeof OutputValidationTypeCheckSchema>;
+
+export const OutputValidationFieldSchema = z.union([
+  JsonPathStringSchema,
+  OutputValidationTypeCheckSchema,
+]);
+export type OutputValidationField = z.infer<typeof OutputValidationFieldSchema>;
+
+/**
+ * Configuration for validating the output of a step.
+ */
+export const OutputValidationSchema = z.object({
+  requiredFields: z.array(OutputValidationFieldSchema).optional(),
+  typeChecks: z.array(OutputValidationTypeCheckSchema).optional(),
+}).strict();
+export type OutputValidation = z.infer<typeof OutputValidationSchema>;

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { StepType } from '../common/enums.js';
-import { StepErrorHandlerSchema } from '../steps/common.js';
+import { StepErrorHandlerSchema, OutputValidationSchema } from '../steps/common.js';
+import { StepInstanceSchema } from '../steps/definitions.js';
 import {
   FlowDefinitionSchema,
   FlowAuthoringSchema,
@@ -216,5 +217,86 @@ describe('StepErrorHandlerSchema retries', () => {
       },
     };
     expect(FlowAuthoringSchema.safeParse(flow).success).toBe(true);
+  });
+});
+
+describe('OutputValidationSchema and StepInstanceSchema outputValidation', () => {
+  it('accepts requiredFields strings, { path, type } entries, and typeChecks across all 5 types', () => {
+    const outputValidation = {
+      requiredFields: [
+        '$.result.id',
+        { path: '$.anomalies', type: 'array' as const },
+        { path: '$.metadata', type: 'object' as const },
+        { path: '$.summary', type: 'string' as const },
+        { path: '$.score', type: 'number' as const },
+        { path: '$.approved', type: 'boolean' as const },
+      ],
+      typeChecks: [
+        { path: '$.items', type: 'array' as const },
+        { path: '$.details', type: 'object' as const },
+        { path: '$.label', type: 'string' as const },
+        { path: '$.count', type: 'number' as const },
+        { path: '$.flag', type: 'boolean' as const },
+      ],
+    };
+
+    expect(OutputValidationSchema.safeParse(outputValidation).success).toBe(true);
+
+    const stepResult = StepInstanceSchema.safeParse({
+      stepInstanceId: 'check_step',
+      stepType: StepType.NO_OP,
+      outputValidation,
+    });
+    expect(stepResult.success).toBe(true);
+
+    const flowResult = FlowAuthoringSchema.safeParse({
+      ...authoringFlow(),
+      steps: {
+        start: {
+          stepInstanceId: 'start',
+          stepType: StepType.NO_OP,
+          outputValidation,
+        },
+      },
+    });
+    expect(flowResult.success).toBe(true);
+  });
+
+  it('rejects invalid outputValidation entries on StepInstanceSchema and FlowAuthoringSchema', () => {
+    const invalidConfigs = [
+      { requiredFields: ['not-a-jsonpath'] },
+      { requiredFields: [{ path: 'bad-path', type: 'array' }] },
+      { requiredFields: [{ path: '$.anomalies', type: 'function' }] },
+      { requiredFields: [{ path: '$.anomalies' }] },
+      { requiredFields: [{ type: 'array' }] },
+      { requiredFields: [{ path: '$.anomalies', type: 'array', extra: true }] },
+      { typeChecks: [{ path: 'not-a-jsonpath', type: 'object' }] },
+      { typeChecks: [{ path: '$.anomalies', type: 'invalid' }] },
+      { typeChecks: ['$.anomalies'] },
+      { requiredFields: ['$.ok'], unknownKey: true },
+    ];
+
+    for (const invalid of invalidConfigs) {
+      expect(OutputValidationSchema.safeParse(invalid).success).toBe(false);
+      expect(
+        StepInstanceSchema.safeParse({
+          stepInstanceId: 'start',
+          stepType: StepType.NO_OP,
+          outputValidation: invalid,
+        }).success,
+      ).toBe(false);
+      expect(
+        FlowAuthoringSchema.safeParse({
+          ...authoringFlow(),
+          steps: {
+            start: {
+              stepInstanceId: 'start',
+              stepType: StepType.NO_OP,
+              outputValidation: invalid,
+            },
+          },
+        }).success,
+      ).toBe(false);
+    }
   });
 });
