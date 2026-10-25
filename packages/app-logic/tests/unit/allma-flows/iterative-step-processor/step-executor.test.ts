@@ -142,9 +142,114 @@ describe('executeStandardStep', () => {
       stubHandler({ outputData: { result: { name: 'only-name' } } });
       const step = makeStepInstance({
         outputValidation: { requiredFields: ['$.result.id'] },
-      } as Partial<StepInstance>);
+      });
 
       await expect(run(step)).rejects.toBeInstanceOf(ContentBasedRetryableError);
+    });
+
+    it('bounds content retries when outputValidation type check fails and routes to fallbackStepInstanceId', async () => {
+      const handler = stubHandler({ outputData: { anomalies: { unexpected: 'object' } } });
+      const step = makeStepInstance({
+        stepInstanceId: 'llm_check',
+        outputValidation: {
+          requiredFields: [{ path: '$.anomalies', type: 'array' }],
+        },
+        onError: {
+          retryOnContentError: { count: 2, intervalSeconds: 1, backoffRate: 1 },
+          fallbackStepInstanceId: 'fallback_step',
+        },
+      });
+      const runtimeState = makeRuntimeState({
+        currentStepInstanceId: 'llm_check',
+        stepRetryAttempts: {},
+      });
+
+      // Attempt 1: stepRetryAttempts becomes 1 (< 2) -> throws RetryableStepError
+      await expect(run(step, runtimeState)).rejects.toBeInstanceOf(RetryableStepError);
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(runtimeState.stepRetryAttempts.llm_check).toBe(1);
+
+      // Attempt 2: stepRetryAttempts becomes 2 (>= 2) -> throws ContentBasedRetryableError (exhausted)
+      let terminalError: unknown;
+      try {
+        await run(step, runtimeState);
+      } catch (err) {
+        terminalError = err;
+      }
+      expect(terminalError).toBeInstanceOf(ContentBasedRetryableError);
+      expect(handler).toHaveBeenCalledTimes(2);
+      expect(runtimeState.stepRetryAttempts.llm_check).toBe(2);
+
+      const terminalState = await handleTerminalError(terminalError, step, runtimeState);
+      expect(terminalState.currentStepInstanceId).toBe('fallback_step');
+      expect(terminalState.status).toBe('RUNNING');
+    });
+
+    it('passes outputValidation on the first try when $.anomalies is an array (including empty array)', async () => {
+      const handler = stubHandler({ outputData: { anomalies: [] } });
+      const step = makeStepInstance({
+        stepInstanceId: 'llm_check',
+        defaultNextStepInstanceId: 'next_step',
+        outputValidation: {
+          requiredFields: [{ path: '$.anomalies', type: 'array' }],
+        },
+        onError: {
+          retryOnContentError: { count: 2, intervalSeconds: 1, backoffRate: 1 },
+          fallbackStepInstanceId: 'fallback_step',
+        },
+      });
+
+      const { nextStepId } = await run(step);
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(nextStepId).toBe('next_step');
+    });
+
+    it('validates requiredFields strings and object, string, number, and boolean type checks', async () => {
+      stubHandler({
+        outputData: {
+          present: 'ok',
+          obj: { a: 1 },
+          str: 'hello',
+          num: 42,
+          bool: false,
+        },
+      });
+      const validStep = makeStepInstance({
+        outputValidation: {
+          requiredFields: [
+            '$.present',
+            { path: '$.obj', type: 'object' },
+            { path: '$.str', type: 'string' },
+          ],
+          typeChecks: [
+            { path: '$.num', type: 'number' },
+            { path: '$.bool', type: 'boolean' },
+          ],
+        },
+      });
+      await expect(run(validStep)).resolves.toBeDefined();
+
+      // Array is not a plain object
+      stubHandler({ outputData: { obj: [1, 2] } });
+      await expect(
+        run(makeStepInstance({ outputValidation: { requiredFields: [{ path: '$.obj', type: 'object' }] } })),
+      ).rejects.toBeInstanceOf(ContentBasedRetryableError);
+
+      // Wrong primitive types
+      stubHandler({ outputData: { str: 123 } });
+      await expect(
+        run(makeStepInstance({ outputValidation: { typeChecks: [{ path: '$.str', type: 'string' }] } })),
+      ).rejects.toBeInstanceOf(ContentBasedRetryableError);
+
+      stubHandler({ outputData: { num: '42' } });
+      await expect(
+        run(makeStepInstance({ outputValidation: { typeChecks: [{ path: '$.num', type: 'number' }] } })),
+      ).rejects.toBeInstanceOf(ContentBasedRetryableError);
+
+      stubHandler({ outputData: { bool: 'false' } });
+      await expect(
+        run(makeStepInstance({ outputValidation: { typeChecks: [{ path: '$.bool', type: 'boolean' }] } })),
+      ).rejects.toBeInstanceOf(ContentBasedRetryableError);
     });
 
     it('rejects with SecurityViolationError when an LLM response trips the forbidden-string check', async () => {

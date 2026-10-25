@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { StepType, StepTypeSchema } from '../common/enums.js';
 import * as SystemSteps from './system/index.js';
-import { StepInputMappingSchema, StepOutputMappingSchema, StepErrorHandlerSchema, StepDefinitionIdSchema } from './common.js';
+import { StepInputMappingSchema, StepOutputMappingSchema, StepErrorHandlerSchema, StepDefinitionIdSchema, OutputValidationSchema } from './common.js';
 import { SystemModuleIdentifiers } from './system-module-identifiers.js';
 
 export const DelayPositionSchema = z.enum(['before', 'after']);
@@ -86,6 +86,7 @@ export const BaseStepDefinitionSchema = StepPayloadUnionSchema.and(z.object({
   customConfig: z.record(z.any()).optional(),
   inputMappings: StepInputMappingSchema.optional(),
   outputMappings: StepOutputMappingSchema.optional(),
+  outputValidation: OutputValidationSchema.optional(),
   onError: StepErrorHandlerSchema.optional(),
   literals: z.record(z.any()).optional(),
   moduleIdentifier: z.string().optional(),
@@ -158,6 +159,7 @@ export const StepInstanceSchema = BaseStepDefinitionSchema.and(z.object({
   defaultNextStepInstanceId: z.string().min(1).optional(),
   defaultNextMaxTransitions: z.number().int().min(0).optional().default(5).describe("Default Next Max Transitions|number|Maximum number of times the default transition can be taken. 0 means infinite."),
   delay: DelayOptionsSchema.optional(),
+  outputValidation: OutputValidationSchema.optional(),
   disableS3Offload: z.boolean().optional(),
   forceS3Offload: z.boolean().optional(),
 }).passthrough()).superRefine((data, ctx) => {
