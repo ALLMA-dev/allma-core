@@ -16,6 +16,7 @@ import { EmailIntegration } from './constructs/email-integration.js';
 import { AllmaMonitoring } from './constructs/monitoring.js';
 import { AllmaNotifications } from './constructs/notifications.js';
 import { createConfigImporterResource } from './constructs/config-importer-resource.js';
+import { ApplyLambdaLogRetentionAspect, defaultLambdaLogRetention } from './constructs/log-retention.js';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import * as iam from 'aws-cdk-lib/aws-iam';
@@ -83,6 +84,8 @@ export class AllmaStack extends cdk.Stack {
     }
 
     const stackPrefix = `AllmaPlatform-${stageConfig.stage}`;
+    const lambdaLogRetention = defaultLambdaLogRetention(stageConfig);
+    cdk.Aspects.of(this).add(new ApplyLambdaLogRetentionAspect(lambdaLogRetention));
 
     const dataStores = new AllmaDataStores(this, 'AllmaDataStores', {
       stageConfig,
@@ -232,6 +235,7 @@ export class AllmaStack extends cdk.Stack {
       const adminShellDeployment = new WebAppDeployment(this, 'AdminShellDeployment', {
         deploymentId: 'AdminShell',
         ...props.adminShell,
+        logRetention: lambdaLogRetention,
         runtimeConfig: {
           VITE_ADMIN_STAGE_NAME: stageConfig.stage,
           VITE_AWS_REGION: this.region,
