@@ -6,13 +6,7 @@ import { OnCompletionActionSchema, OnCompletionAction } from './actions.js';
 import { StepErrorHandlerSchema, StepErrorHandler } from '../steps/common.js';
 import { StepInstanceSchema, StepInstance } from '../steps/definitions.js';
 
-/**
- * Configuration for validating the output of a step.
- */
-export const OutputValidationSchema = z.object({
-  requiredFields: z.array(JsonPathStringSchema).optional(),
-}).optional();
-export type OutputValidation = z.infer<typeof OutputValidationSchema>;
+export { OutputValidationSchema, type OutputValidation } from '../steps/common.js';
 
 /**
  * Configuration for the integrated LLM output security validator.

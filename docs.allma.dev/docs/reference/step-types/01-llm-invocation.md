@@ -31,7 +31,7 @@ It also supports **multimodal (vision) input**: you can attach images and PDFs t
 | `customConfig.jsonOutputMode` | `boolean`                          |    No    | Set to `true` to instruct the LLM to return valid JSON. The step will automatically parse the response. If parsing fails, it can trigger the `retryOnContentError` policy.                            |
 | `customConfig.anthropic_version`| `string`                           |    No    | (Bedrock/Anthropic only) Specify a different Anthropic version string, e.g., `bedrock-2023-05-31`.                                                                                                   |
 | `securityValidatorConfig`   | `object`                           |    No    | An integrated check to prevent prompt leaking or harmful content. Can check for `forbiddenStrings`.                                                                                                  |
-| `outputValidation`          | `object`                           |    No    | Validates the structure of the LLM's JSON output. `requiredFields` is an array of JSONPaths that must exist in the output. If any check fails, it can trigger `retryOnContentError`.                   |
+| `outputValidation`          | `object`                           |    No    | Validates the structure and runtime types of the LLM's JSON output. `requiredFields` accepts JSONPath strings or `{ path, type: "array" \| "object" \| "string" \| "number" \| "boolean" }` entries; `typeChecks` accepts `{ path, type }[]`. If a path is missing, null/undefined, or has the wrong type, it triggers `retryOnContentError`. |
 
 #### Fallbacks and Model Health
 
@@ -277,7 +277,10 @@ This example defines a step that uses Bedrock Claude Sonnet to analyze an email 
     "jsonOutputMode": true
   },
   "outputValidation": {
-    "requiredFields": ["$.urgency"]
+    "requiredFields": [
+      "$.urgency",
+      { "path": "$.items", "type": "array" }
+    ]
   },
   "templateContextMappings": {
     "email_body": {

@@ -264,8 +264,9 @@ An integrated check to prevent prompt leaking or harmful content.
 `,
             outputValidation: `
 #### Output Validation
-Validates the structure of the LLM's output, which is crucial when using \`jsonOutputMode\`.
-- \`requiredFields\`: An array of JSONPath strings. The step checks if each path exists and is not null/undefined in the LLM's parsed JSON output. If any check fails, it can trigger the \`retryOnContentError\` policy.
+Validates the structure and field types of the LLM's output, which is crucial when using \`jsonOutputMode\`.
+- \`requiredFields\`: An array of JSONPath strings (e.g., \`"$.urgency"\`) or typed check objects (\`{ path: "$.items", type: "array" | "object" | "string" | "number" | "boolean" }\`). Each path must exist and not be null/undefined, and any specified \`type\` must match at runtime.
+- \`typeChecks\`: An optional array of \`{ path, type: "array" | "object" | "string" | "number" | "boolean" }\` entries that verify both presence and runtime type. If any check fails, it triggers a content error that can be retried by the \`retryOnContentError\` policy.
 `,
         },
     },
