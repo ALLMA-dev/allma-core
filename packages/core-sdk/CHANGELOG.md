@@ -1,5 +1,14 @@
 # @allma/core-sdk
 
+## 1.3.1
+
+### Patch Changes
+
+- d218641: The importer's FAILED reply now reaches CloudFormation when an import error message contains non-ASCII text.
+- ad4b8e3: Remove the unused `jsonpath-plus` dependency from `@allma/core-sdk`.
+- Updated dependencies [cd298fc]
+  - @allma/core-types@2.1.1
+
 ## 1.3.0
 
 ### Minor Changes

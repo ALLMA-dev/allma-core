@@ -1,6 +1,6 @@
 {
   "name": "@allma/admin-shell",
-  "version": "13.0.0",
+  "version": "13.0.1",
   "description": "The web-based administration panel for the Allma platform.",
   "type": "module",
   "main": "./dist/index.js",
@@ -86,7 +86,7 @@
     "zustand": "^5.0.5"
   },
   "devDependencies": {
-    "@allma/core-types": "^2.1.0",
+    "@allma/core-types": "^2.1.1",
     "@allma/ui-components": "^1.1.0",
     "@changesets/assemble-release-plan": "^6.0.10",
     "@changesets/config": "^3.1.4",
