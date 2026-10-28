@@ -1,5 +1,11 @@
 # @allma/core-types
 
+## 2.1.1
+
+### Patch Changes
+
+- cd298fc: Add `outputValidation` path type checks (`array`, `object`, `string`, `number`, `boolean`) to `@allma/core-types`, enforce them in `step-executor` to raise `ContentBasedRetryableError`, and document the configuration in `@allma/admin-shell` and docs.
+
 ## 2.1.0
 
 ### Minor Changes

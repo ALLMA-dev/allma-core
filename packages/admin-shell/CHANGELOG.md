@@ -1,5 +1,12 @@
 # @allma/admin-shell
 
+## 13.0.1
+
+### Patch Changes
+
+- 4fdaa50: The `@allma/core-types` peer now accepts any 2.x >= 2.1.0, so a core-types minor no longer forces an admin-shell major.
+- cd298fc: Add `outputValidation` path type checks (`array`, `object`, `string`, `number`, `boolean`) to `@allma/core-types`, enforce them in `step-executor` to raise `ContentBasedRetryableError`, and document the configuration in `@allma/admin-shell` and docs.
+
 ## 13.0.0
 
 ### Patch Changes
