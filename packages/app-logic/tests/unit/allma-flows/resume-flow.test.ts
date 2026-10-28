@@ -52,8 +52,11 @@ describe('resume-flow handler', () => {
   });
 
   it('returns 400 for an invalid request body', async () => {
+    const consumeSpy = vi.spyOn(ContinuationStateService, 'consumeContinuationRecord');
     const result = await invoke({ payload: {} });
     expect(result.statusCode).toBe(400);
+    expect(consumeSpy).not.toHaveBeenCalled();
+    expect(ddbMock.commandCalls(DeleteCommand)).toHaveLength(0);
     expect(sfnMock.commandCalls(SendTaskSuccessCommand)).toHaveLength(0);
   });
 
@@ -69,10 +72,20 @@ describe('resume-flow handler', () => {
     expect(result.statusCode).toBe(500);
   });
 
-  it('returns 413 when the resume payload exceeds the SFN limit', async () => {
+  it('returns 413 when the resume payload exceeds the SFN limit without consuming the continuation record', async () => {
+    const consumeSpy = vi.spyOn(ContinuationStateService, 'consumeContinuationRecord');
     const result = await invoke({ correlationValue: 'key-1', payload: { blob: 'x'.repeat(300 * 1024) } });
     expect(result.statusCode).toBe(413);
+    expect(consumeSpy).not.toHaveBeenCalled();
+    expect(ddbMock.commandCalls(DeleteCommand)).toHaveLength(0);
     expect(sfnMock.commandCalls(SendTaskSuccessCommand)).toHaveLength(0);
+
+    const retryResult = await invoke({ correlationValue: 'key-1', payload: { reply: 'ok' } });
+    expect(retryResult.statusCode).toBe(202);
+    expect(consumeSpy).toHaveBeenCalledOnce();
+    expect(consumeSpy).toHaveBeenCalledWith('key-1');
+    expect(ddbMock.commandCalls(DeleteCommand)).toHaveLength(1);
+    expect(sfnMock.commandCalls(SendTaskSuccessCommand)).toHaveLength(1);
   });
 
   it('returns 410 when the SFN task has timed out or the token is invalid', async () => {

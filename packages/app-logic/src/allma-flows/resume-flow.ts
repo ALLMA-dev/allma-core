@@ -41,6 +41,14 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const { correlationValue, payload } = parsedBody;
   log_info(`Attempting to resume flow for correlationValue: ${correlationValue}`, { payload }, correlationId);
 
+  const payloadString = JSON.stringify(payload);
+  const payloadSize = Buffer.byteLength(payloadString, 'utf-8');
+
+  if (payloadSize > MAX_CONTEXT_DATA_SIZE_BYTES) {
+    log_error('Resume payload is too large for Step Functions.', { payloadSize, limit: MAX_CONTEXT_DATA_SIZE_BYTES }, correlationId);
+    return createApiGatewayResponse(413, buildErrorResponse(`Payload size of ${payloadSize} bytes exceeds the limit of ${MAX_CONTEXT_DATA_SIZE_BYTES} bytes.`, 'PAYLOAD_TOO_LARGE'), correlationId);
+  }
+
   let taskToken: string;
   let flowExecutionId: string;
 
@@ -63,21 +71,10 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     }
 
     log_info('Found and consumed continuation record.', { correlationValue, flowExecutionId }, correlationId);
-    
-    // 4. Check payload size before attempting to send to Step Functions.
-    const payloadString = JSON.stringify(payload);
-    const payloadSize = Buffer.byteLength(payloadString, 'utf-8');
 
-    if (payloadSize > MAX_CONTEXT_DATA_SIZE_BYTES) {
-        log_error('Resume payload is too large for Step Functions.', { payloadSize, limit: MAX_CONTEXT_DATA_SIZE_BYTES }, correlationId);
-        // It's a client error because the payload they sent is too large.
-        return createApiGatewayResponse(413, buildErrorResponse(`Payload size of ${payloadSize} bytes exceeds the limit of ${MAX_CONTEXT_DATA_SIZE_BYTES} bytes.`, 'PAYLOAD_TOO_LARGE'), correlationId);
-    }
-
-    // 5. Resume the Step Function execution with the payload.
     const sfnClientResult = await sfnClient.send(new SendTaskSuccessCommand({
       taskToken: taskToken,
-      output: payloadString, // The payload from the user's message
+      output: payloadString,
     }));
 
     log_info('Successfully sent SendTaskSuccess to Step Functions.', { flowExecutionId, sfnClientResult, payloadString }, correlationId);
