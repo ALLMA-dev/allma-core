@@ -82,6 +82,7 @@ export class AllmaCompute extends Construct {
       [ENV_VAR_NAMES.ALLMA_STATE_MACHINE_ARN]: flowOrchestratorStateMachineArn,
       [ENV_VAR_NAMES.ALLMA_FLOW_OUTPUT_TOPIC_ARN!]: allmaFlowOutputTopic.topicArn,
       [ENV_VAR_NAMES.MAX_CONTEXT_DATA_SIZE_BYTES!]: String(stageConfig.limits.maxContextDataSizeBytes),
+      [ENV_VAR_NAMES.ALLMA_WEBHOOK_API_KEY_SECRET_ARN]: stageConfig.adminApi.webhookApiKeySecretArn || '',
       AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
     };
 
@@ -97,6 +98,17 @@ export class AllmaCompute extends Construct {
         effect: iam.Effect.ALLOW,
         actions: ['secretsmanager:GetSecretValue'],
         resources: [stageConfig.aiApiKeySecretArn],
+      }));
+    }
+
+    // Grant read access to the webhook caller secret so finalize-flow (orchestration role) can sign
+    // its internal resume call and the trigger/resume Lambdas can verify presented caller secrets.
+    const webhookApiKeySecretArn = stageConfig.adminApi.webhookApiKeySecretArn;
+    if (webhookApiKeySecretArn) {
+      this.orchestrationLambdaRole.addToPolicy(new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ['secretsmanager:GetSecretValue'],
+        resources: [webhookApiKeySecretArn],
       }));
     }
 
@@ -233,6 +245,13 @@ export class AllmaCompute extends Construct {
       actions: ['states:SendTaskSuccess', 'states:SendTaskFailure'],
       resources: ['*'],
     }));
+    if (webhookApiKeySecretArn) {
+      resumeFlowLambdaRole.addToPolicy(new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ['secretsmanager:GetSecretValue'],
+        resources: [webhookApiKeySecretArn],
+      }));
+    }
     this.resumeFlowLambda = this.createNodejsLambda('ResumeFlowLambda', `AllmaResumeFlow-${stageConfig.stage}`, 'allma-flows/resume-flow.js', resumeFlowLambdaRole, defaultLambdaTimeout, defaultLambdaMemory, commonEnvVars, undefined, undefined, stageConfig.adminApi?.concurrency);
 
     // --- Execution Logger ---
@@ -284,6 +303,13 @@ export class AllmaCompute extends Construct {
     }
     // Grant read access to the main config table for FlowActivationService
     configTable.grantReadData(flowTriggerApiLambdaRole);
+    if (webhookApiKeySecretArn) {
+      flowTriggerApiLambdaRole.addToPolicy(new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ['secretsmanager:GetSecretValue'],
+        resources: [webhookApiKeySecretArn],
+      }));
+    }
 
     this.flowTriggerApiLambda = this.createNodejsLambda('FlowTriggerApiLambda', `AllmaFlowTriggerApi-${stageConfig.stage}`, 'allma-admin/flow-trigger.js', flowTriggerApiLambdaRole, defaultLambdaTimeout, defaultLambdaMemory, {
       ...commonEnvVars,

@@ -22,11 +22,20 @@ GET https://<your-admin-api-domain>/v1/allma/flow-executions
 
 ### Authentication
 
-All endpoints are secured and require a valid JWT bearer token obtained from your configured authentication provider (e.g., AWS Cognito). The token must be included in the `Authorization` header of every request.
+Most endpoints are secured and require a valid JWT bearer token obtained from your configured authentication provider (e.g., AWS Cognito). The token must be included in the `Authorization` header of every request.
 
 ```
 Authorization: Bearer <your_jwt_token>
 ```
+
+#### Trigger and resume routes
+
+The flow-trigger (`POST /allma/flows/{flowId}/trigger`) and resume (`POST /allma/resume`) routes are not Cognito-protected — they are meant for machine-to-machine callers. They are authenticated one of two ways:
+
+-   **AWS IAM (default).** The routes require a request signed with AWS SigV4 (`execute-api:Invoke`). The caller's IAM identity becomes the execution's owner. This is the default posture and needs no extra configuration.
+-   **Caller secret (opt-in).** Set `adminApi.webhookApiKeySecretArn` to a Secrets Manager secret and the routes instead accept a shared caller secret presented as `x-api-key: <secret>` or `Authorization: Bearer <secret>`. The secret may be a single string, or a JSON map of `{ "<callerId>": "<secret>" }` to distinguish callers.
+
+The authenticated caller is recorded as the run's owner. A request that presents neither a valid IAM signature nor a valid caller secret is rejected with `401 Unauthorized`.
 
 ### Permissions
 

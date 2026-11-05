@@ -4,7 +4,9 @@ import { mockClient } from '../_helpers/aws-mock.js';
 
 process.env.ALLMA_CONTINUATION_TABLE_NAME = 'test-continuation-table';
 
-const { ContinuationStateService } = await import('../../../src/allma-core/continuation-state.service.js');
+const { ContinuationStateService, ContinuationOwnershipMismatchError } = await import(
+  '../../../src/allma-core/continuation-state.service.js'
+);
 
 const ddbMock = mockClient(DynamoDBDocumentClient);
 
@@ -19,7 +21,7 @@ describe('ContinuationStateService', () => {
   });
 
   describe('consumeContinuationRecord', () => {
-    it('atomically deletes and returns the continuation record', async () => {
+    it('atomically deletes and returns the continuation record (system bypass, no principal)', async () => {
       const record = {
         correlationKey: 'corr-123',
         taskToken: 'tok-abc',
@@ -34,11 +36,12 @@ describe('ContinuationStateService', () => {
       const result = await ContinuationStateService.consumeContinuationRecord('corr-123');
 
       expect(result).toEqual(record);
-      expect(ddbMock).toHaveReceivedCommandWith(DeleteCommand, {
-        TableName: 'test-continuation-table',
-        Key: { correlationKey: 'corr-123' },
-        ReturnValues: 'ALL_OLD',
-      });
+      // The system bypass deletes unconditionally — no ownership condition.
+      const input = ddbMock.commandCalls(DeleteCommand)[0].args[0].input;
+      expect(input.TableName).toBe('test-continuation-table');
+      expect(input.Key).toEqual({ correlationKey: 'corr-123' });
+      expect(input.ReturnValues).toBe('ALL_OLD');
+      expect(input.ConditionExpression).toBeUndefined();
     });
 
     it('returns null when no record exists for the correlation key', async () => {
@@ -47,11 +50,41 @@ describe('ContinuationStateService', () => {
       const result = await ContinuationStateService.consumeContinuationRecord('corr-missing');
 
       expect(result).toBeNull();
-      expect(ddbMock).toHaveReceivedCommandWith(DeleteCommand, {
-        TableName: 'test-continuation-table',
-        Key: { correlationKey: 'corr-missing' },
-        ReturnValues: 'ALL_OLD',
-      });
+    });
+
+    it('enforces ownership atomically when a caller principal is supplied', async () => {
+      const record = { correlationKey: 'corr-1', taskToken: 'tok', flowExecutionId: 'exec', ownerPrincipal: 'webhook-secret:a' };
+      ddbMock.on(DeleteCommand).resolves({ Attributes: record });
+
+      const result = await ContinuationStateService.consumeContinuationRecord('corr-1', 'webhook-secret:a');
+
+      expect(result).toEqual(record);
+      const input = ddbMock.commandCalls(DeleteCommand)[0].args[0].input;
+      expect(input.ConditionExpression).toBe(
+        'attribute_not_exists(ownerPrincipal) OR ownerPrincipal = :callerPrincipal',
+      );
+      expect(input.ExpressionAttributeValues).toEqual({ ':callerPrincipal': 'webhook-secret:a' });
+      expect(input.ReturnValuesOnConditionCheckFailure).toBe('ALL_OLD');
+    });
+
+    it('throws ContinuationOwnershipMismatchError (and leaves the record) when another principal owns the key', async () => {
+      const err: any = new Error('conditional check failed');
+      err.name = 'ConditionalCheckFailedException';
+      err.Item = { correlationKey: 'corr-1', ownerPrincipal: 'webhook-secret:other' };
+      ddbMock.on(DeleteCommand).rejects(err);
+
+      await expect(
+        ContinuationStateService.consumeContinuationRecord('corr-1', 'webhook-secret:me'),
+      ).rejects.toBeInstanceOf(ContinuationOwnershipMismatchError);
+    });
+
+    it('returns null (404) when the conditional delete fails with no Item — the key does not exist', async () => {
+      const err: any = new Error('conditional check failed');
+      err.name = 'ConditionalCheckFailedException';
+      ddbMock.on(DeleteCommand).rejects(err);
+
+      const result = await ContinuationStateService.consumeContinuationRecord('corr-missing', 'webhook-secret:me');
+      expect(result).toBeNull();
     });
 
     it('throws when ALLMA_CONTINUATION_TABLE_NAME is not set', async () => {
@@ -62,7 +95,7 @@ describe('ContinuationStateService', () => {
       ).rejects.toThrow('Missing required environment variable: ALLMA_CONTINUATION_TABLE_NAME');
     });
 
-    it('propagates DynamoDB errors', async () => {
+    it('propagates unexpected DynamoDB errors', async () => {
       ddbMock.on(DeleteCommand).rejects(new Error('DynamoDB unavailable'));
 
       await expect(

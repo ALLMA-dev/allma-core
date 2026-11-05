@@ -11,6 +11,7 @@ import {
     createApiGatewayResponse,
     buildSuccessResponse,
     buildErrorResponse,
+    verifyTriggerOrResumeAuth,
     log_error,
     log_info,
     log_debug,
@@ -29,6 +30,11 @@ const FLOW_START_QUEUE_URL = process.env[ENV_VAR_NAMES.ALLMA_FLOW_START_REQUEST_
 export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
     const correlationId = event.requestContext.requestId;
     log_info('Flow trigger API handler invoked', {}, correlationId);
+
+    const authResult = await verifyTriggerOrResumeAuth(event, correlationId);
+    if (!authResult.authenticated) {
+        return authResult.response;
+    }
 
     if (!FLOW_START_QUEUE_URL) {
         log_error('FATAL: ALLMA_FLOW_START_REQUEST_QUEUE_URL environment variable is not set.', {}, correlationId);
@@ -63,6 +69,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
             initialContextData: initialContextData,
             flowExecutionId: flowExecutionId,
             triggerSource: `ApiTrigger:${event.requestContext.http.sourceIp}`,
+            ownerPrincipal: authResult.principal,
             ...(enableExecutionLogs && { enableExecutionLogs: enableExecutionLogs.toLowerCase() === 'true' }),
         };
 

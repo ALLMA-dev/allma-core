@@ -131,6 +131,7 @@ export const handleWaitForEvent = async (
             stepInstanceId: currentStepInstanceId,
             createdAt: new Date().toISOString(),
             ttl: Math.floor(Date.now() / 1000) + ttlInSeconds,
+            ...(runtimeState.ownerPrincipal && { ownerPrincipal: runtimeState.ownerPrincipal }),
         }
     }));
     log_info(`Task token saved for correlationKey: ${correlationKey}`, {}, correlationId);

@@ -116,13 +116,15 @@ export const executeConfiguredApiCall = async (
  * @param url The URL to post to.
  * @param payload The data to send.
  * @param timeout Milliseconds before the request times out.
+ * @param headers Optional request headers (e.g. auth headers for the internal resume call).
  * @returns A promise that resolves to the AxiosResponse.
  */
 export const postSimpleJson = async (
     url: string,
     payload: Record<string, any>,
     timeout: number = 5000,
+    headers?: Record<string, string>,
 ): Promise<AxiosResponse> => {
     // This function centralizes the direct axios.post call.
-    return axios.post(url, payload, { timeout });
+    return axios.post(url, payload, { timeout, ...(headers && Object.keys(headers).length > 0 && { headers }) });
 };
