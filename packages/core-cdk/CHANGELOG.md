@@ -1,5 +1,29 @@
 # @allma/core-cdk
 
+## 1.8.0
+
+### Minor Changes
+
+- cd4c369: Harden AdminAuthentication Cognito User Pool defaults (MFA required with TOTP, threat protection enforced, 12-character minimum password length, and active deletion protection) and expose configuration options on `StageConfig.cognito` and `AdminAuthenticationProps`.
+- f0f0ffa: Secure the public flow-trigger (`POST /allma/flows/{flowId}/trigger`) and resume (`POST /allma/resume`) routes. Both routes now enforce AWS IAM (SigV4) at the gateway by default; set `adminApi.webhookApiKeySecretArn` to instead accept an `x-api-key` / `Authorization: Bearer` caller secret that the Lambda verifies against Secrets Manager. The authenticated caller identity is carried as `ownerPrincipal` through the flow run and stamped onto `WAIT_FOR_EXTERNAL_EVENT` continuation records, so a resume now atomically verifies the caller owns the waiting run (403 on mismatch, 404 on missing key) before sending `SendTaskSuccess`. The internal system resume from `finalize-flow` authenticates its own call (SigV4 and/or a body HMAC signature).
+
+### Patch Changes
+
+- d218641: The importer's FAILED reply now reaches CloudFormation when an import error message contains non-ASCII text.
+- db23aac: The config import now re-runs when the importer Lambda code changes, not only when the flow config changes.
+- 9f52a6a: Give every Lambda log group in `AllmaStack` a finite CloudWatch retention from `logging.retentionDays.default`, including CDK custom-resource Lambdas. Before, platform Lambda logs never expired. A `retentionDays` value that is not a valid CloudWatch period now rounds up to the next valid period.
+- 9c9c7df: LLM_INVOCATION model health now counts only invocation failures; flow configuration errors, permission errors and safety blocks no longer mark a model unhealthy for other flows.
+- 962bd19: LLM_INVOCATION: when every model fails, the error message lists each model's failure, primary first. The Gemini adapter now reports the real HTTP status in errorDetails.status. Because the adapter now reads the top-level ApiError status, it also retries a Gemini ApiError with status 429 or 5xx with its own backoff before it moves to the next fallback.
+- cd298fc: Add `outputValidation` path type checks (`array`, `object`, `string`, `number`, `boolean`) to `@allma/core-types`, enforce them in `step-executor` to raise `ContentBasedRetryableError`, and document the configuration in `@allma/admin-shell` and docs.
+- 8ef5946: Remove dead cdk.json entrypoint from @allma/core-cdk and non-functional deploy:dev script from root package.json
+- 78fec7f: Validate the resume payload byte size against `MAX_CONTEXT_DATA_SIZE_BYTES` before consuming the continuation record in `resume-flow`, so an oversized resume request returns `413 PAYLOAD_TOO_LARGE` without deleting the waiting flow's task token.
+- Updated dependencies [d218641]
+- Updated dependencies [ad4b8e3]
+- Updated dependencies [cd298fc]
+- Updated dependencies [f0f0ffa]
+  - @allma/core-sdk@1.4.0
+  - @allma/core-types@2.2.0
+
 ## 1.7.1
 
 ### Patch Changes

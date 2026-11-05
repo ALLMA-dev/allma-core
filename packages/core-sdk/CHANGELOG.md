@@ -1,5 +1,19 @@
 # @allma/core-sdk
 
+## 1.4.0
+
+### Minor Changes
+
+- f0f0ffa: Secure the public flow-trigger (`POST /allma/flows/{flowId}/trigger`) and resume (`POST /allma/resume`) routes. Both routes now enforce AWS IAM (SigV4) at the gateway by default; set `adminApi.webhookApiKeySecretArn` to instead accept an `x-api-key` / `Authorization: Bearer` caller secret that the Lambda verifies against Secrets Manager. The authenticated caller identity is carried as `ownerPrincipal` through the flow run and stamped onto `WAIT_FOR_EXTERNAL_EVENT` continuation records, so a resume now atomically verifies the caller owns the waiting run (403 on mismatch, 404 on missing key) before sending `SendTaskSuccess`. The internal system resume from `finalize-flow` authenticates its own call (SigV4 and/or a body HMAC signature).
+
+### Patch Changes
+
+- d218641: The importer's FAILED reply now reaches CloudFormation when an import error message contains non-ASCII text.
+- ad4b8e3: Remove the unused `jsonpath-plus` dependency from `@allma/core-sdk`.
+- Updated dependencies [cd298fc]
+- Updated dependencies [f0f0ffa]
+  - @allma/core-types@2.2.0
+
 ## 1.3.0
 
 ### Minor Changes
