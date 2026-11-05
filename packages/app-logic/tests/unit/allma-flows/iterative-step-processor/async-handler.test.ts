@@ -100,6 +100,30 @@ describe('handleWaitForEvent', () => {
     });
   });
 
+  it('persists the runtime ownerPrincipal on the continuation item when present', async () => {
+    ddbMock.on(PutCommand).resolves({});
+    const runtimeState = makeRuntimeState({
+      currentStepInstanceId: 'wait_step',
+      currentContextData: {},
+      ownerPrincipal: 'webhook-secret:acme',
+    });
+
+    await handleWaitForEvent('tok', waitStepDef, runtimeState, 'corr');
+
+    const put = ddbMock.commandCalls(PutCommand)[0].args[0].input;
+    expect(put.Item).toMatchObject({ correlationKey: 'test-key', ownerPrincipal: 'webhook-secret:acme' });
+  });
+
+  it('omits ownerPrincipal from the continuation item when the run has no owner', async () => {
+    ddbMock.on(PutCommand).resolves({});
+    const runtimeState = makeRuntimeState({ currentStepInstanceId: 'wait_step', currentContextData: {} });
+
+    await handleWaitForEvent('tok', waitStepDef, runtimeState, 'corr');
+
+    const put = ddbMock.commandCalls(PutCommand)[0].args[0].input;
+    expect(put.Item).not.toHaveProperty('ownerPrincipal');
+  });
+
   it('throws when the rendered correlation key is invalid', async () => {
     const badStepDef = { stepType: StepType.WAIT_FOR_EXTERNAL_EVENT, correlationKeyTemplate: 'prefix:{{missing}}' } as unknown as StepDefinition;
     const runtimeState = makeRuntimeState({ currentStepInstanceId: 'wait_step', currentContextData: {} });

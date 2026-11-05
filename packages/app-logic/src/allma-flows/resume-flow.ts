@@ -9,8 +9,9 @@ import {
   createApiGatewayResponse,
   buildSuccessResponse,
   buildErrorResponse,
+  verifyTriggerOrResumeAuth,
 } from '@allma/core-sdk';
-import { ContinuationStateService } from '../allma-core/continuation-state.service.js';
+import { ContinuationStateService, ContinuationOwnershipMismatchError } from '../allma-core/continuation-state.service.js';
 
 const sfnClient = new SFNClient({});
 
@@ -28,6 +29,11 @@ const ResumeFlowInputSchema = z.object({
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const correlationId = event.requestContext.requestId;
   log_info('ResumeFlowLambda invoked', { event }, correlationId);
+
+  const authResult = await verifyTriggerOrResumeAuth(event, correlationId);
+  if (!authResult.authenticated) {
+    return authResult.response;
+  }
 
   // 1. Validate Input Body
   let parsedBody;
@@ -53,7 +59,10 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   let flowExecutionId: string;
 
   try {
-    const continuationRecord = await ContinuationStateService.consumeContinuationRecord(correlationValue);
+    const continuationRecord = await ContinuationStateService.consumeContinuationRecord(
+      correlationValue,
+      authResult.isSystem ? undefined : authResult.principal,
+    );
 
     if (!continuationRecord) {
         log_warn('No active waiting task found for the given correlation key. It may have already been resumed or timed out.', { correlationValue });
@@ -82,6 +91,13 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     return createApiGatewayResponse(202, buildSuccessResponse({ message: 'Flow resumption accepted.' }), correlationId);
 
   } catch (error: any) {
+    // Ownership is enforced atomically before any SendTaskSuccess is sent, so a mismatch here means
+    // the caller does not own the waiting run and the record was left intact for its rightful owner.
+    if (error instanceof ContinuationOwnershipMismatchError || error?.name === 'ConditionalCheckFailedException') {
+      log_warn('Resume rejected: caller does not own the waiting flow execution.', { correlationValue }, correlationId);
+      return createApiGatewayResponse(403, buildErrorResponse('Forbidden: You do not own this waiting flow execution.', 'FORBIDDEN'), correlationId);
+    }
+
     // This block now primarily catches errors from the SFN call.
     if (error instanceof TaskTimedOut || error instanceof InvalidToken) {
       log_warn(`SFN task has timed out or the token is invalid. The flow cannot be resumed.`, { correlationValue, errorName: error.name }, correlationId);

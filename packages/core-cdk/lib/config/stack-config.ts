@@ -134,6 +134,16 @@ export interface StageConfig {
      * Recommended value: 2 to 5 for small/medium teams.
      */
     concurrency?: number;
+
+    /**
+     * Optional ARN of a Secrets Manager secret holding the caller secret for the public
+     * flow-trigger (`POST /allma/flows/{flowId}/trigger`) and resume (`POST /allma/resume`)
+     * routes. When set, those routes drop to `HttpNoneAuthorizer` so non-SigV4 callers can present
+     * an `x-api-key` / `Authorization: Bearer` secret the Lambda verifies against this secret. When
+     * omitted (the default), those routes enforce AWS IAM (SigV4) at the gateway instead.
+     * @default - IAM (SigV4) authorization is enforced at the gateway.
+     */
+    webhookApiKeySecretArn?: string;
   };
 
   /**

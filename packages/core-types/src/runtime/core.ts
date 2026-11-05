@@ -39,6 +39,10 @@ export const FlowRuntimeStateSchema: z.ZodType<any> = z.object({
   parentStepInstanceId: z.string().optional(),
   depth: z.number().int().min(0).optional(),
   executionKind: ExecutionKindSchema.optional(),
+  // Authenticated caller identity that triggered this execution. Carried through the run so a
+  // WAIT_FOR_EXTERNAL_EVENT continuation can be stamped with its owner and only that owner (or a
+  // trusted system principal) may resume it.
+  ownerPrincipal: z.string().min(1).optional(),
   // Per-trigger notification callback (Pillar C), carried so the orchestrator can emit
   // STARTED/CHECKPOINT events to the caller's sinks without a DynamoDB read on the hot path.
   notificationConfig: NotificationConfigSchema.optional(),
@@ -83,6 +87,9 @@ export const StartFlowExecutionInputSchema = z.object({
   rootFlowExecutionId: z.string().uuid().optional(),
   depth: z.number().int().min(0).optional(),
   executionKind: ExecutionKindSchema.optional(),
+  // Authenticated caller identity, set from the trigger auth context and copied onto the runtime
+  // state so it can gate resume ownership for any WAIT_FOR_EXTERNAL_EVENT the flow reaches.
+  ownerPrincipal: z.string().min(1).optional(),
   // Where to notify the caller about this execution's progress/terminal status (Pillar C, §7.2a).
   notificationConfig: NotificationConfigSchema.optional(),
   executionOverrides: z.object({

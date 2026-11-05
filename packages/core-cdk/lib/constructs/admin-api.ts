@@ -2,7 +2,7 @@ import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as apigwv2 from 'aws-cdk-lib/aws-apigatewayv2';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
-import { HttpUserPoolAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
+import { HttpUserPoolAuthorizer, HttpIamAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
@@ -79,23 +79,29 @@ export class AllmaAdminApi extends Construct {
       defaultAuthorizer: adminAuthorizer,
     });
 
-    // --- Public Routes (No Cognito Auth) ---
+    // --- Non-Cognito Routes (trigger + resume) ---
+    // By default these routes enforce AWS IAM (SigV4) at the gateway, which surfaces an `iam`
+    // authorizer context the Lambda uses to identify the caller. When a per-caller webhook secret is
+    // configured, they drop to HttpNoneAuthorizer so non-SigV4 `x-api-key` / `Authorization: Bearer`
+    // requests reach the Lambda, where `verifyTriggerOrResumeAuth` strictly requires a valid secret.
+    const webhookRouteAuthorizer = stageConfig.adminApi.webhookApiKeySecretArn
+      ? new apigwv2.HttpNoneAuthorizer()
+      : new HttpIamAuthorizer();
 
     const resumeFlowIntegration = new HttpLambdaIntegration('ResumeFlowIntegration', props.resumeFlowLambda);
     this.httpApi.addRoutes({
       path: ALLMA_ADMIN_API_ROUTES.RESUME,
       methods: [apigwv2.HttpMethod.POST],
       integration: resumeFlowIntegration,
-      authorizer: new apigwv2.HttpNoneAuthorizer(),
+      authorizer: webhookRouteAuthorizer,
     });
 
-    // Public route to trigger a flow. Secure with an API key in production.
     const flowTriggerIntegration = new HttpLambdaIntegration('FlowTriggerIntegration', props.flowTriggerApiLambda);
     this.httpApi.addRoutes({
       path: `${ALLMA_ADMIN_API_ROUTES.FLOWS}/{flowId}/trigger`,
       methods: [apigwv2.HttpMethod.POST],
       integration: flowTriggerIntegration,
-      authorizer: new apigwv2.HttpNoneAuthorizer(),
+      authorizer: webhookRouteAuthorizer,
     });
 
     // --- Admin-Only Routes (Cognito Auth) ---

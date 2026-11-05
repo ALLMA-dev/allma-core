@@ -59,6 +59,20 @@ describe('initialize-flow handler', () => {
     );
   });
 
+  it('copies the ownerPrincipal from the start input onto the runtime state', async () => {
+    const result = await invoke({
+      flowDefinitionId: 'flow-x',
+      ownerPrincipal: 'webhook-secret:acme',
+    } as StartFlowExecutionInput);
+
+    expect(result.runtimeState.ownerPrincipal).toBe('webhook-secret:acme');
+  });
+
+  it('leaves ownerPrincipal undefined when the start input has none', async () => {
+    const result = await invoke({ flowDefinitionId: 'flow-x' } as StartFlowExecutionInput);
+    expect(result.runtimeState.ownerPrincipal).toBeUndefined();
+  });
+
   it('honours a startStepInstanceId execution override', async () => {
     const result = await invoke({
       flowDefinitionId: 'flow-x',
