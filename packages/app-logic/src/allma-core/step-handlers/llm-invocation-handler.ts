@@ -25,7 +25,7 @@ import { loadPromptTemplate } from '../config-loader.js';
 import { getMediaAttachmentsConfig, resolveLlmMedia } from './llm/media-resolver.js';
 import { getToolsConfig, getToolChoiceConfig } from './llm/tool-resolver.js';
 import { renderNestedTemplates } from '../utils/template-renderer.js';
-import { isRetryableError } from '../utils/error-classifier.js';
+import { isRetryableError, extractHttpStatusCode } from '../utils/error-classifier.js';
 
 const EXECUTION_TRACES_BUCKET_NAME = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME]!;
 
@@ -304,6 +304,7 @@ export const handleLlmInvocation: StepHandler = async (
   let responseToReturn: LlmGenerationResponse | null = null;
   let successfulModel: any;
   let finalGenerationRequest: LlmGenerationRequest | null = null;
+  const attempts: { provider: string; modelId: string; message: string; status?: number }[] = [];
 
   for (let i = 0; i < modelsToTry.length; i++) {
     const model = modelsToTry[i];
@@ -315,6 +316,7 @@ export const handleLlmInvocation: StepHandler = async (
         const untilIso = new Date(excludedUntilMs).toISOString();
         log_warn(`Model ${model.modelId} from ${model.provider} is currently excluded due to recent consecutive failures until ${untilIso}. Skipping to next fallback.`, { excludedUntil: untilIso }, correlationId);
         lastError = new Error(`Model ${model.modelId} from ${model.provider} is temporarily excluded until ${untilIso} due to high failure rate.`);
+        attempts.push({ provider: model.provider, modelId: model.modelId, message: lastError.message });
         continue;
       }
     }
@@ -350,6 +352,7 @@ export const handleLlmInvocation: StepHandler = async (
         }, correlationId);
         if (response.safetyFlagged !== true) recordModelFailure(model.provider, model.modelId);
         lastError = new Error(response.errorMessage || `LLM Invocation failed for ${model.modelId} without a specific error message.`);
+        attempts.push({ provider: model.provider, modelId: model.modelId, message: lastError.message, status: extractHttpStatusCode(response) });
         continue;
       }
 
@@ -373,6 +376,7 @@ export const handleLlmInvocation: StepHandler = async (
               { logDetails: errorLogDetails },
               e
             );
+            attempts.push({ provider: model.provider, modelId: model.modelId, message: lastError.message });
             continue; // try next model
           }
           throw e; // unexpected error
@@ -390,6 +394,9 @@ export const handleLlmInvocation: StepHandler = async (
       successfulModel = model;
       finalGenerationRequest = generationRequest;
       lastError = null; // Clear any previous errors since we succeeded
+      if (attempts.length > 0) {
+        log_warn(`LLM model ${model.modelId} succeeded after ${attempts.length} failed attempt(s).`, { failedAttempts: attempts }, correlationId);
+      }
       break;
 
     } catch (error: any) {
@@ -400,6 +407,7 @@ export const handleLlmInvocation: StepHandler = async (
       }, correlationId);
       if (isRetryableError(error)) recordModelFailure(model.provider, model.modelId);
       lastError = error;
+      attempts.push({ provider: model.provider, modelId: model.modelId, message: error?.message ?? String(error), status: extractHttpStatusCode(error) });
       continue;
     }
   }
@@ -407,6 +415,11 @@ export const handleLlmInvocation: StepHandler = async (
   if (!responseToReturn) {
     // If we get here, all models failed.
     const errorType = lastError instanceof ContentBasedRetryableError ? 'Content-based retryable error (incorrect JSON?)' : 'General failure';
+    if (lastError && attempts.length > 1) {
+      lastError.message = `All ${attempts.length} LLM models failed: ${attempts
+        .map((a, n) => `[${n + 1}] ${a.provider}/${a.modelId}${a.status !== undefined ? ` (HTTP ${a.status})` : ''}: ${a.message.slice(0, 500)}`)
+        .join(' | ')}`;
+    }
     log_error(`LLM_INVOCATION step '${llmStepDef.name}' failed after trying all fallbacks. Reason: ${errorType}`, { error: lastError?.message }, correlationId);
     if (lastError) throw lastError;
     throw new Error('All configured LLM models failed.');

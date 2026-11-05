@@ -17,6 +17,7 @@ import {
   LlmBuiltInToolType
 } from '@allma/core-types';
 import { log_info, log_debug, log_warn, log_error } from '@allma/core-sdk';
+import { extractHttpStatusCode } from '../utils/error-classifier.js';
 
 const secretsManagerClient = new SecretsManagerClient({});
 const geminiApiKeySecretArn = process.env[ENV_VAR_NAMES.AI_API_KEY_SECRET_ARN];
@@ -340,9 +341,9 @@ export class GeminiAdapter implements LlmProviderAdapter {
         } catch (error: any) {
           lastError = error; // Save the last error for final reporting
           
-          const status = error.cause?.['status'] ?? error.httpStatus;
+          const status = extractHttpStatusCode(error);
           const isRateLimit = status === 429;
-          const isServerError = status >= 500;
+          const isServerError = status !== undefined && status >= 500;
           // Add a check to see if the error is our "no content" error
           const isNoContentError = error.message === "No content received from Gemini.";
 
@@ -367,15 +368,15 @@ export class GeminiAdapter implements LlmProviderAdapter {
       }
 
       // If loop finished due to error, lastError will be set.
-      const httpStatus = lastError.cause?.['status'] ?? lastError.httpStatus;
-      log_error('GeminiAdapter failed to generate content after all retries', { error: lastError.message, stack: lastError.stack, totalAttempts: maxRetries, httpStatus }, correlationId);
+      const status = extractHttpStatusCode(lastError);
+      log_error('GeminiAdapter failed to generate content after all retries', { error: lastError.message, stack: lastError.stack, totalAttempts: maxRetries, status }, correlationId);
       return {
         success: false,
         provider: LLMProviderType.GEMINI,
         modelUsed: modelId,
         responseText: null,
         errorMessage: `Gemini API Error after ${maxRetries} attempts: ${lastError.message}`,
-        errorDetails: { name: lastError.name, httpStatus, cause: lastError.cause },
+        errorDetails: { name: lastError.name, status, cause: lastError.cause },
       };
 
     } catch (error: any) {

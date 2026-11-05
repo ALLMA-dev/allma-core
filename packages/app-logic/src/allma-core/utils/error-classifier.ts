@@ -169,7 +169,7 @@ export const extractErrorNames = (err: any): string[] => {
   return names;
 };
 
-const extractHttpStatusCode = (err: any): number | undefined => {
+export const extractHttpStatusCode = (err: any): number | undefined => {
   if (!err || typeof err !== 'object') return undefined;
 
   const candidates = [
