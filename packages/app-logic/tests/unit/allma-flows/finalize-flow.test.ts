@@ -36,16 +36,25 @@ vi.mock('../../../src/allma-core/utils/api-executor.js', async (importOriginal) 
     postSimpleJson: vi.fn().mockResolvedValue({ status: 202, data: {} }),
   };
 });
+vi.mock('@allma/core-sdk', async (importOriginal) => {
+  const original = await importOriginal<Record<string, unknown>>();
+  return {
+    ...original,
+    buildSystemResumeAuthHeaders: vi.fn().mockResolvedValue({ 'x-allma-owner-principal': 'webhook-secret:acme' }),
+  };
+});
 
 const { handler } = await import('../../../src/allma-flows/finalize-flow.js');
 const { loadFlowDefinition } = await import('../../../src/allma-core/config-loader.js');
 const { executionLoggerClient } = await import('../../../src/allma-core/execution-logger-client.js');
 const apiExecutor = await import('../../../src/allma-core/utils/api-executor.js');
+const { buildSystemResumeAuthHeaders } = await import('@allma/core-sdk');
 
 const mockedLoadDef = vi.mocked(loadFlowDefinition);
 const mockedLogger = vi.mocked(executionLoggerClient);
 const mockedApiCall = vi.mocked(apiExecutor.executeConfiguredApiCall);
 const mockedPostJson = vi.mocked(apiExecutor.postSimpleJson);
+const mockedBuildAuthHeaders = vi.mocked(buildSystemResumeAuthHeaders);
 
 const snsMock = mockClient(SNSClient);
 const lambdaMock = mockClient(LambdaClient);
@@ -70,6 +79,8 @@ beforeEach(() => {
   vi.mocked(mockedLogger.logStepExecution).mockClear();
   mockedApiCall.mockClear();
   mockedPostJson.mockClear();
+  mockedBuildAuthHeaders.mockClear();
+  mockedBuildAuthHeaders.mockResolvedValue({ 'x-allma-owner-principal': 'webhook-secret:acme' });
 });
 
 describe('finalize-flow handler', () => {
@@ -123,13 +134,23 @@ describe('finalize-flow handler', () => {
     const runtimeState = makeRuntimeState({
       status: 'COMPLETED',
       currentContextData: { final: 'x', _flow_resume_key: 'wa:123' },
+      ownerPrincipal: 'webhook-secret:acme',
     });
     await invoke({ runtimeState });
 
+    const resumePayload = { correlationValue: 'wa:123', payload: runtimeState.currentContextData };
+    // The system resume call is authenticated: auth headers are built over the exact body and passed through.
+    expect(mockedBuildAuthHeaders).toHaveBeenCalledWith(
+      'http://resume.test/resume',
+      JSON.stringify(resumePayload),
+      'webhook-secret:acme',
+      expect.anything(),
+    );
     expect(mockedPostJson).toHaveBeenCalledWith(
       'http://resume.test/resume',
-      { correlationValue: 'wa:123', payload: runtimeState.currentContextData },
+      resumePayload,
       5000,
+      { 'x-allma-owner-principal': 'webhook-secret:acme' },
     );
     delete process.env[ENV_VAR_NAMES.ALLMA_RESUME_API_URL];
   });
@@ -256,6 +277,7 @@ describe('finalize-flow handler', () => {
       'http://resume.test/resume',
       expect.objectContaining({ correlationValue: 'wa:777' }),
       5000,
+      expect.any(Object),
     );
     delete process.env[ENV_VAR_NAMES.ALLMA_RESUME_API_URL];
   });

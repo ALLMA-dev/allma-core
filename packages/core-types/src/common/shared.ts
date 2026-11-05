@@ -45,6 +45,7 @@ export const ENV_VAR_NAMES = {
     // Secrets and Credentials
     AI_API_KEY_SECRET_ARN: "AI_API_KEY_SECRET_ARN",
     COGNITO_USER_POOL_ID: "COGNITO_USER_POOL_ID",
+    ALLMA_WEBHOOK_API_KEY_SECRET_ARN: "ALLMA_WEBHOOK_API_KEY_SECRET_ARN",
 
     // Gemini via Vertex AI
     // When 'true', the Gemini adapter calls Vertex AI instead of the key-based

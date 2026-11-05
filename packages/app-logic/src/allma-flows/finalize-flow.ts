@@ -12,7 +12,7 @@ import {
     isS3Pointer,
     isS3OutputPointerWrapper
  } from '@allma/core-types';
-import { log_error, log_info, log_warn, log_debug, resolveS3Pointer, offloadIfLarge } from '@allma/core-sdk';
+import { log_error, log_info, log_warn, log_debug, resolveS3Pointer, offloadIfLarge, buildSystemResumeAuthHeaders } from '@allma/core-sdk';
 import { loadFlowDefinition } from '../allma-core/config-loader.js';
 import { JSONPath } from 'jsonpath-plus';
 import { SNSClient, PublishCommand, MessageAttributeValue } from '@aws-sdk/client-sns';
@@ -62,7 +62,14 @@ const handleSystemLevelResume = async (runtimeState: FlowRuntimeState): Promise<
                 payload: runtimeState.currentContextData, // Send the original context data as the payload
             };
 
-            await postSimpleJson(resumeApiUrl, resumePayload, 5000);
+            const headers = await buildSystemResumeAuthHeaders(
+                resumeApiUrl,
+                JSON.stringify(resumePayload),
+                runtimeState.ownerPrincipal,
+                correlationId,
+            );
+
+            await postSimpleJson(resumeApiUrl, resumePayload, 5000, headers);
 
             log_info('Successfully posted to resume API.', { resumeKey }, correlationId);
         } else {

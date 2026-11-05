@@ -8,6 +8,10 @@ title: WAIT_FOR_EXTERNAL_EVENT
 
 Pauses the flow execution indefinitely until an external system resumes it by calling the secure Allma **Resume API**. This is essential for human-in-the-loop workflows (e.g., approvals) or waiting for long-running asynchronous jobs in other systems.
 
+:::note Resume authentication and ownership
+The Resume API is authenticated (see [Admin API — trigger and resume routes](../../admin-api/index.md#trigger-and-resume-routes)). The waiting run also records the identity that triggered it as its **owner**, and resuming is restricted to that owner. A caller that is authenticated but does not own the waiting run receives `403 Forbidden`; an unknown correlation key returns `404 Not Found`. Runs triggered without an owner (e.g. an internal system trigger) can be resumed by any authenticated caller.
+:::
+
 ---
 
 ### Configuration Parameters

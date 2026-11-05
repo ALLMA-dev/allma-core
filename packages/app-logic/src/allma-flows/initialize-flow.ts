@@ -153,6 +153,7 @@ export const handler: Handler<StartFlowExecutionInput, ProcessorOutput> = async 
       parentStepInstanceId: startInput.parentStepInstanceId,
       depth,
       executionKind,
+      ownerPrincipal: startInput.ownerPrincipal,
       notificationConfig: startInput.notificationConfig,
       currentContextData: initialContextWithSystemValues,
       stepRetryAttempts: {},

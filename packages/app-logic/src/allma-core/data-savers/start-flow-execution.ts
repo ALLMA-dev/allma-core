@@ -98,6 +98,7 @@ export const executeStartFlowExecution: StepHandler = async (
     parentFlowExecutionId: runtimeState.flowExecutionId,
     parentStepInstanceId: runtimeState.currentStepInstanceId,
     rootFlowExecutionId: runtimeState.rootFlowExecutionId ?? runtimeState.flowExecutionId,
+    ownerPrincipal: runtimeState.ownerPrincipal,
     depth: (runtimeState.depth ?? 0) + 1,
     executionKind: 'ASYNC_SUBFLOW',
   };
