@@ -286,12 +286,13 @@ describe('GeminiAdapter.generateContent', () => {
   });
 
   it('fails (without retrying) on a non-retryable API error', async () => {
-    generateContentMock.mockRejectedValue(Object.assign(new Error('bad request'), { httpStatus: 400 }));
+    generateContentMock.mockRejectedValue(Object.assign(new Error('bad request'), { name: 'ApiError', status: 400 }));
 
     const result = await adapter.generateContent(makeRequest());
 
     expect(result.success).toBe(false);
     expect(result.errorMessage).toContain('bad request');
+    expect(result.errorDetails.status).toBe(400);
     // 400 is not retryable, so only one attempt is made.
     expect(generateContentMock).toHaveBeenCalledTimes(1);
   });

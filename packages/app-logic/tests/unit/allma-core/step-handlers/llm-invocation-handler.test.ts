@@ -184,6 +184,65 @@ describe('handleLlmInvocation', () => {
     ).rejects.toThrow('all dead');
   });
 
+  it('recovers via the fallback when the primary throws a non-retryable error', async () => {
+    const generateContent = vi.fn();
+    generateContent
+      .mockRejectedValueOnce(new PermanentStepError('ValidationException: input too long'))
+      .mockResolvedValueOnce({
+        success: true,
+        provider: LLMProviderType.GEMINI,
+        modelUsed: 'recover-fallback-ok',
+        responseText: 'recovered after validation error',
+      });
+    mockedGetLlmAdapter.mockReturnValue({ generateContent } as never);
+
+    const result = await handleLlmInvocation(
+      makeLlmStepDef({
+        modelId: 'recover-primary-validation',
+        fallbacks: [{ llmProvider: LLMProviderType.GEMINI, modelId: 'recover-fallback-ok' }],
+      } as Partial<StepDefinition>),
+      {},
+      makeRuntimeState()
+    );
+
+    expect(result.outputData).toMatchObject({ llm_response: 'recovered after validation error' });
+    expect(generateContent).toHaveBeenCalledTimes(2);
+  });
+
+  it('throws the same last error instance with a message listing every model failure, primary first', async () => {
+    const lastError = new TransientStepError('fallback2 boom');
+    const generateContent = vi.fn();
+    generateContent
+      .mockRejectedValueOnce(new PermanentStepError('primary boom'))
+      .mockResolvedValueOnce({ success: false, errorMessage: 'fallback1 boom', errorDetails: { status: 503 } })
+      .mockRejectedValueOnce(lastError);
+    mockedGetLlmAdapter.mockReturnValue({ generateContent } as never);
+
+    const thrown = await handleLlmInvocation(
+      makeLlmStepDef({
+        modelId: 'agg-primary',
+        fallbacks: [
+          { llmProvider: LLMProviderType.GEMINI, modelId: 'agg-fallback-1' },
+          { llmProvider: LLMProviderType.GEMINI, modelId: 'agg-fallback-2' },
+        ],
+      } as Partial<StepDefinition>),
+      {},
+      makeRuntimeState()
+    ).then(
+      () => { throw new Error('expected rejection'); },
+      (e: Error) => e
+    );
+
+    expect(thrown).toBe(lastError);
+    const message = (thrown as Error).message;
+    expect(message).toContain('primary boom');
+    expect(message).toContain('fallback1 boom');
+    expect(message).toContain('fallback2 boom');
+    expect(message).toContain('503');
+    expect(message.indexOf('primary boom')).toBeLessThan(message.indexOf('fallback1 boom'));
+    expect(message.indexOf('fallback1 boom')).toBeLessThan(message.indexOf('fallback2 boom'));
+  });
+
   it('resolves static base64 media attachments and passes them to the adapter', async () => {
     const generateContent = stubAdapter({ responseText: 'saw the image' });
 
