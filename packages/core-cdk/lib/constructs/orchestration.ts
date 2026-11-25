@@ -104,6 +104,7 @@ export class AllmaOrchestration extends Construct {
         heartbeat: cdk.Duration.days(stageConfig.sfnTimeouts.mainOrchestratorDays > 0 ? stageConfig.sfnTimeouts.mainOrchestratorDays - 1 : 1),
         resultPath: '$.resumePayload',
     });
+    waitForEventTask.addRetry(lambdaServiceErrorRetryPolicy);
   
     const pollingSubFlowTask = new sfnTasks.StepFunctionsStartExecution(this, 'PollingSubFlowTask', {
         stateMachine: sfn.StateMachine.fromStateMachineArn(this, 'PollingSubStateMachine', pollingStateMachineArn),
@@ -425,9 +426,14 @@ export class AllmaOrchestration extends Construct {
     initTask.addCatch(normalizeErrorState, failureCatchConfig);
     iterativeStepTask.addCatch(normalizeErrorState, failureCatchConfig);
     finalizeTask.addCatch(normalizeErrorState, failureCatchConfig);
-    waitForEventTask.addCatch(normalizeErrorState, failureCatchConfig);
-    pollingSubFlowTask.addCatch(normalizeErrorState, failureCatchConfig);
-    startSyncFlowExecutionTask.addCatch(normalizeErrorState, failureCatchConfig);
+    // A failed wait, poll or sync sub-flow is a failure of the step that started it: the processor
+    // gets the catch output as `asyncTaskFailure` and applies that step's onError.
+    const asyncTaskFailureCatchConfig: sfn.CatchProps = {
+      resultPath: '$.asyncTaskFailure',
+    };
+    waitForEventTask.addCatch(processAsyncResultAndContinue, asyncTaskFailureCatchConfig);
+    pollingSubFlowTask.addCatch(processAsyncResultAndContinue, asyncTaskFailureCatchConfig);
+    startSyncFlowExecutionTask.addCatch(processAsyncResultAndContinue, asyncTaskFailureCatchConfig);
     processAsyncResultAndContinue.addCatch(normalizeErrorState, failureCatchConfig);
     parallelMapState.addCatch(normalizeErrorState, failureCatchConfig);
     parallelMapStateFromS3.addCatch(normalizeErrorState, failureCatchConfig);

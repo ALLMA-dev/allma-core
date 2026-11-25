@@ -28,6 +28,7 @@ import { executionLoggerClient } from '../../allma-core/execution-logger-client.
 import { resolveNextStep } from './transition-resolver.js';
 import { enforceTransitionLimits } from './transition-limits.js';
 import { offloadFlowContextIfLarge } from '../../allma-core/utils/context-offload.js';
+import { handleTerminalError } from './error-handler.js';
 
 // Configure client with adaptive retry strategy to smoothly handle massive traffic spikes
 const s3Client = new S3Client({ maxAttempts: 10, retryMode: 'adaptive' });
@@ -421,7 +422,13 @@ export const handleParallelAggregation = async (
                 outputMappingContext: runtimeState.currentContextData,
             });
         }
-        return { updatedRuntimeState: runtimeState, nextStepId: undefined };
+        const branchFailure = Object.assign(new Error(runtimeState.errorInfo!.errorMessage), {
+            name: runtimeState.errorInfo!.errorName,
+            details: runtimeState.errorInfo!.errorDetails,
+        });
+        runtimeState.currentStepInstanceId = originalStepId;
+        const failedState = await handleTerminalError(branchFailure, stepInstanceConfig, runtimeState);
+        return { updatedRuntimeState: failedState, nextStepId: failedState.currentStepInstanceId };
     }
 
     if (!EXECUTION_TRACES_BUCKET_NAME) {

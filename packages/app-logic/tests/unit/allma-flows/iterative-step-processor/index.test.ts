@@ -28,6 +28,7 @@ vi.mock('../../../../src/allma-core/execution-logger-client.js', () => ({
   executionLoggerClient: { logStepExecution: vi.fn().mockResolvedValue(undefined) },
 }));
 
+const { executionLoggerClient } = await import('../../../../src/allma-core/execution-logger-client.js');
 const { handler } = await import('../../../../src/allma-flows/iterative-step-processor/index.js');
 const { loadFlowDefinition } = await import('../../../../src/allma-core/config-loader.js');
 const { getStepHandler } = await import(
@@ -261,6 +262,95 @@ describe('iterativeStepProcessor handler (orchestration loop)', () => {
     expect(result.runtimeState.status).toBe('COMPLETED');
     expect(result.runtimeState.currentStepInstanceId).toBeUndefined();
     expect(result.sfnAction).toBe(SfnActionType.PROCESS_STEP);
+  });
+
+  describe('a failed async task applies the step onError', () => {
+    const childFailure = {
+      Error: 'States.TaskFailed',
+      Cause: JSON.stringify({
+        ExecutionArn: 'arn:aws:states:us-east-1:0:execution:orchestrator:child-1',
+        Status: 'FAILED',
+        Error: 'ParallelBranchExecutionError',
+        Cause: 'One or more parallel branches failed.',
+      }),
+    };
+    const syncFlow = (onError?: { fallbackStepInstanceId: string }) => makeFlowDefinition({
+      id: 'parent',
+      steps: {
+        run_child: makeStepInstance({
+          stepInstanceId: 'run_child',
+          stepType: StepType.START_FLOW_EXECUTION,
+          flowDefinitionId: 'child',
+          customConfig: { sync: true },
+          defaultNextStepInstanceId: 'done',
+          ...(onError && { onError: { ...onError, continueOnFailure: false } }),
+        } as never),
+        on_failure: makeStepInstance({ stepInstanceId: 'on_failure', stepType: StepType.NO_OP }),
+        done: makeStepInstance({ stepInstanceId: 'done', stepType: StepType.END_FLOW }),
+      },
+    });
+    const failedSyncInput = (flow: FlowDefinition): ProcessorInput => ({
+      runtimeState: makeRuntimeState({ flowDefinitionId: flow.id, currentStepInstanceId: 'run_child', enableExecutionLogs: true }),
+      asyncTaskFailure: childFailure,
+    });
+
+    it('routes a failed sync sub-flow to the fallback and records the child error', async () => {
+      const flow = syncFlow({ fallbackStepInstanceId: 'on_failure' });
+      mockedLoad.mockResolvedValue(flow);
+      const logStep = vi.mocked(executionLoggerClient.logStepExecution);
+      logStep.mockClear();
+
+      const result = await invoke(failedSyncInput(flow));
+
+      expect(result.runtimeState.status).toBe('RUNNING');
+      expect(result.runtimeState.currentStepInstanceId).toBe('on_failure');
+      expect(logStep).toHaveBeenCalledWith(expect.objectContaining({
+        stepInstanceId: 'run_child',
+        status: 'FAILED',
+        errorInfo: expect.objectContaining({
+          errorName: 'ParallelBranchExecutionError',
+          errorMessage: 'One or more parallel branches failed.',
+          errorDetails: expect.objectContaining({ childExecutionArn: 'arn:aws:states:us-east-1:0:execution:orchestrator:child-1' }),
+        }),
+      }));
+    });
+
+    it('fails the parent flow when the sync step has no onError', async () => {
+      const flow = syncFlow();
+      mockedLoad.mockResolvedValue(flow);
+
+      const result = await invoke(failedSyncInput(flow));
+
+      expect(result.runtimeState.status).toBe('FAILED');
+      expect(result.runtimeState.currentStepInstanceId).toBeUndefined();
+      expect(result.runtimeState.errorInfo?.errorName).toBe('ParallelBranchExecutionError');
+    });
+
+    it('routes a failOnBranchError fork failure to the fork step fallback', async () => {
+      const flow = makeFlowDefinition({
+        id: 'fork',
+        steps: {
+          fork: makeStepInstance({
+            stepInstanceId: 'fork',
+            stepType: StepType.PARALLEL_FORK_MANAGER,
+            onError: { fallbackStepInstanceId: 'on_failure', continueOnFailure: false },
+          } as never),
+          on_failure: makeStepInstance({ stepInstanceId: 'on_failure', stepType: StepType.NO_OP }),
+        },
+      });
+      mockedLoad.mockResolvedValue(flow);
+
+      const result = await invoke({
+        runtimeState: makeRuntimeState({ flowDefinitionId: flow.id, currentStepInstanceId: 'fork' }),
+        parallelAggregateInput: {
+          originalStepInstanceId: 'fork',
+          branchOutputs: [{ branchId: 'b1', error: { errorName: 'PermanentStepError', errorMessage: 'boom', isRetryable: false } }],
+        },
+      } as ProcessorInput);
+
+      expect(result.runtimeState.status).toBe('RUNNING');
+      expect(result.runtimeState.currentStepInstanceId).toBe('on_failure');
+    });
   });
 
   it('fails with a ConfigurationError when the current step is missing from the flow definition', async () => {

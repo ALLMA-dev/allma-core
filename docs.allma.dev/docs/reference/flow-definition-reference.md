@@ -103,9 +103,9 @@ These properties are available on almost every step type.
 | ------------------------ | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `retries`                | `object`  | Configures retries for transient errors (e.g., network issues). Contains `count`, `intervalSeconds`, `backoffRate`.                                  |
 | `retryOnContentError`    | `object`  | Configures fast, internal retries for content errors (e.g., malformed JSON from an LLM). Contains `count`.                                          |
-| `fallbackStepInstanceId` | `string`  | The `stepInstanceId` to jump to if the step fails permanently after all retries. The flow continues instead of failing.                              |
+| `fallbackStepInstanceId` | `string`  | The `stepInstanceId` to jump to if the step fails permanently after all retries. The flow continues instead of failing. This applies to every step type, including a synchronous sub-flow whose child fails, a `PARALLEL_FORK_MANAGER` whose branch fails with `failOnBranchError: true`, and a wait or polling step that fails or times out. |
 | `logLevel`               | `string`  | Optional log level (`'ERROR'` or `'WARN'`) when transitioning to `fallbackStepInstanceId`. If `'ERROR'`, emits a structured ERROR log and a `FlowFallbackFired` CloudWatch EMF metric. Defaults to `'WARN'`. |
-| `continueOnFailure`      | `boolean` | If `true`, ignores the error and proceeds to the `defaultNextStepInstanceId`. The step's output will be empty. **Use with caution.**                  |
+| `continueOnFailure`      | `boolean` | If `true`, ignores the error and proceeds to the `defaultNextStepInstanceId`. The step's output will be empty. It does not apply to a synchronous sub-flow, a `PARALLEL_FORK_MANAGER` aggregation, or a wait or polling step; use `fallbackStepInstanceId` there. **Use with caution.**                  |
 
 ### The `checkpoint` Object
 
