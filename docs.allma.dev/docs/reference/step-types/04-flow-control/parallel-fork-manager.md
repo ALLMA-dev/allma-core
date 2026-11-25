@@ -39,7 +39,7 @@ Executes one or more branches of logic concurrently for each item in a collectio
 
 Use `strategy: "NONE"` when branches are **side-effecting** (they write to a store, emit events, etc.) and their combined output is **not needed** downstream. The aggregator then acts as a pure barrier: it **does not resolve or collect** any branch context — avoiding the memory cost that collection strategies incur on large fan-outs — and writes a small summary (`{ "aggregationSkipped": true, "aggregatedData": null, ... }`) to the step output instead of a large array.
 
-- With `failOnBranchError: true`, a failed branch still fails the step (and its `onError` applies) — this is determined from each branch's small status only, so nothing is hydrated.
+- With `failOnBranchError: true`, a failed branch still fails the step (and its `onError.fallbackStepInstanceId` applies) — this is determined from each branch's small status only, so nothing is hydrated.
 - With `failOnBranchError: false`, it is pure fire-and-forget: branch results are never fetched and branch failures are ignored.
 
 ---

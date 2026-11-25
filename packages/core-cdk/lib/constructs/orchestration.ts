@@ -104,6 +104,7 @@ export class AllmaOrchestration extends Construct {
         heartbeat: cdk.Duration.days(stageConfig.sfnTimeouts.mainOrchestratorDays > 0 ? stageConfig.sfnTimeouts.mainOrchestratorDays - 1 : 1),
         resultPath: '$.resumePayload',
     });
+    waitForEventTask.addRetry(lambdaServiceErrorRetryPolicy);
   
     const pollingSubFlowTask = new sfnTasks.StepFunctionsStartExecution(this, 'PollingSubFlowTask', {
         stateMachine: sfn.StateMachine.fromStateMachineArn(this, 'PollingSubStateMachine', pollingStateMachineArn),
