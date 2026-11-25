@@ -1,5 +1,16 @@
 # @allma/core-types
 
+## 2.2.0
+
+### Minor Changes
+
+- 67e0d13: A step's `onError.fallbackStepInstanceId` now applies when a synchronous sub-flow fails, when a `PARALLEL_FORK_MANAGER` with `failOnBranchError` has a failed branch, and when a wait or polling step fails or times out. Before, these failures ended the flow FAILED without a FAILED step record and without the fallback. The FAILED record of a sync sub-flow step carries the child's error name, message and execution ARN. A step without `onError` still fails the flow. `ProcessorInput` has a new optional `asyncTaskFailure` field.
+- f0f0ffa: Secure the public flow-trigger (`POST /allma/flows/{flowId}/trigger`) and resume (`POST /allma/resume`) routes. Both routes now enforce AWS IAM (SigV4) at the gateway by default; set `adminApi.webhookApiKeySecretArn` to instead accept an `x-api-key` / `Authorization: Bearer` caller secret that the Lambda verifies against Secrets Manager. The authenticated caller identity is carried as `ownerPrincipal` through the flow run and stamped onto `WAIT_FOR_EXTERNAL_EVENT` continuation records, so a resume now atomically verifies the caller owns the waiting run (403 on mismatch, 404 on missing key) before sending `SendTaskSuccess`. The internal system resume from `finalize-flow` authenticates its own call (SigV4 and/or a body HMAC signature).
+
+### Patch Changes
+
+- cd298fc: Add `outputValidation` path type checks (`array`, `object`, `string`, `number`, `boolean`) to `@allma/core-types`, enforce them in `step-executor` to raise `ContentBasedRetryableError`, and document the configuration in `@allma/admin-shell` and docs.
+
 ## 2.1.0
 
 ### Minor Changes
