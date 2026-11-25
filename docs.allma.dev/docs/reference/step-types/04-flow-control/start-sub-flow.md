@@ -70,7 +70,7 @@ The output behavior depends on `subFlowExecutionMode`:
 -   In **`ASYNC`** mode, the parent does not wait, so no sub-flow result is merged into context.
 -   In **`SYNC`** mode, once the sub-flow completes successfully, the parent receives the sub-flow's **final context data** (`finalContextData`). This resolved object is what gets passed through your `outputMappings`. If no `outputMappings` are defined, the entire sub-flow final context is placed under `$.steps_output.<stepInstanceId>` by default.
 
-If the synchronous sub-flow fails, this step also fails and propagates the sub-flow's error.
+If the synchronous sub-flow fails, times out or is aborted, this step fails with the sub-flow's error. The step's FAILED record carries the child's error name, error message and execution ARN. The step's `onError` applies: with a `fallbackStepInstanceId`, the parent continues at the fallback step. Without one, the parent flow fails.
 
 The shape of the merged object is the sub-flow's own final context, for example:
 ```json

@@ -111,6 +111,8 @@ export const ProcessorInputSchema = z.object({
   resumePayload: z.any().optional(),
   pollingResult: z.object({ Output: z.any() }).passthrough().optional(),
   syncFlowResult: z.any().optional(),
+  /** Set by the orchestrator when a wait, polling or sync sub-flow task fails: the Step Functions catch output. */
+  asyncTaskFailure: z.object({ Error: z.string().optional(), Cause: z.string().optional() }).passthrough().optional(),
   parallelAggregateInput: z.object({
       branchOutputs: z.array(BranchResultSchema).optional(),
       mapResultsDetails: z.object({

@@ -28,6 +28,7 @@ import { handleParallelFork, handleParallelAggregation } from './parallel-handle
 import { prepareStepInput } from '../../allma-core/data-mapper.js';
 import { executionLoggerClient } from '../../allma-core/execution-logger-client.js';
 import { handleSyncFlowStart, handleSyncFlowResult } from './sync-flow-handler.js';
+import { toAsyncTaskFailureError } from './async-task-failure.js';
 import { enforceTransitionLimits } from './transition-limits.js';
 import { computeProgressStamp } from './progress-stamper.js';
 import { buildExecutionEvent, emitLifecycleEvent } from '../../allma-core/notifications/execution-notifier.js';
@@ -35,6 +36,13 @@ import { buildExecutionEvent, emitLifecycleEvent } from '../../allma-core/notifi
 const EXECUTION_TRACES_BUCKET_NAME = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_TRACES_BUCKET_NAME];
 const EXECUTION_STATUS_TOPIC_ARN = process.env[ENV_VAR_NAMES.ALLMA_EXECUTION_STATUS_TOPIC_ARN];
 const SFN_SAFE_PAYLOAD_LIMIT = 100 * 1024; // 100KB safe threshold to ensure total output stays well under 256KB
+
+const resolveStepInstance = (flowDef: FlowDefinition, runtimeState: FlowRuntimeState): StepInstance | undefined => {
+    const stepInstanceId = runtimeState.currentStepInstanceId;
+    if (!stepInstanceId || !flowDef.steps[stepInstanceId]) return undefined;
+    const overrides = runtimeState.executionOverrides?.stepOverrides?.[stepInstanceId];
+    return overrides ? deepMerge(flowDef.steps[stepInstanceId], overrides) as StepInstance : flowDef.steps[stepInstanceId];
+};
 
 /**
  * Stamps live progress (Pillar A) onto the execution's metadata record at a step boundary, and —
@@ -135,7 +143,7 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
     let runtimeState: FlowRuntimeState = event.runtimeState;
     const isBranchExecution = !!runtimeState.branchId;
 
-    const { taskToken, parallelAggregateInput, resumePayload, pollingResult, syncFlowResult } = originalEvent;
+    const { taskToken, parallelAggregateInput, resumePayload, pollingResult, syncFlowResult, asyncTaskFailure } = originalEvent;
 
     let flowDef: FlowDefinition | undefined;
     let stepInstance: StepInstance | undefined;
@@ -156,11 +164,18 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
         }
         // --- END HYDRATION LOGIC ---
 
-        if (syncFlowResult) {
+        // The step that started the async task stays current until its result is applied, so the
+        // catch below can write its FAILED record and apply its onError.
+        if (asyncTaskFailure) {
+            flowDef = await loadFlowDefinition(runtimeState.flowDefinitionId, runtimeState.flowDefinitionVersion, correlationId);
+            stepInstance = resolveStepInstance(flowDef, runtimeState);
+            throw toAsyncTaskFailureError(asyncTaskFailure);
+        } else if (syncFlowResult) {
             log_info('Processing result from synchronous sub-flow execution.', {}, correlationId);
             if (!flowDef) {
                 flowDef = await loadFlowDefinition(runtimeState.flowDefinitionId, runtimeState.flowDefinitionVersion, correlationId);
             }
+            stepInstance = resolveStepInstance(flowDef, runtimeState);
             runtimeState = await handleSyncFlowResult(originalEvent, runtimeState, flowDef, correlationId);
             const { nextStepId, transitionDetails } = await resolveNextStep(flowDef.steps[runtimeState.currentStepInstanceId!], runtimeState);
             enforceTransitionLimits(flowDef.steps[runtimeState.currentStepInstanceId!], nextStepId, transitionDetails, runtimeState, correlationId);
@@ -169,6 +184,7 @@ export const handler: Handler<ProcessorInput, ProcessorOutput | void> = async (e
             if (!flowDef) {
                 flowDef = await loadFlowDefinition(runtimeState.flowDefinitionId, runtimeState.flowDefinitionVersion, correlationId);
             }
+            stepInstance = resolveStepInstance(flowDef, runtimeState);
             runtimeState = await handleAsyncResume(originalEvent, runtimeState, flowDef);
 
             const completedStepConfig = flowDef.steps[runtimeState.currentStepInstanceId!];
