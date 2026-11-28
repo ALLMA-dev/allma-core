@@ -595,7 +595,7 @@ export const handleParallelFork = async (
         );
 
         const manifestContent = JSON.stringify(branchesToExecute);
-        const manifestKey = `manifests/${correlationId}/${stepInstanceConfig.stepInstanceId}-${new Date().toISOString()}.json`;
+        const manifestKey = `manifests/${correlationId}/${stepInstanceConfig.stepInstanceId}-${new Date().toISOString()}-${uuidv4()}.json`;
 
         await s3Client.send(new PutObjectCommand({
             Bucket: EXECUTION_TRACES_BUCKET_NAME,

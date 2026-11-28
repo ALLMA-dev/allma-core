@@ -1,4 +1,5 @@
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
+import { v4 as uuidv4 } from 'uuid';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import {
     ENV_VAR_NAMES,
@@ -131,7 +132,7 @@ class ExecutionLoggerClient {
             
             // ALWAYS upload the (now potentially modified) full record to S3.
             const fullRecordString = JSON.stringify(recordToLog);
-            const s3Key = `full_step_records/${correlationId}/${s3Identifier}_${new Date().toISOString()}.json`;
+            const s3Key = `full_step_records/${correlationId}/${s3Identifier}_${new Date().toISOString()}_${uuidv4()}.json`;
             
             await s3Client.send(new PutObjectCommand({
                 Bucket: EXECUTION_TRACES_BUCKET_NAME,
