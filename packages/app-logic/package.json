@@ -19,7 +19,7 @@
     "src/"
   ],
   "dependencies": {
-    "@allma/core-sdk": "^1.4.0",
+    "@allma/core-sdk": "^1.4.1",
     "@allma/core-types": "^2.2.0",
     "@aws-sdk/client-bedrock-runtime": "^3.1101.0",
     "@aws-sdk/client-dynamodb": "^3.1101.0",
