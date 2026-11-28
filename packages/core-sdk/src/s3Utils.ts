@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { S3OutputPointerWrapper, S3Pointer } from '@allma/core-types';
@@ -12,7 +11,7 @@ const s3Client = new S3Client({ maxAttempts: 10, retryMode: 'adaptive' });
 // Concurrent fork branches share one flowExecutionId and can offload at the same step in the same
 // millisecond, so a timestamp alone does not make a key unique. Readers only follow the stored pointer.
 function uniqueObjectKey(keyPrefix: string, extension: string): string {
-    return `${keyPrefix}_${new Date().toISOString()}_${randomUUID()}.${extension}`;
+    return `${keyPrefix}_${new Date().toISOString()}_${crypto.randomUUID()}.${extension}`;
 }
 
 const MAX_CONTEXT_DATA_SIZE_BYTES_DEFAULT = 10 * 1024; // 10KB default
