@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { S3OutputPointerWrapper, S3Pointer } from '@allma/core-types';
@@ -7,6 +8,12 @@ import { isObject } from './objectUtils.js';
 
 // Configure S3 client with adaptive retry mode to gracefully handle rate limit exhaustion (429/503 Slow Down)
 const s3Client = new S3Client({ maxAttempts: 10, retryMode: 'adaptive' });
+
+// Concurrent fork branches share one flowExecutionId and can offload at the same step in the same
+// millisecond, so a timestamp alone does not make a key unique. Readers only follow the stored pointer.
+function uniqueObjectKey(keyPrefix: string, extension: string): string {
+    return `${keyPrefix}_${new Date().toISOString()}_${randomUUID()}.${extension}`;
+}
 
 const MAX_CONTEXT_DATA_SIZE_BYTES_DEFAULT = 10 * 1024; // 10KB default
 const PAYLOAD_OFFLOAD_THRESHOLD_BYTES = process.env[ENV_VAR_NAMES.MAX_CONTEXT_DATA_SIZE_BYTES]
@@ -195,7 +202,7 @@ export async function offloadIfLarge(
         log_debug(`offloadIfLarge for ${bucketName} ${keyPrefix}...`, { thresholdBytes }, correlationId);
 
         if (payloadSize > thresholdBytes) {
-            const s3Key = `${keyPrefix}_${new Date().toISOString()}.json`;
+            const s3Key = uniqueObjectKey(keyPrefix, 'json');
             log_warn(`Payload is large (${payloadSize} bytes). Offloading to S3.`, { s3Key, thresholdBytes }, correlationId);
 
             await s3Client.send(new PutObjectCommand({
@@ -266,7 +273,7 @@ export async function recursivelyOffloadLargeFields(
                         log_warn(`Field '${key}' in '${keyPrefix}' is large (${valueSize} bytes), offloading to S3.`, { }, correlationId);
                         
                         const isString = typeof value === 'string';
-                        const s3Key = `${keyPrefix}/${key}_${new Date().toISOString()}.${isString ? 'txt' : 'json'}`;
+                        const s3Key = uniqueObjectKey(`${keyPrefix}/${key}`, isString ? 'txt' : 'json');
                         await s3Client.send(new PutObjectCommand({
                             Bucket: bucketName,
                             Key: s3Key,
@@ -301,7 +308,7 @@ export async function recursivelyOffloadLargeFields(
         const valueSize = Buffer.byteLength(data, 'utf-8');
         if (valueSize > thresholdBytes) {
              log_warn(`String value at path '${keyPrefix}' is large (${valueSize} bytes), offloading to S3.`, {}, correlationId);
-             const s3Key = `${keyPrefix}_${new Date().toISOString()}.txt`;
+             const s3Key = uniqueObjectKey(keyPrefix, 'txt');
              await s3Client.send(new PutObjectCommand({
                  Bucket: bucketName,
                  Key: s3Key,
